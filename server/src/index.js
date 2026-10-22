@@ -67,13 +67,28 @@ app.get('/api/age-status',auth,wrap(async(req,res)=>{
   const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18;
   res.json({route:!u.birth_date?'age_gate':new Date(u.birth_date).getTime()>Date.now()-18*31557600000?'youth':adultAccess?'adult':'adult_verification',adultAccess,status:u.age_verification_status});
 }));
+
+const bannedProfileTerms=['fuck','shit','bitch','asshole','cunt','dick','pussy','cock','whore','slut','porn','nude','ебать','ебу','ебал','ебан','ёбан','бляд','бля','сука','сучка','хуй','хуя','хуе','пизд','мудил','гандон','залуп','шлюх','секс','порно','дроч','насил','scheisse','scheiß','fick','ficken','arschloch','hure','schlampe','wichser','hurensohn','putain','merde','connard','puta','joder','mierda','cazzo','kurwa','chuj','pizda','blyat','suka','cyka','hui','pizdec','pidor','pidaras','zaeb','nahui','huy','huylo'];
+function profileTextProblem(values){
+ const text=values.filter(v=>typeof v==='string').join(' ').normalize('NFKC').toLocaleLowerCase();
+ const compact=text.replace(/[\s._*\-+!@#$%^&()\[\]{}:;'"~`/\\|]+/g,'');
+ return bannedProfileTerms.some(term=>text.includes(term)||compact.includes(term.replace(/[^a-zа-яё]/gi,'')));
+}
+app.post('/api/listings',auth,wrap(async(req,res)=>{
+ const {name,age,city,country,hobbies='',description=''}=req.body||{};
+ if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя должно содержать от 2 до 60 символов.'});
+ if(!Number.isInteger(Number(age))||Number(age)<18||Number(age)>100)return res.status(400).json({error:'Возраст указывается числом от 18 до 100.'});
+ if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
+ if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
+ if(profileTextProblem([name,city,country,hobbies,description]))return res.status(400).json({error:'В анкете найдены запрещённые ругательства или пошлые слова. Исправь текст.'});
+ const q=await pool.query(`INSERT INTO listings(user_id,name,age,city,country,hobbies,description,status) VALUES($1,$2,$3,$4,$5,$6,$7,'published')
+ ON CONFLICT(user_id) DO UPDATE SET name=EXCLUDED.name,age=EXCLUDED.age,city=EXCLUDED.city,country=EXCLUDED.country,hobbies=EXCLUDED.hobbies,description=EXCLUDED.description,status='published',updated_at=NOW()
+ RETURNING id,name,age,city,country,hobbies,description,created_at`,[req.user.id,name.trim(),Number(age),city.trim(),country.trim(),hobbies.trim(),description.trim()]);
+ res.status(201).json({listing:q.rows[0]});
+}));
 app.get('/api/discover',auth,wrap(async(req,res)=>{
-  const q=await pool.query(`SELECT u.id,u.first_name AS name,u.bio,u.city,u.photo_url,u.goal,u.interests FROM users u
-    WHERE u.id<>$1 AND u.discoverable=TRUE AND u.verified_birth_date IS NOT NULL AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'
-    AND u.age_verification_status='verified' AND u.account_status='active' AND u.profile_review_status<>'restricted'
-    AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
-    AND NOT EXISTS(SELECT 1 FROM likes l WHERE l.from_user=$1 AND l.to_user=u.id) ORDER BY u.created_at DESC LIMIT 50`,[req.user.id]);
-  res.json({people:q.rows});
+  const q=await pool.query(`SELECT l.id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,u.photo_url FROM listings l JOIN users u ON u.id=l.user_id WHERE l.user_id<>$1 AND l.status='published' AND u.account_status='active' AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1)) ORDER BY l.created_at DESC LIMIT 50`,[req.user.id]);
+  res.json({people:q.rows.map(p=>({...p,bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
 }));
 app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
