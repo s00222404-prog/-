@@ -200,7 +200,7 @@ app.post('/telegram/webhook', (req,res) => {
       if(ok)markup={keyboard:[[{text:'/очередь'},{text:'/пользователи'}],[{text:'/юзер'},{text:'/помощь'}]],resize_keyboard:true};
     }else if(cmd==='/бан'||cmd==='/ban'){
       if(!ok)reply='⛔ Только для администраторов.';
-      else{const bm=txt.match(/^\\/(?:бан|ban)(?:@\\S+)?\\s+(\\d+)\\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажи ID и причину: /бан 123 спам или мошенничество';else if(bm[2].trim().length>500)reply='Причина слишком длинная (максимум 500 символов).';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING first_name,telegram_id",[bm[2].trim(),Number(bm[1])]);if(!target.rowCount)reply='Пользователь не найден.';else reply='⛔ Забанен: '+target.rows[0].first_name+' (Telegram ID '+target.rows[0].telegram_id+').\nПричина: '+bm[2].trim();}}
+      else{const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(\d+)\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажи ID и причину: /бан 123 спам или мошенничество';else if(bm[2].trim().length>500)reply='Причина слишком длинная (максимум 500 символов).';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING first_name,telegram_id",[bm[2].trim(),Number(bm[1])]);if(!target.rowCount)reply='Пользователь не найден.';else reply='⛔ Забанен: '+target.rows[0].first_name+' (Telegram ID '+target.rows[0].telegram_id+').\nПричина: '+bm[2].trim();}}
     }else if(cmd==='/юзер'||cmd==='/user'){
       if(!ok)reply='⛔ Только для администраторов.';
       else if(!arg)reply='Использование: /юзер @username или /юзер Telegram_ID';
