@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw } from 'lucide-react';
+import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw, MessageCircle } from 'lucide-react';
 import './style.css';
 
 const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -17,6 +17,10 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [ageStatus, setAgeStatus] = useState(null);
+  const [chats, setChats] = useState([]);
+  const [activeChat, setActiveChat] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
 
   async function request(path, options = {}) {
     const response = await fetch(API + path, {
@@ -58,6 +62,8 @@ function App() {
       setAgeStatus(age);
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
+      const chatData = await request('/api/chats');
+      setChats(chatData.chats || []);
     } catch (e) {
       setError(e.message || 'Не удалось подключиться к VIBE API.');
     } finally {
@@ -110,6 +116,32 @@ function App() {
     } catch (e) { setError(e.message); }
   }
 
+  async function refreshChats() {
+    try { const data = await request('/api/chats'); setChats(data.chats || []); }
+    catch (e) { setError(e.message); }
+  }
+
+  async function openChat(chat) {
+    try {
+      setActiveChat(chat);
+      const data = await request('/api/chats/' + encodeURIComponent(chat.user_id) + '/messages');
+      setMessages(data.messages || []);
+      setTab('chat');
+    } catch (e) { setError(e.message); }
+  }
+
+  async function sendMessage(e) {
+    e.preventDefault();
+    if (!activeChat || !draft.trim()) return;
+    try {
+      const data = await request('/api/chats/' + encodeURIComponent(activeChat.user_id) + '/messages', {
+        method: 'POST', body: JSON.stringify({ body: draft.trim() })
+      });
+      setMessages(current => [...current, data.message]);
+      setDraft('');
+    } catch (e) { setError(e.message); }
+  }
+
   async function skip(person) {
     // Hiding a card is only a local action; it does not create a like.
     setPeople(current => current.filter(p => p.id !== person.id));
@@ -120,7 +152,7 @@ function App() {
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" onClick={() => setTab('profile')}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
     <section className="hero"><div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА</div><h1>Люди, с которыми<br/><span>совпадает вайб.</span></h1><p>Настоящие анкеты пользователей VIBE — без выдуманных профилей.</p></section>
-    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={() => setTab('likes')}><Heart size={17}/> Симпатии</button><button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}><UserRound size={17}/> Профиль</button></nav>
+    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={() => setTab('likes')}><Heart size={17}/> Симпатии</button><button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}><UserRound size={17}/> Профиль</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты</button></nav>
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
@@ -133,7 +165,9 @@ function App() {
         <div className="person-info"><div className="person-title"><div><h3>{p.name || 'Пользователь'}</h3><span className="location"><MapPin size={13}/>{p.city || 'Город не указан'}</span></div></div><p>{p.bio || 'Пока без описания.'}</p><div className="chips">{(p.interests || []).map(x => <span key={x}>{x}</span>)}</div><div className="card-actions"><button className="skip" onClick={() => skip(p)}>Пропустить</button><button className="like" onClick={() => like(p)}><Heart size={17} fill="currentColor"/> Нравится</button></div></div>
       </article>)}
     </section>}
-    {!loading && tab === 'likes' && <section className="panel"><div className="panel-icon"><Heart/></div><h2>Симпатии</h2><p>Лайки отправляются в базу VIBE. Раздел взаимных симпатий и чатов ещё нужно реализовать.</p></section>}
+    {!loading && tab === 'likes' && <section className="panel"><div className="panel-icon"><Heart/></div><h2>Симпатии</h2><p>Когда симпатия взаимная, здесь можно начать переписку через раздел «Чаты».</p><button className="save" onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button></section>}
+    {!loading && tab === 'chats' && <section className="panel"><div className="panel-icon"><MessageCircle/></div><h2>Твои чаты</h2><p>Переписка доступна после взаимного лайка.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Ставь лайки анкетам — чат появится, когда симпатия станет взаимной.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{(chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
+    {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required/><button className="like" type="submit"><ArrowRight size={17}/></button></form></section>}
     {!loading && tab === 'profile' && <section className="panel profile-panel"><div className="panel-icon"><UserRound/></div><h2>Твой профиль</h2><p>Профиль сохраняется в базе данных и привязывается к твоему Telegram.</p>
       <form onSubmit={saveProfile}>
         <label>Имя в Telegram<input value={user?.first_name || ''} readOnly/></label>
