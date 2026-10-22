@@ -26,6 +26,8 @@ function App() {
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [reporting, setReporting] = useState(false);
+  const [listing, setListing] = useState({name:'',age:'',city:'',country:'',hobbies:'',description:''});
+  const [publishing, setPublishing] = useState(false);
 
   async function request(path, options = {}) {
     const response = await fetch(API + path, {
@@ -67,6 +69,8 @@ function App() {
       setAgeStatus(age);
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
+      const myListing = await request('/api/listings/mine').catch(() => ({listing:null}));
+      if (myListing.listing) setListing({name:myListing.listing.name,age:String(myListing.listing.age),city:myListing.listing.city,country:myListing.listing.country,hobbies:myListing.listing.hobbies||'',description:myListing.listing.description||''});
       const chatData = await request('/api/chats');
       setChats(chatData.chats || []);
     } catch (e) {
@@ -176,6 +180,19 @@ function App() {
     } catch (e) { setError(e.message); }
   }
 
+  async function publishListing(e) {
+    e.preventDefault();
+    setPublishing(true); setError(''); setNotice('');
+    try {
+      const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:Number(listing.age)})});
+      setListing({...result.listing,age:String(result.listing.age)});
+      const discovery=await request('/api/discover'); setPeople(discovery.people||[]);
+      setNotice('Анкета опубликована и отправлена в рекомендации VIBE.');
+      setTab('discover');
+    } catch(e) { setError(e.message||'Не удалось опубликовать анкету.'); }
+    finally { setPublishing(false); }
+  }
+
   async function submitReport(e) {
     e.preventDefault();
     if (!reportTarget || !reportReason.trim()) return;
@@ -203,7 +220,7 @@ function App() {
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" onClick={() => setTab('profile')}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
     <section className="hero"><div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА</div><h1>Люди, с которыми<br/><span>совпадает вайб.</span></h1><p>Настоящие анкеты пользователей VIBE — без выдуманных профилей.</p></section>
-    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={() => setTab('likes')}><Heart size={17}/> Симпатии</button><button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}><PlusCircle size={17}/> Добавить анкету</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты</button></nav>
+    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={() => setTab('likes')}><Heart size={17}/> Симпатии</button><button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('listing')}><PlusCircle size={17}/> Добавить анкету</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты</button></nav>
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
@@ -212,13 +229,23 @@ function App() {
       {people.length === 0 && <div className="empty"><Sparkles/><h3>Пока нет доступных анкет</h3><p>Основной интерфейс открыт для просмотра. Анкеты появятся после регистрации пользователей и необходимых проверок.</p></div>}
       {people.map(p => <article className="person-card" key={p.id}>
         <div className="person-art violet">{p.photo_url ? <img src={p.photo_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <div className="person-initial">{(p.name || '?').slice(0,1)}</div>}<span className="art-caption">VIBE / MEMBER</span></div>
-        <div className="person-info"><div className="person-title"><div><h3>{p.name || 'Пользователь'}</h3><span className="location"><MapPin size={13}/>{p.city || 'Город не указан'}</span></div></div><p>{p.bio || 'Пока без описания.'}</p><div className="chips">{(p.interests || []).map(x => <span key={x}>{x}</span>)}</div><div className="card-actions"><button className="skip" onClick={() => skip(p)}>Пропустить</button><button className="like" onClick={() => like(p)}><Heart size={17} fill="currentColor"/> Нравится</button><button className="skip" onClick={() => { setReportTarget(p); setReportReason(''); setReportDetails(''); }}>Пожаловаться</button></div></div>
+        <div className="person-info"><div className="person-title"><div><h3>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}</h3><span className="location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span></div></div><p>{p.description || p.bio || 'Пока без описания.'}</p><div className="chips">{(p.interests || []).map(x => <span key={x}>{x}</span>)}</div><div className="card-actions"><button className="skip" onClick={() => skip(p)}>Пропустить</button><button className="like" onClick={() => like(p)}><Heart size={17} fill="currentColor"/> Нравится</button><button className="skip" onClick={() => { setReportTarget(p); setReportReason(''); setReportDetails(''); }}>Пожаловаться</button></div></div>
       </article>)}
     </section>}
     {reportTarget && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setReportTarget(null)}>← Отмена</button><h2>Пожаловаться на {reportTarget.name || 'пользователя'}</h2><p>Жалоба попадёт администраторам VIBE для проверки.</p><form onSubmit={submitReport}><label>Причина<select value={reportReason} onChange={e => setReportReason(e.target.value)} required><option value="">Выбери причину</option><option value="Спам">Спам</option><option value="Оскорбления или угрозы">Оскорбления или угрозы</option><option value="Фейковая анкета">Фейковая анкета</option><option value="Неприемлемый контент">Неприемлемый контент</option><option value="Подозрение на мошенничество">Подозрение на мошенничество</option><option value="Другое">Другое</option></select></label><label>Подробности (необязательно)<textarea value={reportDetails} onChange={e => setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло"/></label><button className="save" type="submit" disabled={reporting}>{reporting ? 'Отправляем…' : 'Отправить жалобу'}</button></form></section></div>}
     {!loading && tab === 'likes' && <section className="panel"><div className="panel-icon"><Heart/></div><h2>Симпатии</h2><p>Когда симпатия взаимная, здесь можно начать переписку через раздел «Чаты».</p><button className="save" onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button></section>}
     {!loading && tab === 'chats' && <section className="panel"><div className="panel-icon"><MessageCircle/></div><h2>Твои чаты</h2><p>Переписка доступна после взаимного лайка.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Ставь лайки анкетам — чат появится, когда симпатия станет взаимной.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{(chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
     {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required/><button className="like" type="submit"><ArrowRight size={17}/></button></form></section>}
+    {!loading && tab === 'listing' && <section className="panel profile-panel"><div className="panel-icon"><PlusCircle/></div><h2>Добавить анкету</h2><p>Это отдельная публичная анкета для рекомендаций. Она не меняет данные твоего профиля Telegram.</p><form onSubmit={publishListing}>
+      <label>Имя<input value={listing.name} onChange={e=>setListing({...listing,name:e.target.value})} minLength={2} maxLength={60} placeholder="Как тебя показывать" required/></label>
+      <label>Возраст (числом)<input type="number" inputMode="numeric" min="18" max="100" step="1" value={listing.age} onChange={e=>setListing({...listing,age:e.target.value})} placeholder="Например, 22" required/></label>
+      <label>Город<input value={listing.city} onChange={e=>setListing({...listing,city:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Берлин" required/></label>
+      <label>Страна<input value={listing.country} onChange={e=>setListing({...listing,country:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Германия" required/></label>
+      <label>Хобби и занятия<textarea value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, прогулки…"/></label>
+      <label>Описание<textarea value={listing.description} onChange={e=>setListing({...listing,description:e.target.value})} maxLength={1000} placeholder="Расскажи о себе без мата и пошлостей" required/></label>
+      <p className="field-hint">Перед публикацией проверяем текст на ругательства и пошлые выражения. Возраст анкеты должен быть 18+.</p>
+      <button className="save" type="submit" disabled={publishing}><PlusCircle size={16}/>{publishing?'Публикуем…':'Опубликовать анкету'}<ArrowRight size={16}/></button>
+    </form></section>}
     {!loading && tab === 'profile' && <section className="panel profile-panel"><div className="panel-icon"><UserRound/></div><h2>Твой профиль</h2><p>Профиль сохраняется в базе данных и привязывается к твоему Telegram.</p>
       <form onSubmit={saveProfile}>
         <label>Имя в Telegram<input value={user?.first_name || ''} readOnly/></label>
