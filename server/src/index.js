@@ -218,7 +218,7 @@ app.post('/telegram/webhook', (req,res) => {
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
     if(m && (cmd==='/бан' || cmd==='/ban') && /^все$/i.test(arg)){
       if(!isDeveloper){await send('⛔ Команда /бан все доступна только разработчику.');return;}
-      const reason=txt.replace(/^\\/(?:бан|ban)(?:@\\S+)?\\s+все\\s*/i,'').trim();
+      const reason=txt.split(/\s+/).slice(2).join(' ').trim();
       if(!reason || reason.length>500){await send('Укажи причину (до 500 символов): /бан все причина');return;}
       const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE telegram_id<>$2 AND account_status IS DISTINCT FROM 'banned' RETURNING id",[reason,DEVELOPER_TELEGRAM_ID]);
       await send('⛔ Массовый бан завершён. Забанено аккаунтов: '+q.rowCount+'\\nПричина: '+reason);
