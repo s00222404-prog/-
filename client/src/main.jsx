@@ -64,7 +64,7 @@ function App() {
     }
   }
 
-  useEffect(() => { loadApp(); }, []);
+  useEffect(() => { if (initData) loadApp(); else setLoading(false); }, []);
 
   async function saveProfile(e) {
     e.preventDefault();
@@ -115,8 +115,9 @@ function App() {
   }
 
   if (location.pathname === '/admin') return <AdminLink />;
+  if (!initData) return <Landing />;
   return <main className="app-shell">
-    <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" onClick={() => setTab('profile')}>{(user?.first_name || 'Я').slice(0, 1)}</button></header>
+    <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" onClick={() => setTab('profile')}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
     <section className="hero"><div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА</div><h1>Люди, с которыми<br/><span>совпадает вайб.</span></h1><p>Настоящие анкеты пользователей VIBE — без выдуманных профилей.</p></section>
     <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={() => setTab('likes')}><Heart size={17}/> Симпатии</button><button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}><UserRound size={17}/> Профиль</button></nav>
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
@@ -135,6 +136,7 @@ function App() {
     {!loading && tab === 'profile' && <section className="panel profile-panel"><div className="panel-icon"><UserRound/></div><h2>Твой профиль</h2><p>Профиль сохраняется в базе данных и привязывается к твоему Telegram.</p>
       <form onSubmit={saveProfile}>
         <label>Имя в Telegram<input value={user?.first_name || ''} readOnly/></label>
+        <label>Username Telegram<input value={user?.username ? '@' + user.username : 'Не указан'} readOnly/></label>
         <label>Дата рождения<input type="date" value={profile.birthDate} max={new Date().toISOString().slice(0,10)} onChange={e => setProfile({...profile,birthDate:e.target.value})} required/></label>
         <label>Пол (необязательно)<select value={profile.gender} onChange={e => setProfile({...profile,gender:e.target.value})}><option value="">Не указывать</option><option value="woman">Женщина</option><option value="man">Мужчина</option><option value="nonbinary">Небинарный человек</option><option value="prefer_not_to_say">Предпочитаю не отвечать</option></select></label>
         <label>Город<input value={profile.city} onChange={e => setProfile({...profile,city:e.target.value})} maxLength={100} placeholder="Например, Берлин"/></label>
@@ -147,6 +149,30 @@ function App() {
       </form>
     </section>}
     <footer><span>vibe. © 2026</span><span><Lock size={12}/> Безопасность важна</span><a href="/admin">Админ-панель</a></footer>
+  </main>;
+}
+
+
+function Landing() {
+  return <main className="app-shell landing-shell">
+    <header className="topbar">
+      <div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div>
+      <a className="landing-menu" href="#about">О VIBE</a>
+    </header>
+    <section className="landing-hero">
+      <div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА</div>
+      <div className="landing-orb"><div className="orb-core">v<span>.</span></div><span className="orb-dot orb-dot-one">✦</span><span className="orb-dot orb-dot-two">♡</span><span className="orb-dot orb-dot-three">✧</span></div>
+      <h1>Твой человек.<br/><span>Твой вайб.</span></h1>
+      <p>Знакомься с людьми, с которыми легко быть собой. Начни с Telegram — это быстро и без лишних паролей.</p>
+      <a className="register-button" href="https://t.me/iBEDatig_Bot?start=register"><span className="telegram-icon">➤</span> Зарегистрироваться через Telegram <ArrowRight size={18}/></a>
+      <div className="landing-trust"><span><Lock size={14}/> Вход через Telegram</span><span><Sparkles size={14}/> Твой профиль — твой вайб</span></div>
+    </section>
+    <section className="landing-features" id="about">
+      <article><span className="feature-icon"><Heart/></span><h2>Настоящие люди</h2><p>Показываем анкеты реальных пользователей, без выдуманных профилей.</p></article>
+      <article><span className="feature-icon"><UserRound/></span><h2>Профиль за минуту</h2><p>Имя и username Telegram привяжутся к профилю автоматически.</p></article>
+      <article><span className="feature-icon"><ShieldAlert/></span><h2>Безопасность важна</h2><p>Доступ к знакомствам для взрослых открывается только после проверки возраста.</p></article>
+    </section>
+    <footer><span>vibe. © 2026</span><span><Lock size={12}/> Безопасность важна</span></footer>
   </main>;
 }
 
