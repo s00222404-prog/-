@@ -136,9 +136,10 @@ app.post('/telegram/webhook', (req,res) => {
   if (!token) return;
   (async () => {
     const telegramUser = message.from;
-    const command = message.text.trim().split(/\\s+/)[0].split('@')[0].toLowerCase();
+    const text = message.text.trim();
+    const command = text.split(/\\s+/)[0].split('@')[0].toLowerCase();
     const adminIds = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(x => x.trim()).filter(Boolean);
-    const isAdmin = adminIds.includes(String(telegramUser?.id));
+    const isAdmin = telegramUser?.id && adminIds.includes(String(telegramUser.id));
     let reply;
     let replyMarkup;
     if (command === '/start') {
@@ -149,33 +150,37 @@ app.post('/telegram/webhook', (req,res) => {
           [String(telegramUser.id), telegramUser.username ?? null, telegramUser.first_name]
         );
       }
-      reply = 'Привет! Это VIBE ✨ Нажми кнопку ниже, чтобы открыть приложение.';
-      replyMarkup = { inline_keyboard: [[{ text: 'Открыть VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
-    } else if (['/адм', '/admin'].includes(command)) {
+      reply = 'Привет! Открой VIBE кнопкой ниже ✨';
+      replyMarkup = { inline_keyboard: [[{ text: 'Перейти на сайт VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
+    } else if (command === '/адм' || command === '/admin') {
       if (!isAdmin) {
         reply = '⛔ Команда доступна только администраторам.';
       } else {
-        reply = '🛡️ VIBE — меню администратора\\n\\n/очередь — проверить жалобы и флаги модерации\\n/сайт — открыть приложение\\n/адм — показать это меню';
-        replyMarkup = { keyboard: [[{ text: '/очередь' }, { text: '/адм' }], [{ text: '/сайт' }]], resize_keyboard: true };
+        reply = '🛠 Меню администратора VIBE\\n\\nВыбери команду:';
+        replyMarkup = { keyboard: [[{ text: '/очередь' }, { text: '/пользователи' }], [{ text: '/помощь' }, { text: '/start' }]], resize_keyboard: true };
       }
-    } else if (command === '/очередь') {
-      if (!isAdmin) {
-        reply = '⛔ Команда доступна только администраторам.';
-      } else {
+    } else if (command === '/помощь' || command === '/help') {
+      reply = isAdmin
+        ? 'Команды администратора VIBE:\\n/адм — открыть меню\\n/очередь — количество жалоб и флагов на проверке\\n/пользователи — число аккаунтов\\n/помощь — эта справка'
+        : 'Чтобы открыть VIBE, нажми /start.';
+    } else if (command === '/очередь' || command === '/queue') {
+      if (!isAdmin) reply = '⛔ Команда доступна только администраторам.';
+      else {
         const [reports, flags] = await Promise.all([
           pool.query("SELECT COUNT(*)::int AS count FROM reports WHERE status IN ('open','reviewing')"),
           pool.query("SELECT COUNT(*)::int AS count FROM moderation_flags WHERE status IN ('open','reviewing')")
         ]);
-        reply = '📋 Очередь модерации\\nЖалобы: ' + reports.rows[0].count + '\\nФлаги: ' + flags.rows[0].count + '\\n\\nПолная обработка доступна через API администратора.';
-        replyMarkup = { keyboard: [[{ text: '/адм' }, { text: '/сайт' }]], resize_keyboard: true };
+        reply = '📋 Очередь модерации\\nЖалобы: ' + reports.rows[0].count + '\\nФлаги: ' + flags.rows[0].count;
       }
-    } else if (command === '/сайт') {
-      reply = 'Открывай VIBE ✨';
-      replyMarkup = { inline_keyboard: [[{ text: 'Открыть VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
-    } else if (command === '/help' || command === '/помощь') {
-      reply = 'Команды VIBE:\\n/start — открыть приложение\\n/help — помощь';
+    } else if (command === '/пользователи' || command === '/users') {
+      if (!isAdmin) reply = '⛔ Команда доступна только администраторам.';
+      else {
+        const users = await pool.query('SELECT COUNT(*)::int AS count FROM users');
+        reply = '👥 Всего аккаунтов VIBE: ' + users.rows[0].count;
+      }
     } else {
-      return;
+      reply = 'Нажми /start, чтобы открыть VIBE ✨';
+      replyMarkup = { inline_keyboard: [[{ text: 'Перейти на сайт VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
     }
     const response = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
       method: 'POST',
