@@ -136,26 +136,51 @@ app.post('/telegram/webhook', (req,res) => {
   if (!token) return;
   (async () => {
     const telegramUser = message.from;
-    const isStart = message.text.trim().startsWith('/start');
+    const command = message.text.trim().split(/\\s+/)[0].split('@')[0].toLowerCase();
+    const adminIds = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(x => x.trim()).filter(Boolean);
+    const isAdmin = adminIds.includes(String(telegramUser?.id));
     let reply;
-    if (isStart && telegramUser?.id && telegramUser?.first_name) {
-      await pool.query(
-        `INSERT INTO users (telegram_id,username,first_name) VALUES ($1,$2,$3)
-         ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW()`,
-        [String(telegramUser.id), telegramUser.username ?? null, telegramUser.first_name]
-      );
-      reply = '✅ Успешная авторизация!\\n\\nТвой Telegram привязан к профилю VIBE. Нажми кнопку ниже, чтобы перейти на сайт уже авторизованным.';
+    let replyMarkup;
+    if (command === '/start') {
+      if (telegramUser?.id && telegramUser?.first_name) {
+        await pool.query(
+          `INSERT INTO users (telegram_id,username,first_name) VALUES ($1,$2,$3)
+           ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW()`,
+          [String(telegramUser.id), telegramUser.username ?? null, telegramUser.first_name]
+        );
+      }
+      reply = 'Привет! Это VIBE ✨ Нажми кнопку ниже, чтобы открыть приложение.';
+      replyMarkup = { inline_keyboard: [[{ text: 'Открыть VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
+    } else if (['/адм', '/admin'].includes(command)) {
+      if (!isAdmin) {
+        reply = '⛔ Команда доступна только администраторам.';
+      } else {
+        reply = '🛡️ VIBE — меню администратора\\n\\n/очередь — проверить жалобы и флаги модерации\\n/сайт — открыть приложение\\n/адм — показать это меню';
+        replyMarkup = { inline_keyboard: [[{ text: '📋 Очередь модерации', callback_data: 'admin_queue' }], [{ text: '✨ Открыть VIBE', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
+      }
+    } else if (command === '/очередь') {
+      if (!isAdmin) {
+        reply = '⛔ Команда доступна только администраторам.';
+      } else {
+        const [reports, flags] = await Promise.all([
+          pool.query("SELECT COUNT(*)::int AS count FROM reports WHERE status IN ('open','reviewing')"),
+          pool.query("SELECT COUNT(*)::int AS count FROM moderation_flags WHERE status IN ('open','reviewing')")
+        ]);
+        reply = '📋 Очередь модерации\\nЖалобы: ' + reports.rows[0].count + '\\nФлаги: ' + flags.rows[0].count + '\\n\\nПолная обработка доступна через API администратора.';
+        replyMarkup = { inline_keyboard: [[{ text: '↩️ Меню администратора', callback_data: 'admin_menu' }]] };
+      }
+    } else if (command === '/сайт') {
+      reply = 'Открывай VIBE ✨';
+      replyMarkup = { inline_keyboard: [[{ text: 'Открыть VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
+    } else if (command === '/help' || command === '/помощь') {
+      reply = 'Команды VIBE:\\n/start — открыть приложение\\n/help — помощь';
     } else {
-      reply = 'Нажми кнопку ниже, чтобы открыть VIBE ✨';
+      return;
     }
     const response = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: message.chat.id,
-        text: reply,
-        reply_markup: { inline_keyboard: [[{ text: 'Перейти на сайт VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] }
-      })
+      body: JSON.stringify({ chat_id: message.chat.id, text: reply, ...(replyMarkup ? { reply_markup: replyMarkup } : {}) })
     });
     if (!response.ok) console.error('Telegram reply failed:', response.status);
   })().catch(err => console.error('Telegram webhook processing failed:', err.message));
