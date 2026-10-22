@@ -87,7 +87,7 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
  res.status(201).json({listing:q.rows[0]});
 }));
 app.get('/api/discover',auth,wrap(async(req,res)=>{
-  const q=await pool.query(`SELECT l.id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,u.photo_url FROM listings l JOIN users u ON u.id=l.user_id WHERE l.user_id<>$1 AND l.status='published' AND u.account_status='active' AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1)) ORDER BY l.created_at DESC LIMIT 50`,[req.user.id]);
+  const q=await pool.query(`SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,u.photo_url FROM listings l JOIN users u ON u.id=l.user_id WHERE l.user_id<>$1 AND l.status='published' AND u.account_status='active' AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1)) ORDER BY l.created_at DESC LIMIT 50`,[req.user.id]);
   res.json({people:q.rows.map(p=>({...p,bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
 }));
 app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
