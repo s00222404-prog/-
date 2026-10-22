@@ -96,11 +96,7 @@ function App() {
       setAgeStatus(age);
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
-      setNotice(result.route === 'age_gate'
-        ? 'Профиль сохранён. Укажи дату рождения, чтобы продолжить.'
-        : result.route === 'youth'
-          ? 'Профиль сохранён. VIBE для знакомств доступен только совершеннолетним.'
-          : 'Профиль сохранён. Для доступа к знакомствам нужно пройти проверку совершеннолетия.');
+      setNotice('Профиль сохранён.');
     } catch (e) {
       setError(e.message || 'Не удалось сохранить профиль.');
     } finally {
@@ -147,7 +143,6 @@ function App() {
     setPeople(current => current.filter(p => p.id !== person.id));
   }
 
-  if (location.pathname === '/admin') return <AdminLink />;
   if (!initData) return <Landing />;
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" onClick={() => setTab('profile')}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
@@ -158,9 +153,8 @@ function App() {
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
     {!loading && tab === 'discover' && <section className="people">
       <div className="section-heading"><div><h2>Твоя подборка</h2><p>Показываем только анкеты, сохранённые в базе VIBE</p></div><span className="count">{people.length} анкет</span></div>
-      {!error && ageStatus && !ageStatus.adultAccess && <div className="panel"><div className="panel-icon"><Lock/></div><h2>Сначала подтвердим возраст</h2><p>Для безопасности анкеты знакомств доступны только совершеннолетним пользователям после проверки возраста. Укажи дату рождения в профиле. Сейчас интеграция провайдера проверки ещё не подключена.</p><button className="save" onClick={() => setTab('profile')}>Открыть профиль <ArrowRight size={16}/></button></div>}
-      {ageStatus?.adultAccess && people.length === 0 && <div className="empty"><Sparkles/><h3>Пока нет доступных анкет</h3><p>Здесь появятся реальные пользователи, когда они зарегистрируются и пройдут необходимые проверки.</p></div>}
-      {ageStatus?.adultAccess && people.map(p => <article className="person-card" key={p.id}>
+      {people.length === 0 && <div className="empty"><Sparkles/><h3>Пока нет доступных анкет</h3><p>Основной интерфейс открыт для просмотра. Анкеты появятся после регистрации пользователей и необходимых проверок.</p></div>}
+      {people.map(p => <article className="person-card" key={p.id}>
         <div className="person-art violet">{p.photo_url ? <img src={p.photo_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <div className="person-initial">{(p.name || '?').slice(0,1)}</div>}<span className="art-caption">VIBE / MEMBER</span></div>
         <div className="person-info"><div className="person-title"><div><h3>{p.name || 'Пользователь'}</h3><span className="location"><MapPin size={13}/>{p.city || 'Город не указан'}</span></div></div><p>{p.bio || 'Пока без описания.'}</p><div className="chips">{(p.interests || []).map(x => <span key={x}>{x}</span>)}</div><div className="card-actions"><button className="skip" onClick={() => skip(p)}>Пропустить</button><button className="like" onClick={() => like(p)}><Heart size={17} fill="currentColor"/> Нравится</button></div></div>
       </article>)}
@@ -183,7 +177,7 @@ function App() {
         <button className="save" type="submit" disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить профиль'} <ArrowRight size={16}/></button>
       </form>
     </section>}
-    <footer><span>vibe. © 2026</span><span><Lock size={12}/> Безопасность важна</span><a href="/admin">Админ-панель</a></footer>
+    <footer><span>vibe. © 2026</span><span><Lock size={12}/> Безопасность важна</span></footer>
   </main>;
 }
 
