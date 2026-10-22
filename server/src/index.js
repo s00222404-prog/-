@@ -51,13 +51,13 @@ app.post('/api/auth/telegram',wrap(async(req,res)=>{
   const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);
   const q=await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
     ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
-    RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,[i.id,i.username,i.firstName,i.photoUrl]);
+    RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable,account_status,moderation_note`,[i.id,i.username,i.firstName,i.photoUrl]);
   const u = q.rows[0];
   if (u.account_status === 'banned') return res.status(403).json({ error: 'Ваш аккаунт забанен', banned: true, reason: u.moderation_note || 'Причина не указана' });
   if (['suspended','restricted'].includes(u.account_status)) return res.status(403).json({ error: 'Доступ к аккаунту ограничен', restricted: true, reason: u.moderation_note || 'Причина не указана' });
   res.json({user:u});
 }));
-app.get('/api/me',auth,wrap(async(req,res)=>{const r=await pool.query('SELECT role,is_public FROM admin_roles WHERE telegram_id=$1',[String(req.user.telegram_id)]);const role=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(r.rows[0]?.role||'none');res.json({user:{...req.user,public_role:role==='developer'?role:(r.rows[0]?.is_public?role:'none'),role_label:role==='developer'?'Разработчик':(r.rows[0]?.is_public?(ROLE_LABELS[role]||null):null)}});}));
+app.get('/api/me',auth,wrap(async(req,res)=>{const r=await pool.query('SELECT role,is_public FROM admin_roles WHERE telegram_id=$1',[String(req.user.telegram_id)]);const role=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(r.rows[0]?.role||'none');res.json({user:{...req.user,admin_access:roleRank[role]>=roleRank.admin,public_role:role==='developer'?role:(r.rows[0]?.is_public?role:'none'),role_label:role==='developer'?'Разработчик':(r.rows[0]?.is_public?(ROLE_LABELS[role]||null):null)}});}));
 app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
