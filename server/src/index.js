@@ -156,7 +156,7 @@ app.post('/telegram/webhook', (req,res) => {
         reply = '⛔ Команда доступна только администраторам.';
       } else {
         reply = '🛡️ VIBE — меню администратора\\n\\n/очередь — проверить жалобы и флаги модерации\\n/сайт — открыть приложение\\n/адм — показать это меню';
-        replyMarkup = { inline_keyboard: [[{ text: '📋 Очередь модерации', callback_data: 'admin_queue' }], [{ text: '✨ Открыть VIBE', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
+        replyMarkup = { keyboard: [[{ text: '/очередь' }, { text: '/адм' }], [{ text: '/сайт' }]], resize_keyboard: true };
       }
     } else if (command === '/очередь') {
       if (!isAdmin) {
@@ -167,7 +167,7 @@ app.post('/telegram/webhook', (req,res) => {
           pool.query("SELECT COUNT(*)::int AS count FROM moderation_flags WHERE status IN ('open','reviewing')")
         ]);
         reply = '📋 Очередь модерации\\nЖалобы: ' + reports.rows[0].count + '\\nФлаги: ' + flags.rows[0].count + '\\n\\nПолная обработка доступна через API администратора.';
-        replyMarkup = { inline_keyboard: [[{ text: '↩️ Меню администратора', callback_data: 'admin_menu' }]] };
+        replyMarkup = { keyboard: [[{ text: '/адм' }, { text: '/сайт' }]], resize_keyboard: true };
       }
     } else if (command === '/сайт') {
       reply = 'Открывай VIBE ✨';
