@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw, MessageCircle } from 'lucide-react';
+import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw, MessageCircle, ImagePlus, PlusCircle } from 'lucide-react';
 import './style.css';
 
 const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -21,6 +21,7 @@ function App() {
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
+  const [uploadingMedia, setUploadingMedia] = useState(false);
 
   async function request(path, options = {}) {
     const response = await fetch(API + path, {
@@ -72,6 +73,39 @@ function App() {
   }
 
   useEffect(() => { if (initData) loadApp(); else setLoading(false); }, []);
+
+  async function chooseMedia(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setNotice('');
+    if (!file.type.startsWith('image/')) {
+      setError('Пока можно загрузить фото или изображение из галереи. Видео добавим отдельно.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setError('Файл слишком большой. Максимальный размер изображения — 3 МБ.');
+      e.target.value = '';
+      return;
+    }
+    setUploadingMedia(true);
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Не удалось прочитать файл.'));
+        reader.readAsDataURL(file);
+      });
+      setProfile(current => ({ ...current, photoUrl: String(dataUrl) }));
+      setNotice('Фото выбрано. Нажми «Сохранить анкету», чтобы применить изменения.');
+    } catch (e) {
+      setError(e.message || 'Не удалось загрузить фото.');
+    } finally {
+      setUploadingMedia(false);
+      e.target.value = '';
+    }
+  }
 
   async function saveProfile(e) {
     e.preventDefault();
@@ -147,7 +181,7 @@ function App() {
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" onClick={() => setTab('profile')}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
     <section className="hero"><div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА</div><h1>Люди, с которыми<br/><span>совпадает вайб.</span></h1><p>Настоящие анкеты пользователей VIBE — без выдуманных профилей.</p></section>
-    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={() => setTab('likes')}><Heart size={17}/> Симпатии</button><button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}><UserRound size={17}/> Профиль</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты</button></nav>
+    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={() => setTab('likes')}><Heart size={17}/> Симпатии</button><button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}><PlusCircle size={17}/> Анкета</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты</button></nav>
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
@@ -170,11 +204,16 @@ function App() {
         <label>Пол (необязательно)<select value={profile.gender} onChange={e => setProfile({...profile,gender:e.target.value})}><option value="">Не указывать</option><option value="woman">Женщина</option><option value="man">Мужчина</option><option value="nonbinary">Небинарный человек</option><option value="prefer_not_to_say">Предпочитаю не отвечать</option></select></label>
         <label>Город<input value={profile.city} onChange={e => setProfile({...profile,city:e.target.value})} maxLength={100} placeholder="Например, Берлин"/></label>
         <label>О себе<textarea value={profile.bio} onChange={e => setProfile({...profile,bio:e.target.value})} maxLength={500} placeholder="Расскажи о себе"/></label>
-        <label>Фото — ссылка на изображение (пока без загрузки файлов)<input type="url" value={profile.photoUrl} onChange={e => setProfile({...profile,photoUrl:e.target.value})} placeholder="https://..."/></label>
+        <label>Фото анкеты
+          {profile.photoUrl && <img src={profile.photoUrl} alt="Предпросмотр фото анкеты" style={{width:'100%',maxHeight:280,objectFit:'contain',borderRadius:14,background:'#0f0d16'}}/>}
+          <span className="media-picker"><ImagePlus size={17}/>{uploadingMedia ? 'Читаем файл…' : 'Выбрать фото из галереи'}<input type="file" accept="image/*" onChange={chooseMedia} disabled={uploadingMedia}/></span>
+          <small className="field-hint">JPG, PNG, WebP и другие изображения. До 3 МБ.</small>
+          <input type="url" value={profile.photoUrl.startsWith('data:') ? '' : profile.photoUrl} onChange={e => setProfile({...profile,photoUrl:e.target.value})} placeholder="Или вставь ссылку https://..."/>
+        </label>
         <label>Цель знакомства<select value={profile.goal} onChange={e => setProfile({...profile,goal:e.target.value})}><option value="friendship">Дружба</option><option value="chat">Общение</option><option value="relationship">Отношения</option><option value="both">Посмотрим, как пойдёт</option></select></label>
         <label>Интересы через запятую<input value={profile.interests} onChange={e => setProfile({...profile,interests:e.target.value})} placeholder="Музыка, кино, прогулки"/></label>
         {ageStatus && <p>Статус проверки возраста: <b>{({unverified:'не подтверждён',pending:'на проверке',verified:'подтверждён',rejected:'отклонён',manual_review:'нужна дополнительная проверка'})[ageStatus.status] || 'неизвестен'}</b></p>}
-        <button className="save" type="submit" disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить профиль'} <ArrowRight size={16}/></button>
+        <button className="save" type="submit" disabled={saving || uploadingMedia}><PlusCircle size={16}/>{saving ? 'Сохраняем…' : (user?.bio || user?.photo_url || user?.city ? 'Сохранить анкету' : 'Создать анкету')} <ArrowRight size={16}/></button>
       </form>
     </section>}
     <footer><span>vibe. © 2026</span><span><Lock size={12}/> Безопасность важна</span></footer>
