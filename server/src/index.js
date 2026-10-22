@@ -98,5 +98,41 @@ app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
   const f=await pool.query('UPDATE moderation_flags SET status=$1 WHERE id=$2 RETURNING user_id',[status,id]);if(!f.rowCount)return res.status(404).json({error:'Flag not found'});
   if(action!=='none'){const s={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];await pool.query('UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1=\'active\' THEN discoverable ELSE FALSE END,updated_at=NOW() WHERE id=$3',[s,note||'Admin action: '+action,f.rows[0].user_id]);}res.json({updated:true});
 }));
-app.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
-app.listen(port,()=>console.log('VIBE API listening on '+port));
+
+app.post('/telegram/webhook', (req,res) => {
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (secret && req.get('X-Telegram-Bot-Api-Secret-Token') !== secret) return res.sendStatus(401);
+  res.sendStatus(200);
+  const message = req.body?.message;
+  if (!message?.chat?.id || typeof message.text !== 'string') return;
+  const token = process.env.BOT_TOKEN;
+  if (!token) return;
+  const text = message.text.trim();
+  const reply = text.startsWith('/start')
+    ? 'Привет! Это VIBE ✨\nЗнакомься, общайся и находи близких по духу людей. Нажми кнопку ниже, чтобы открыть приложение.'
+    : 'Я здесь 😊 Чтобы открыть VIBE, нажми кнопку ниже.';
+  fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: message.chat.id,
+      text: reply,
+      reply_markup: { inline_keyboard: [[{ text: 'Открыть VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] }
+    })
+  }).catch(err => console.error('Telegram reply failed:', err.message));
+});
+\napp.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
+app.listen(port, () => {
+  console.log('VIBE API listening on ' + port);
+  const token = process.env.BOT_TOKEN;
+  if (token) {
+    fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: 'https://znakomstva-824i.onrender.com/telegram/webhook' })
+    }).then(r => r.json()).then(result => console.log('Telegram webhook setup:', result.ok ? 'ok' : result.description))
+      .catch(err => console.error('Telegram webhook setup failed:', err.message));
+  } else {
+    console.error('BOT_TOKEN is missing; Telegram bot is disabled');
+  }
+});
