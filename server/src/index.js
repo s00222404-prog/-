@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { readFile } from 'node:fs/promises';
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
@@ -134,17 +135,28 @@ app.post('/telegram/webhook', (req,res) => {
   })().catch(err => console.error('Telegram webhook processing failed:', err.message));
 });
 app.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
-app.listen(port, () => {
-  console.log('VIBE API listening on ' + port);
-  const token = process.env.BOT_TOKEN;
-  if (token) {
-    fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url: 'https://znakomstva-824i.onrender.com/telegram/webhook' })
-    }).then(r => r.json()).then(result => console.log('Telegram webhook setup:', result.ok ? 'ok' : result.description))
-      .catch(err => console.error('Telegram webhook setup failed:', err.message));
-  } else {
-    console.error('BOT_TOKEN is missing; Telegram bot is disabled');
+async function start() {
+  try {
+    // Create VIBE tables in the configured VIBE database; CREATE IF NOT EXISTS preserves existing rows.
+    const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
+    await pool.query(schema);
+    console.log('VIBE database schema ready');
+  } catch (err) {
+    console.error('VIBE database schema initialization failed:', err.message);
   }
-});
+  app.listen(port, () => {
+    console.log('VIBE API listening on ' + port);
+    const token = process.env.BOT_TOKEN;
+    if (token) {
+      fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: 'https://znakomstva-824i.onrender.com/telegram/webhook' })
+      }).then(r => r.json()).then(result => console.log('Telegram webhook setup:', result.ok ? 'ok' : result.description))
+        .catch(err => console.error('Telegram webhook setup failed:', err.message));
+    } else {
+      console.error('BOT_TOKEN is missing; Telegram bot is disabled');
+    }
+  });
+}
+start();
