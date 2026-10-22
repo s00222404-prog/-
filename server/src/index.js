@@ -109,23 +109,25 @@ app.post('/telegram/webhook', (req,res) => {
   if (!token) return;
   (async () => {
     const telegramUser = message.from;
-    if (telegramUser?.id && telegramUser?.first_name && message.text.trim().startsWith('/start')) {
+    const isStart = message.text.trim().startsWith('/start');
+    let reply;
+    if (isStart && telegramUser?.id && telegramUser?.first_name) {
       await pool.query(
         `INSERT INTO users (telegram_id,username,first_name) VALUES ($1,$2,$3)
          ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW()`,
         [String(telegramUser.id), telegramUser.username ?? null, telegramUser.first_name]
       );
+      reply = '✅ Успешная авторизация!\\n\\nТвой Telegram привязан к профилю VIBE. Нажми кнопку ниже, чтобы перейти на сайт уже авторизованным.';
+    } else {
+      reply = 'Нажми кнопку ниже, чтобы открыть VIBE ✨';
     }
-    const reply = message.text.trim().startsWith('/start')
-      ? 'Привет! Это VIBE ✨\\nТвой Telegram уже привязан к профилю. Нажми кнопку ниже, чтобы открыть приложение.'
-      : 'Я здесь 😊 Чтобы открыть VIBE, нажми кнопку ниже.';
     const response = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         chat_id: message.chat.id,
         text: reply,
-        reply_markup: { inline_keyboard: [[{ text: 'Открыть VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] }
+        reply_markup: { inline_keyboard: [[{ text: 'Перейти на сайт VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] }
       })
     });
     if (!response.ok) console.error('Telegram reply failed:', response.status);
