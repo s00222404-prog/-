@@ -22,6 +22,21 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS listings (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL CHECK (length(name) BETWEEN 2 AND 60),
+  age INTEGER NOT NULL CHECK (age BETWEEN 18 AND 100),
+  city TEXT NOT NULL,
+  country TEXT NOT NULL,
+  hobbies TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft','published','hidden')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS listings_discovery_idx ON listings(status, created_at DESC);
 CREATE TABLE IF NOT EXISTS likes (
   from_user BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   to_user BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
