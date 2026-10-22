@@ -216,6 +216,20 @@ app.post('/telegram/webhook', (req,res) => {
     const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,...(markup?{reply_markup:markup}:{})})});
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
+    if(m && (cmd==='/бан' || cmd==='/ban') && /^все$/i.test(arg)){
+      if(!isDeveloper){await send('⛔ Команда /бан все доступна только разработчику.');return;}
+      const reason=txt.replace(/^\\/(?:бан|ban)(?:@\\S+)?\\s+все\\s*/i,'').trim();
+      if(!reason || reason.length>500){await send('Укажи причину (до 500 символов): /бан все причина');return;}
+      const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE telegram_id<>$2 AND account_status IS DISTINCT FROM 'banned' RETURNING id",[reason,DEVELOPER_TELEGRAM_ID]);
+      await send('⛔ Массовый бан завершён. Забанено аккаунтов: '+q.rowCount+'\\nПричина: '+reason);
+      return;
+    }
+    if(m && (cmd==='/разбан' || cmd==='/unban') && /^все$/i.test(arg)){
+      if(!isDeveloper){await send('⛔ Команда /разбан все доступна только разработчику.');return;}
+      const q=await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE telegram_id<>$1 AND account_status='banned' RETURNING id",[DEVELOPER_TELEGRAM_ID]);
+      await send('✅ Массовый разбан завершён. Разбанено аккаунтов: '+q.rowCount);
+      return;
+    }
     const card=async(id,editMode=false)=>{
       const q=await pool.query('SELECT id,telegram_id,username,first_name,account_status,profile_review_status,moderation_note,bio,city,photo_url,goal,interests,created_at FROM users WHERE id=$1',[id]);
       if(!q.rowCount){if(editMode)await edit('Пользователь не найден или аккаунт удалён.');else await send('Пользователь не найден.');return;}
