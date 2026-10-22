@@ -28,6 +28,9 @@ function App() {
   const [reporting, setReporting] = useState(false);
   const [listing, setListing] = useState({name:'',age:'',city:'',country:'',hobbies:'',description:''});
   const [publishing, setPublishing] = useState(false);
+  const [banCode, setBanCode] = useState('');
+  const [banReason, setBanReason] = useState('');
+  const [banResult, setBanResult] = useState(null);
 
   async function request(path, options = {}) {
     const response = await fetch(API + path, {
@@ -39,7 +42,13 @@ function App() {
       }
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || 'Ошибка сервера (' + response.status + ')');
+    if (!response.ok) {
+      const error = new Error(data.error || 'Ошибка сервера (' + response.status + ')');
+      error.banned = Boolean(data.banned);
+      error.banReason = data.reason || '';
+      error.status = response.status;
+      throw error;
+    }
     return data;
   }
 
@@ -74,13 +83,29 @@ function App() {
       const chatData = await request('/api/chats');
       setChats(chatData.chats || []);
     } catch (e) {
-      setError(e.message || 'Не удалось подключиться к VIBE API.');
+      if (e.banned) {
+        setUser({ account_status: 'banned', moderation_note: e.banReason });
+        setError('');
+      } else setError(e.message || 'Не удалось подключиться к VIBE API.');
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => { if (initData) loadApp(); else setLoading(false); }, []);
+
+  async function banByCode(e) {
+    e.preventDefault();
+    setBanResult(null);
+    try {
+      const data = await request('/api/admin/users/' + encodeURIComponent(banCode) + '/ban', {
+        method: 'POST', body: JSON.stringify({ reason: banReason })
+      });
+      setBanResult('⛔ Забанен профиль ' + data.user.profile_code + ': ' + data.user.first_name);
+      setBanCode('');
+      setBanReason('');
+    } catch (e) { setBanResult('Ошибка: ' + e.message); }
+  }
 
   async function chooseMedia(e) {
     const file = e.target.files?.[0];
@@ -216,6 +241,7 @@ function App() {
     setPeople(current => current.filter(p => p.id !== person.id));
   }
 
+  if (user?.account_status === 'banned') return <main className="app-shell"><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш профиль забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Причина:</b> {user.moderation_note || 'Причина не указана'}</p></section></main>;
   if (!initData) return <Landing />;
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" onClick={() => setTab('profile')}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
@@ -233,6 +259,7 @@ function App() {
       </article>)}
     </section>}
     {reportTarget && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setReportTarget(null)}>← Отмена</button><h2>Пожаловаться на {reportTarget.name || 'пользователя'}</h2><p>Жалоба попадёт администраторам VIBE для проверки.</p><form onSubmit={submitReport}><label>Причина<select value={reportReason} onChange={e => setReportReason(e.target.value)} required><option value="">Выбери причину</option><option value="Спам">Спам</option><option value="Оскорбления или угрозы">Оскорбления или угрозы</option><option value="Фейковая анкета">Фейковая анкета</option><option value="Неприемлемый контент">Неприемлемый контент</option><option value="Подозрение на мошенничество">Подозрение на мошенничество</option><option value="Другое">Другое</option></select></label><label>Подробности (необязательно)<textarea value={reportDetails} onChange={e => setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло"/></label><button className="save" type="submit" disabled={reporting}>{reporting ? 'Отправляем…' : 'Отправить жалобу'}</button></form></section></div>}
+    {!loading && user?.admin_access && <section className="panel"><div className="panel-icon"><ShieldAlert/></div><h2>Модерация: бан по коду</h2><p>Код из карточки пользователя в боте — ровно 6 цифр.</p><form onSubmit={banByCode}><label>Код профиля<input value={banCode} onChange={e=>setBanCode(e.target.value.replace(/\\D/g,'').slice(0,6))} inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} placeholder="001234" required/></label><label>Причина бана<textarea value={banReason} onChange={e=>setBanReason(e.target.value)} maxLength={500} required placeholder="Причина бана"/></label><button className="save" type="submit">Забанить профиль</button></form>{banResult && <p role="status">{banResult}</p>}</section>}
     {!loading && tab === 'likes' && <section className="panel"><div className="panel-icon"><Heart/></div><h2>Симпатии</h2><p>Когда симпатия взаимная, здесь можно начать переписку через раздел «Чаты».</p><button className="save" onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button></section>}
     {!loading && tab === 'chats' && <section className="panel"><div className="panel-icon"><MessageCircle/></div><h2>Твои чаты</h2><p>Переписка доступна после взаимного лайка.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Ставь лайки анкетам — чат появится, когда симпатия станет взаимной.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{(chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
     {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required/><button className="like" type="submit"><ArrowRight size={17}/></button></form></section>}
