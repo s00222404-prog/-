@@ -1,6 +1,6 @@
 # VIBE — Telegram Mini App (MVP starter)
 
-VIBE is a social discovery app for friendship and dating, designed to run inside Telegram.
+VIBE is a social discovery app starter for friendship and dating, designed to run inside Telegram. The current React screens use demo data; connecting the screens to the API, configuring a real Telegram bot, database and age-assurance provider, and performing security testing are still required before real users.
 
 ## Stack
 - `client/`: React + Vite, Telegram WebApp SDK, responsive mobile UI
@@ -53,10 +53,10 @@ Implemented in this scaffold:
 - Responsive profile/discovery UI with demo mode
 
 Still needed before real users:
-- secure session/token strategy after Telegram validation
+- connect the client screens to the API and add a secure session/token strategy after Telegram validation
 - comprehensive rate limiting and bot protection
 - image upload/storage and moderation
-- age assurance appropriate to launch jurisdictions
+- finish and test an age-assurance provider integration appropriate to launch jurisdictions
 - messaging implementation, notifications, admin moderation panel, privacy policy, terms, deletion/export workflow, tests and monitoring
 
 ## Age routing and profile review (starter scaffolding)
