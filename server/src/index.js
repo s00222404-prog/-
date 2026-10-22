@@ -127,68 +127,59 @@ app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
 }));
 
 app.post('/telegram/webhook', (req,res) => {
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (secret && req.get('X-Telegram-Bot-Api-Secret-Token') !== secret) return res.sendStatus(401);
+  const secret=process.env.TELEGRAM_WEBHOOK_SECRET;
+  if(secret&&req.get('X-Telegram-Bot-Api-Secret-Token')!==secret)return res.sendStatus(401);
   res.sendStatus(200);
-  const message = req.body?.message;
-  if (!message?.chat?.id || typeof message.text !== 'string') return;
-  const token = process.env.BOT_TOKEN;
-  if (!token) return;
-  (async () => {
-    const telegramUser = message.from;
-    const text = message.text.trim();
-    const command = text.split(/\\s+/)[0].split('@')[0].toLowerCase();
-    const adminIds = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(x => x.trim()).filter(Boolean);
-    const isAdmin = telegramUser?.id && adminIds.includes(String(telegramUser.id));
-    let reply;
-    let replyMarkup;
-    if (command === '/start') {
-      if (telegramUser?.id && telegramUser?.first_name) {
-        await pool.query(
-          `INSERT INTO users (telegram_id,username,first_name) VALUES ($1,$2,$3)
-           ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW()`,
-          [String(telegramUser.id), telegramUser.username ?? null, telegramUser.first_name]
-        );
-      }
-      reply = 'Привет! Открой VIBE кнопкой ниже ✨';
-      replyMarkup = { inline_keyboard: [[{ text: 'Перейти на сайт VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
-    } else if (command === '/адм' || command === '/admin') {
-      if (!isAdmin) {
-        reply = '⛔ Команда доступна только администраторам.';
-      } else {
-        reply = '🛠 Меню администратора VIBE\\n\\nВыбери команду:';
-        replyMarkup = { keyboard: [[{ text: '/очередь' }, { text: '/пользователи' }], [{ text: '/помощь' }, { text: '/start' }]], resize_keyboard: true };
-      }
-    } else if (command === '/помощь' || command === '/help') {
-      reply = isAdmin
-        ? 'Команды администратора VIBE:\\n/адм — открыть меню\\n/очередь — количество жалоб и флагов на проверке\\n/пользователи — число аккаунтов\\n/помощь — эта справка'
-        : 'Чтобы открыть VIBE, нажми /start.';
-    } else if (command === '/очередь' || command === '/queue') {
-      if (!isAdmin) reply = '⛔ Команда доступна только администраторам.';
-      else {
-        const [reports, flags] = await Promise.all([
-          pool.query("SELECT COUNT(*)::int AS count FROM reports WHERE status IN ('open','reviewing')"),
-          pool.query("SELECT COUNT(*)::int AS count FROM moderation_flags WHERE status IN ('open','reviewing')")
-        ]);
-        reply = '📋 Очередь модерации\\nЖалобы: ' + reports.rows[0].count + '\\nФлаги: ' + flags.rows[0].count;
-      }
-    } else if (command === '/пользователи' || command === '/users') {
-      if (!isAdmin) reply = '⛔ Команда доступна только администраторам.';
-      else {
-        const users = await pool.query('SELECT COUNT(*)::int AS count FROM users');
-        reply = '👥 Всего аккаунтов VIBE: ' + users.rows[0].count;
-      }
-    } else {
-      reply = 'Нажми /start, чтобы открыть VIBE ✨';
-      replyMarkup = { inline_keyboard: [[{ text: 'Перейти на сайт VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] };
+  const m=req.body?.message, cb=req.body?.callback_query, token=process.env.BOT_TOKEN;
+  if(!token||(!m?.chat?.id&&!cb?.message?.chat?.id))return;
+  (async()=>{
+    const from=m?.from||cb?.from, chatId=m?.chat?.id||cb?.message?.chat?.id, txt=(m?.text||'').trim();
+    const parts=txt.split(/\s+/), cmd=(parts[0]||'').split('@')[0].toLowerCase(), arg=(parts[1]||'').replace(/^@/,'');
+    const admins=(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean), ok=from?.id&&admins.includes(String(from.id));
+    const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,...(markup?{reply_markup:markup}:{})})});
+    const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
+    const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
+    const card=async(id,editMode=false)=>{
+      const q=await pool.query('SELECT id,telegram_id,username,first_name,account_status,profile_review_status,bio,city,photo_url,goal,interests,created_at FROM users WHERE id=$1',[id]);
+      if(!q.rowCount){if(editMode)await edit('Пользователь не найден или аккаунт удалён.');else await send('Пользователь не найден.');return;}
+      const u=q.rows[0], kb={inline_keyboard:[[{text:'🔎 Проверить',callback_data:'u:check:'+id}],[{text:u.account_status==='banned'?'✅ Разбанить':'⛔ Забанить Telegram',callback_data:'u:'+(u.account_status==='banned'?'unban':'ban')+':'+id}],[{text:'🧹 Удалить анкету',callback_data:'u:profile:'+id}],[{text:'🗑 Удалить аккаунт',callback_data:'u:account:'+id}]]};
+      const details='👤 '+u.first_name+'\nUsername: '+(u.username?'@'+u.username:'не указан')+'\nTelegram ID: '+u.telegram_id+'\nID анкеты: '+u.id+'\nАккаунт: '+u.account_status+'\nАнкета: '+u.profile_review_status+'\nГород: '+(u.city||'—')+'\nЦель: '+u.goal+'\nИнтересы: '+((u.interests||[]).join(', ')||'—')+'\nФото: '+(u.photo_url?'есть':'нет')+'\nОписание: '+(u.bio||'—')+'\nСоздан: '+new Date(u.created_at).toLocaleString('ru-RU');
+      if(editMode)await edit(details,kb);else await send(details+'\nВыбери действие:',kb);
+    };
+    if(cb){
+      if(!ok){await answer('Только для администраторов');return;}
+      const [prefix,act,idRaw]=(cb.data||'').split(':'), id=Number(idRaw);
+      if(prefix!=='u'||!Number.isSafeInteger(id)||id<=0||!['check','ban','unban','profile','account'].includes(act)){await answer('Некорректное действие');return;}
+      const q=await pool.query('SELECT first_name FROM users WHERE id=$1',[id]);
+      if(!q.rowCount){await answer('Пользователь не найден');await edit('Пользователь не найден или удалён.');return;}
+      if(act==='check'){await answer();await card(id,true);return;}
+      if(act==='ban'){await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note='Banned by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await answer('Telegram-аккаунт забанен');await edit('⛔ '+q.rows[0].first_name+' забанен по Telegram ID.');return;}
+      if(act==='unban'){await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1",[id]);await answer('Бан снят');await edit('✅ Бан снят.');return;}
+      if(act==='profile'){await pool.query("UPDATE users SET bio='',city=NULL,photo_url=NULL,gender=NULL,goal='friendship',interests='{}',discoverable=FALSE,profile_review_status='restricted',moderation_note='Profile deleted by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await answer('Анкета удалена');await edit('🧹 Анкета удалена. Аккаунт сохранён.');return;}
+      if(act==='account'){await pool.query('DELETE FROM users WHERE id=$1',[id]);await answer('Аккаунт удалён');await edit('🗑 Аккаунт удалён вместе с анкетой, лайками, чатами и жалобами. Пользователь сможет зарегистрироваться снова с тем же Telegram-аккаунтом.');return;}
     }
-    const response = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: message.chat.id, text: reply, ...(replyMarkup ? { reply_markup: replyMarkup } : {}) })
-    });
-    if (!response.ok) console.error('Telegram reply failed:', response.status);
-  })().catch(err => console.error('Telegram webhook processing failed:', err.message));
+    if(!m)return;
+    let reply,markup;
+    if(cmd==='/start'){
+      if(from?.id&&from?.first_name)await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW()',[String(from.id),from.username??null,from.first_name]);
+      reply='Привет! Открой VIBE кнопкой ниже ✨';markup={inline_keyboard:[[{text:'Перейти на сайт VIBE ✨',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+    }else if(cmd==='/адм'||cmd==='/admin'){
+      reply=ok?'🛠 Меню администратора VIBE\nВыбери команду:':'⛔ Команда доступна только администраторам.';
+      if(ok)markup={keyboard:[[{text:'/очередь'},{text:'/пользователи'}],[{text:'/юзер'},{text:'/помощь'}]],resize_keyboard:true};
+    }else if(cmd==='/юзер'||cmd==='/user'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else if(!arg)reply='Использование: /юзер @username или /юзер Telegram_ID';
+      else{const q=await pool.query('SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) ORDER BY id DESC LIMIT 1',[arg]);if(!q.rowCount)reply='Не найден. Пользователь должен хотя бы раз открыть бота/VIBE.';else{await card(q.rows[0].id);return;}}
+    }else if(cmd==='/помощь'||cmd==='/help'){
+      reply=ok?'Команды VIBE:\n/адм — меню\n/очередь — жалобы и флаги\n/пользователи — число аккаунтов\n/юзер @username или Telegram_ID — управление пользователем':'Нажми /start, чтобы открыть VIBE.';
+    }else if(cmd==='/очередь'||cmd==='/queue'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='📋 Очередь модерации\nЖалобы: '+r.rows[0].count+'\nФлаги: '+f.rows[0].count;}
+    }else if(cmd==='/пользователи'||cmd==='/users'){
+      if(!ok)reply='⛔ Только для администраторов.';else{const q=await pool.query('SELECT COUNT(*)::int count FROM users');reply='👥 Всего аккаунтов: '+q.rows[0].count;}
+    }else{reply='Нажми /start, чтобы открыть VIBE ✨';markup={inline_keyboard:[[{text:'Перейти на сайт VIBE ✨',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};}
+    await send(reply,markup);
+  })().catch(e=>console.error('Telegram webhook processing failed:',e.message));
 });
 app.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
 async function start() {
