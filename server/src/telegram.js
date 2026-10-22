@@ -24,5 +24,5 @@ export function validateTelegramInitData(initData, botToken, maxAgeSeconds = 864
   if (!userRaw) throw new Error('Telegram user is missing');
   const user = JSON.parse(userRaw);
   if (!user.id || !user.first_name) throw new Error('Invalid Telegram user');
-  return { id: String(user.id), username: user.username ?? null, firstName: user.first_name };
+  return { id: String(user.id), username: user.username ?? null, firstName: user.first_name, photoUrl: user.photo_url ?? null };
 }
