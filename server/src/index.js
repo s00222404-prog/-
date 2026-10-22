@@ -104,7 +104,7 @@ app.post('/api/blocks/:userId',auth,wrap(async(req,res)=>{
 }));
 app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
   const id=Number(req.params.userId); const {reason,details=''}=req.body||{};
-  if(!Number.isSafeInteger(id)||id===req.user.id||typeof reason!=='string'||reason.length>100||typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Invalid report'});
+  if(!Number.isSafeInteger(id)||id===req.user.id||typeof reason!=='string'||!reason.trim()||reason.trim().length>100||typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Укажи причину жалобы (до 100 символов)'});
   await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details) VALUES($1,$2,$3,$4)',[req.user.id,id,reason,details]);res.status(201).json({reported:true});
 }));
 app.get('/api/admin/queue',auth,adminOnly,wrap(async(_req,res)=>{
@@ -116,12 +116,14 @@ app.get('/api/admin/queue',auth,adminOnly,wrap(async(_req,res)=>{
 app.patch('/api/admin/reports/:id',auth,adminOnly,wrap(async(req,res)=>{
   const id=Number(req.params.id);const {status,action='none',note=''}=req.body||{};
   if(!Number.isSafeInteger(id)||!['reviewing','resolved','dismissed'].includes(status)||!['none','restrict','suspend','ban','restore'].includes(action))return res.status(400).json({error:'Invalid action'});
+  if(action==='ban'&&(!String(note).trim()||String(note).trim().length>500))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
   const c=await pool.connect();try{await c.query('BEGIN');const f=await c.query('SELECT reported_id FROM reports WHERE id=$1 FOR UPDATE',[id]);if(!f.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Report not found'});}
   await c.query('UPDATE reports SET status=$1 WHERE id=$2',[status,id]);if(action!=='none'){const s={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];await c.query(`UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,updated_at=NOW() WHERE id=$3`,[s,note||'Admin action: '+action,f.rows[0].reported_id]);}await c.query('COMMIT');res.json({updated:true});}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
 }));
 app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
   const id=Number(req.params.id);const {status,action='none',note=''}=req.body||{};
   if(!Number.isSafeInteger(id)||!['reviewing','resolved','dismissed'].includes(status)||!['none','restrict','suspend','ban','restore'].includes(action))return res.status(400).json({error:'Invalid action'});
+  if(action==='ban'&&(!String(note).trim()||String(note).trim().length>500))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
   const f=await pool.query('UPDATE moderation_flags SET status=$1 WHERE id=$2 RETURNING user_id',[status,id]);if(!f.rowCount)return res.status(404).json({error:'Flag not found'});
   if(action!=='none'){const s={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];await pool.query('UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1=\'active\' THEN discoverable ELSE FALSE END,updated_at=NOW() WHERE id=$3',[s,note||'Admin action: '+action,f.rows[0].user_id]);}res.json({updated:true});
 }));
@@ -140,10 +142,10 @@ app.post('/telegram/webhook', (req,res) => {
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
     const card=async(id,editMode=false)=>{
-      const q=await pool.query('SELECT id,telegram_id,username,first_name,account_status,profile_review_status,bio,city,photo_url,goal,interests,created_at FROM users WHERE id=$1',[id]);
+      const q=await pool.query('SELECT id,telegram_id,username,first_name,account_status,profile_review_status,moderation_note,bio,city,photo_url,goal,interests,created_at FROM users WHERE id=$1',[id]);
       if(!q.rowCount){if(editMode)await edit('Пользователь не найден или аккаунт удалён.');else await send('Пользователь не найден.');return;}
       const u=q.rows[0], kb={inline_keyboard:[[{text:'🔎 Проверить',callback_data:'u:check:'+id}],[{text:u.account_status==='banned'?'✅ Разбанить':'⛔ Забанить Telegram',callback_data:'u:'+(u.account_status==='banned'?'unban':'ban')+':'+id}],[{text:'🧹 Удалить анкету',callback_data:'u:profile:'+id}],[{text:'🗑 Удалить аккаунт',callback_data:'u:account:'+id}]]};
-      const details='👤 '+u.first_name+'\nUsername: '+(u.username?'@'+u.username:'не указан')+'\nTelegram ID: '+u.telegram_id+'\nID анкеты: '+u.id+'\nАккаунт: '+u.account_status+'\nАнкета: '+u.profile_review_status+'\nГород: '+(u.city||'—')+'\nЦель: '+u.goal+'\nИнтересы: '+((u.interests||[]).join(', ')||'—')+'\nФото: '+(u.photo_url?'есть':'нет')+'\nОписание: '+(u.bio||'—')+'\nСоздан: '+new Date(u.created_at).toLocaleString('ru-RU');
+      const details='👤 '+u.first_name+'\nUsername: '+(u.username?'@'+u.username:'не указан')+'\nTelegram ID: '+u.telegram_id+'\nID анкеты: '+u.id+'\nАккаунт: '+u.account_status+'\nПричина бана/модерации: '+(u.moderation_note||'—')+'\nАнкета: '+u.profile_review_status+'\nГород: '+(u.city||'—')+'\nЦель: '+u.goal+'\nИнтересы: '+((u.interests||[]).join(', ')||'—')+'\nФото: '+(u.photo_url?'есть':'нет')+'\nОписание: '+(u.bio||'—')+'\nСоздан: '+new Date(u.created_at).toLocaleString('ru-RU');
       if(editMode)await edit(details,kb);else await send(details+'\nВыбери действие:',kb);
     };
     if(cb){
@@ -153,7 +155,7 @@ app.post('/telegram/webhook', (req,res) => {
       const q=await pool.query('SELECT first_name FROM users WHERE id=$1',[id]);
       if(!q.rowCount){await answer('Пользователь не найден');await edit('Пользователь не найден или удалён.');return;}
       if(act==='check'){await answer();await card(id,true);return;}
-      if(act==='ban'){await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note='Banned by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await answer('Telegram-аккаунт забанен');await edit('⛔ '+q.rows[0].first_name+' забанен по Telegram ID.');return;}
+      if(act==='ban'){await answer('Укажи причину');await send('Чтобы забанить '+q.rows[0].first_name+', отправь:\n/бан '+id+' причина бана\nПричина обязательна (до 500 символов).');return;}
       if(act==='unban'){await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1",[id]);await answer('Бан снят');await edit('✅ Бан снят.');return;}
       if(act==='profile'){await pool.query("UPDATE users SET bio='',city=NULL,photo_url=NULL,gender=NULL,goal='friendship',interests='{}',discoverable=FALSE,profile_review_status='restricted',moderation_note='Profile deleted by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await answer('Анкета удалена');await edit('🧹 Анкета удалена. Аккаунт сохранён.');return;}
       if(act==='account'){await pool.query('DELETE FROM users WHERE id=$1',[id]);await answer('Аккаунт удалён');await edit('🗑 Аккаунт удалён вместе с анкетой, лайками, чатами и жалобами. Пользователь сможет зарегистрироваться снова с тем же Telegram-аккаунтом.');return;}
@@ -166,6 +168,9 @@ app.post('/telegram/webhook', (req,res) => {
     }else if(cmd==='/адм'||cmd==='/admin'){
       reply=ok?'🛠 Меню администратора VIBE\nВыбери команду:':'⛔ Команда доступна только администраторам.';
       if(ok)markup={keyboard:[[{text:'/очередь'},{text:'/пользователи'}],[{text:'/юзер'},{text:'/помощь'}]],resize_keyboard:true};
+    }else if(cmd==='/бан'||cmd==='/ban'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else{const bm=txt.match(/^\\/(?:бан|ban)(?:@\\S+)?\\s+(\\d+)\\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажи ID и причину: /бан 123 спам или мошенничество';else if(bm[2].trim().length>500)reply='Причина слишком длинная (максимум 500 символов).';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING first_name,telegram_id",[bm[2].trim(),Number(bm[1])]);if(!target.rowCount)reply='Пользователь не найден.';else reply='⛔ Забанен: '+target.rows[0].first_name+' (Telegram ID '+target.rows[0].telegram_id+').\nПричина: '+bm[2].trim();}}
     }else if(cmd==='/юзер'||cmd==='/user'){
       if(!ok)reply='⛔ Только для администраторов.';
       else if(!arg)reply='Использование: /юзер @username или /юзер Telegram_ID';
