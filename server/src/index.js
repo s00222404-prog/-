@@ -159,8 +159,14 @@ app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
   const reason=typeof req.body?.reason==='string'?req.body.reason.trim():'';
   if(!/^\\d{6}$/.test(code)) return res.status(400).json({error:'Введи ровно 6 цифр кода профиля'});
   if(!reason||reason.length>500) return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
-  const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE lpad(id::text,6,'0')=$2 RETURNING id,first_name,username,telegram_id",[reason,code]);
-  if(!q.rowCount) return res.status(404).json({error:'Профиль с таким кодом не найден'});
+  const target=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lpad(id::text,6,'0')=$1",[code]);
+  if(!target.rowCount) return res.status(404).json({error:'Профиль с таким кодом не найден'});
+  const targetUser=target.rows[0];
+  if(String(targetUser.telegram_id)===DEVELOPER_TELEGRAM_ID) return res.status(403).json({error:'Разработчика нельзя забанить'});
+  const actorRole=await getRole(req.user.telegram_id);
+  const targetRole=await getRole(targetUser.telegram_id);
+  if(roleRank[targetRole]>=roleRank[actorRole]) return res.status(403).json({error:'Нельзя банить пользователя с равным или более высоким рангом'});
+  const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING id,first_name,username,telegram_id",[reason,targetUser.id]);
   res.json({banned:true,user:{...q.rows[0],profile_code:String(q.rows[0].id).padStart(6,'0')},reason});
 }));
 app.get('/api/admin/users/:code',auth,adminOnly,wrap(async(req,res)=>{
