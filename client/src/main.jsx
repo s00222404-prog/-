@@ -22,6 +22,10 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reporting, setReporting] = useState(false);
 
   async function request(path, options = {}) {
     const response = await fetch(API + path, {
@@ -172,6 +176,24 @@ function App() {
     } catch (e) { setError(e.message); }
   }
 
+  async function submitReport(e) {
+    e.preventDefault();
+    if (!reportTarget || !reportReason.trim()) return;
+    setReporting(true);
+    setError('');
+    try {
+      await request('/api/reports/' + encodeURIComponent(reportTarget.id), {
+        method: 'POST',
+        body: JSON.stringify({ reason: reportReason.trim(), details: reportDetails.trim() })
+      });
+      setNotice('Жалоба отправлена. Администраторы получат уведомление в Telegram.');
+      setReportTarget(null);
+      setReportReason('');
+      setReportDetails('');
+    } catch (e) { setError(e.message || 'Не удалось отправить жалобу.'); }
+    finally { setReporting(false); }
+  }
+
   async function skip(person) {
     // Hiding a card is only a local action; it does not create a like.
     setPeople(current => current.filter(p => p.id !== person.id));
@@ -190,9 +212,10 @@ function App() {
       {people.length === 0 && <div className="empty"><Sparkles/><h3>Пока нет доступных анкет</h3><p>Основной интерфейс открыт для просмотра. Анкеты появятся после регистрации пользователей и необходимых проверок.</p></div>}
       {people.map(p => <article className="person-card" key={p.id}>
         <div className="person-art violet">{p.photo_url ? <img src={p.photo_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <div className="person-initial">{(p.name || '?').slice(0,1)}</div>}<span className="art-caption">VIBE / MEMBER</span></div>
-        <div className="person-info"><div className="person-title"><div><h3>{p.name || 'Пользователь'}</h3><span className="location"><MapPin size={13}/>{p.city || 'Город не указан'}</span></div></div><p>{p.bio || 'Пока без описания.'}</p><div className="chips">{(p.interests || []).map(x => <span key={x}>{x}</span>)}</div><div className="card-actions"><button className="skip" onClick={() => skip(p)}>Пропустить</button><button className="like" onClick={() => like(p)}><Heart size={17} fill="currentColor"/> Нравится</button></div></div>
+        <div className="person-info"><div className="person-title"><div><h3>{p.name || 'Пользователь'}</h3><span className="location"><MapPin size={13}/>{p.city || 'Город не указан'}</span></div></div><p>{p.bio || 'Пока без описания.'}</p><div className="chips">{(p.interests || []).map(x => <span key={x}>{x}</span>)}</div><div className="card-actions"><button className="skip" onClick={() => skip(p)}>Пропустить</button><button className="like" onClick={() => like(p)}><Heart size={17} fill="currentColor"/> Нравится</button><button className="skip" onClick={() => { setReportTarget(p); setReportReason(''); setReportDetails(''); }}>Пожаловаться</button></div></div>
       </article>)}
     </section>}
+    {reportTarget && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setReportTarget(null)}>← Отмена</button><h2>Пожаловаться на {reportTarget.name || 'пользователя'}</h2><p>Жалоба попадёт администраторам VIBE для проверки.</p><form onSubmit={submitReport}><label>Причина<select value={reportReason} onChange={e => setReportReason(e.target.value)} required><option value="">Выбери причину</option><option value="Спам">Спам</option><option value="Оскорбления или угрозы">Оскорбления или угрозы</option><option value="Фейковая анкета">Фейковая анкета</option><option value="Неприемлемый контент">Неприемлемый контент</option><option value="Подозрение на мошенничество">Подозрение на мошенничество</option><option value="Другое">Другое</option></select></label><label>Подробности (необязательно)<textarea value={reportDetails} onChange={e => setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло"/></label><button className="save" type="submit" disabled={reporting}>{reporting ? 'Отправляем…' : 'Отправить жалобу'}</button></form></section></div>}
     {!loading && tab === 'likes' && <section className="panel"><div className="panel-icon"><Heart/></div><h2>Симпатии</h2><p>Когда симпатия взаимная, здесь можно начать переписку через раздел «Чаты».</p><button className="save" onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button></section>}
     {!loading && tab === 'chats' && <section className="panel"><div className="panel-icon"><MessageCircle/></div><h2>Твои чаты</h2><p>Переписка доступна после взаимного лайка.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Ставь лайки анкетам — чат появится, когда симпатия станет взаимной.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{(chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
     {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required/><button className="like" type="submit"><ArrowRight size={17}/></button></form></section>}
