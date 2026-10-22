@@ -10,6 +10,19 @@ const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined });
 const port = Number(process.env.PORT || 3001);
 const DEVELOPER_TELEGRAM_ID = '8745499515';
+const ROLE_LABELS = { chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
+const roleRank = { none: 0, helper: 1, moderator: 2, admin: 3, chief_admin: 4, developer: 5 };
+async function getRole(telegramId) {
+  if (String(telegramId) === DEVELOPER_TELEGRAM_ID) return 'developer';
+  const q = await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1', [String(telegramId)]);
+  if (q.rowCount) return q.rows[0].role;
+  if ((process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(x => x.trim()).includes(String(telegramId))) return 'admin';
+  return 'none';
+}
+async function canManage(req,res,next) {
+  try { const role = await getRole(req.user.telegram_id); if (roleRank[role] < roleRank.admin) return res.status(403).json({error:'Admin access denied'}); req.adminRole=role; next(); }
+  catch (e) { next(e); }
+}
 app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',') }));
 app.use(express.json({ limit: '5mb' }));
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);
@@ -24,12 +37,9 @@ async function auth(req,res,next) {
     req.user=q.rows[0]; next();
   } catch { res.status(401).json({error:'Telegram authentication failed'}); }
 }
-function adminOnly(req,res,next) {
-  const ids=[DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean)];
-  if (!ids.includes(String(req.user.telegram_id))) return res.status(403).json({error:'Admin access denied'});
-  next();
-}
+const adminOnly = canManage;
 app.get('/health',(_req,res)=>res.json({ok:true,app:'vibe-api'}));
+
 app.post('/api/auth/telegram',wrap(async(req,res)=>{
   const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);
   const q=await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
@@ -138,20 +148,39 @@ app.post('/telegram/webhook', (req,res) => {
   (async()=>{
     const from=m?.from||cb?.from, chatId=m?.chat?.id||cb?.message?.chat?.id, txt=(m?.text||'').trim();
     const parts=txt.split(/\s+/), cmd=(parts[0]||'').split('@')[0].toLowerCase(), arg=(parts[1]||'').replace(/^@/,'');
-    const admins=[DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean)], ok=from?.id&&admins.includes(String(from.id));
+    const role = from?.id ? await getRole(from.id) : 'none';
+    const ok = roleRank[role] >= roleRank.admin;
+    const isDeveloper = role === 'developer';
     const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,...(markup?{reply_markup:markup}:{})})});
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
     const card=async(id,editMode=false)=>{
       const q=await pool.query('SELECT id,telegram_id,username,first_name,account_status,profile_review_status,moderation_note,bio,city,photo_url,goal,interests,created_at FROM users WHERE id=$1',[id]);
       if(!q.rowCount){if(editMode)await edit('Пользователь не найден или аккаунт удалён.');else await send('Пользователь не найден.');return;}
-      const u=q.rows[0], kb={inline_keyboard:[[{text:'🔎 Проверить',callback_data:'u:check:'+id}],[{text:u.account_status==='banned'?'✅ Разбанить':'⛔ Забанить Telegram',callback_data:'u:'+(u.account_status==='banned'?'unban':'ban')+':'+id}],[{text:'🧹 Удалить анкету',callback_data:'u:profile:'+id}],[{text:'🗑 Удалить аккаунт',callback_data:'u:account:'+id}]]};
-      const details='👤 '+u.first_name+'\nUsername: '+(u.username?'@'+u.username:'не указан')+'\nTelegram ID: '+u.telegram_id+'\nID анкеты: '+u.id+'\nАккаунт: '+u.account_status+'\nПричина бана/модерации: '+(u.moderation_note||'—')+'\nАнкета: '+u.profile_review_status+'\nГород: '+(u.city||'—')+'\nЦель: '+u.goal+'\nИнтересы: '+((u.interests||[]).join(', ')||'—')+'\nФото: '+(u.photo_url?'есть':'нет')+'\nОписание: '+(u.bio||'—')+'\nСоздан: '+new Date(u.created_at).toLocaleString('ru-RU');
+      const u=q.rows[0];
+      const roleRow = await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1', [String(u.telegram_id)]);
+      const userRole = String(u.telegram_id)===DEVELOPER_TELEGRAM_ID ? 'developer' : (roleRow.rows[0]?.role || 'none');
+      const kb={inline_keyboard:[[{text:'🔎 Проверить',callback_data:'u:check:'+id}],[{text:u.account_status==='banned'?'✅ Разбанить':'⛔ Забанить Telegram',callback_data:'u:'+(u.account_status==='banned'?'unban':'ban')+':'+id}],[{text:'🧹 Удалить анкету',callback_data:'u:profile:'+id}],[{text:'🗑 Удалить аккаунт',callback_data:'u:account:'+id}]]};
+      if (isDeveloper && String(u.telegram_id)!==DEVELOPER_TELEGRAM_ID) kb.inline_keyboard.push([{text:'👑 Главный админ',callback_data:'role:chief_admin:'+id},{text:'🛡 Админ',callback_data:'role:admin:'+id}],[{text:'🔨 Модератор',callback_data:'role:moderator:'+id},{text:'🧰 Помощник',callback_data:'role:helper:'+id}],[{text:'❌ Снять права',callback_data:'role:none:'+id}]);
+      const details='👤 '+u.first_name+'\nUsername: '+(u.username?'@'+u.username:'не указан')+'\nTelegram ID: '+u.telegram_id+'\nID анкеты: '+u.id+'\nРоль: '+(userRole==='developer'?'Разработчик':ROLE_LABELS[userRole]||'Пользователь')+'\nАккаунт: '+u.account_status+'\nПричина бана/модерации: '+(u.moderation_note||'—')+'\nАнкета: '+u.profile_review_status+'\nГород: '+(u.city||'—')+'\nЦель: '+u.goal+'\nИнтересы: '+((u.interests||[]).join(', ')||'—')+'\nФото: '+(u.photo_url?'есть':'нет')+'\nОписание: '+(u.bio||'—')+'\nСоздан: '+new Date(u.created_at).toLocaleString('ru-RU');
       if(editMode)await edit(details,kb);else await send(details+'\nВыбери действие:',kb);
     };
     if(cb){
-      if(!ok){await answer('Только для администраторов');return;}
       const [prefix,act,idRaw]=(cb.data||'').split(':'), id=Number(idRaw);
+      if(prefix==='role') {
+        if(!isDeveloper){await answer('Назначать роли может только Разработчик');return;}
+        if(!Number.isSafeInteger(id)||id<=0||!['chief_admin','admin','moderator','helper','none'].includes(act)){await answer('Некорректная роль');return;}
+        const target=await pool.query('SELECT telegram_id,username FROM users WHERE id=$1',[id]);
+        if(!target.rowCount){await answer('Пользователь не зарегистрирован');return;}
+        const targetId=String(target.rows[0].telegram_id);
+        if(targetId===DEVELOPER_TELEGRAM_ID){await answer('Нельзя изменить роль Разработчика');return;}
+        if(act==='none') await pool.query('DELETE FROM admin_roles WHERE telegram_id=$1',[targetId]);
+        else await pool.query(`INSERT INTO admin_roles(telegram_id,username,role,assigned_by) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,role=EXCLUDED.role,assigned_by=EXCLUDED.assigned_by,updated_at=NOW()`,[targetId,target.rows[0].username,act,String(from.id)]);
+        await answer(act==='none'?'Права сняты':'Назначено: '+(ROLE_LABELS[act]||act));
+        await card(id,true);
+        return;
+      }
+      if(!ok){await answer('Только для администраторов');return;}
       if(prefix!=='u'||!Number.isSafeInteger(id)||id<=0||!['check','ban','unban','profile','account'].includes(act)){await answer('Некорректное действие');return;}
       const q=await pool.query('SELECT first_name FROM users WHERE id=$1',[id]);
       if(!q.rowCount){await answer('Пользователь не найден');await edit('Пользователь не найден или удалён.');return;}
@@ -167,7 +196,7 @@ app.post('/telegram/webhook', (req,res) => {
       if(from?.id&&from?.first_name)await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW()',[String(from.id),from.username??null,from.first_name]);
       reply='Привет! Открой VIBE кнопкой ниже ✨';markup={inline_keyboard:[[{text:'Перейти на сайт VIBE ✨',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
-      reply=ok?'🛠 Меню администратора VIBE\nВыбери команду:':'⛔ Команда доступна только администраторам.';
+      reply=ok?'🛠 Меню администратора VIBE\nТвоя роль: '+(role==='developer'?'Разработчик':ROLE_LABELS[role])+'\nВыбери команду:':'⛔ Команда доступна только администраторам.';
       if(ok)markup={keyboard:[[{text:'/очередь'},{text:'/пользователи'}],[{text:'/юзер'},{text:'/помощь'}]],resize_keyboard:true};
     }else if(cmd==='/бан'||cmd==='/ban'){
       if(!ok)reply='⛔ Только для администраторов.';
@@ -177,7 +206,7 @@ app.post('/telegram/webhook', (req,res) => {
       else if(!arg)reply='Использование: /юзер @username или /юзер Telegram_ID';
       else{const q=await pool.query('SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) ORDER BY id DESC LIMIT 1',[arg]);if(!q.rowCount)reply='Не найден. Пользователь должен хотя бы раз открыть бота/VIBE.';else{await card(q.rows[0].id);return;}}
     }else if(cmd==='/помощь'||cmd==='/help'){
-      reply=ok?'Команды VIBE:\n/адм — меню\n/очередь — жалобы и флаги\n/пользователи — число аккаунтов\n/юзер @username или Telegram_ID — управление пользователем':'Нажми /start, чтобы открыть VIBE.';
+      reply=ok?'Команды VIBE:\n/адм — меню\n/очередь — жалобы и флаги\n/пользователи — число аккаунтов\n/юзер @username или Telegram_ID — управление пользователем\n'+(isDeveloper?'Только Разработчик может назначать роли в карточке пользователя.':''):'Нажми /start, чтобы открыть VIBE.';
     }else if(cmd==='/очередь'||cmd==='/queue'){
       if(!ok)reply='⛔ Только для администраторов.';
       else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='📋 Очередь модерации\nЖалобы: '+r.rows[0].count+'\nФлаги: '+f.rows[0].count;}
@@ -193,6 +222,7 @@ async function start() {
     // Create VIBE tables in the configured VIBE database; CREATE IF NOT EXISTS preserves existing rows.
     const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
     await pool.query(schema);
+    await pool.query(`CREATE TABLE IF NOT EXISTS admin_roles (telegram_id TEXT PRIMARY KEY, username TEXT, role TEXT NOT NULL CHECK (role IN ('chief_admin','admin','moderator','helper')), assigned_by TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     console.log('VIBE database schema ready');
   } catch (err) {
     console.error('VIBE database schema initialization failed:', err.message);
