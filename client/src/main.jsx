@@ -43,6 +43,7 @@ function App() {
       const auth = await request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData }) });
       setUser(auth.user);
       const me = await request('/api/me');
+      setUser(me.user);
       const u = me.user;
       setProfile({
         birthDate: u.birth_date ? String(u.birth_date).slice(0, 10) : '',
