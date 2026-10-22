@@ -201,12 +201,21 @@ app.post('/telegram/webhook', (req,res) => {
     }else if(cmd==='/бан'||cmd==='/ban'){
       if(!ok)reply='⛔ Только для администраторов.';
       else{const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(\d+)\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажи ID и причину: /бан 123 спам или мошенничество';else if(bm[2].trim().length>500)reply='Причина слишком длинная (максимум 500 символов).';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING first_name,telegram_id",[bm[2].trim(),Number(bm[1])]);if(!target.rowCount)reply='Пользователь не найден.';else reply='⛔ Забанен: '+target.rows[0].first_name+' (Telegram ID '+target.rows[0].telegram_id+').\nПричина: '+bm[2].trim();}}
+    }else if(cmd==='/разбан'||cmd==='/unban'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else if(!arg)reply='Использование: /разбан @username или /разбан Telegram_ID';
+      else{
+        const targetKey=arg.replace(/^@/,'');
+        const target=await pool.query(`UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE telegram_id::text=$1 OR lower(username)=lower($1) OR id::text=$1 RETURNING first_name,telegram_id`,[targetKey]);
+        if(!target.rowCount)reply='Пользователь не найден. Проверь username или Telegram ID.';
+        else reply='✅ Разбанен: '+target.rows[0].first_name+' (Telegram ID '+target.rows[0].telegram_id+').';
+      }
     }else if(cmd==='/юзер'||cmd==='/user'){
       if(!ok)reply='⛔ Только для администраторов.';
       else if(!arg)reply='Использование: /юзер @username или /юзер Telegram_ID';
       else{const q=await pool.query('SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) ORDER BY id DESC LIMIT 1',[arg]);if(!q.rowCount)reply='Не найден. Пользователь должен хотя бы раз открыть бота/VIBE.';else{await card(q.rows[0].id);return;}}
     }else if(cmd==='/помощь'||cmd==='/help'){
-      reply=ok?'Команды VIBE:\n/адм — меню\n/очередь — жалобы и флаги\n/пользователи — число аккаунтов\n/юзер @username или Telegram_ID — управление пользователем\n'+(isDeveloper?'Только Разработчик может назначать роли в карточке пользователя.':''):'Нажми /start, чтобы открыть VIBE.';
+      reply=ok?'Команды VIBE:\n/адм — меню\n/очередь — жалобы и флаги\n/пользователи — число аккаунтов\n/юзер @username или Telegram_ID — управление пользователем\n/разбан @username или Telegram_ID — снять бан\n'+(isDeveloper?'Только Разработчик может назначать роли в карточке пользователя.':''):'Нажми /start, чтобы открыть VIBE.';
     }else if(cmd==='/очередь'||cmd==='/queue'){
       if(!ok)reply='⛔ Только для администраторов.';
       else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='📋 Очередь модерации\nЖалобы: '+r.rows[0].count+'\nФлаги: '+f.rows[0].count;}
