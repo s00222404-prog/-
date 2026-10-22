@@ -15,10 +15,10 @@ const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(nex
 async function auth(req,res,next) {
   try {
     const identity = validateTelegramInitData(req.get('X-Telegram-Init-Data'), process.env.BOT_TOKEN);
-    const q = await pool.query(`INSERT INTO users (telegram_id,username,first_name) VALUES ($1,$2,$3)
-      ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,updated_at=NOW()
+    const q = await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
+      ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
       RETURNING id,telegram_id,username,first_name,birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable`,
-      [identity.id,identity.username,identity.firstName]);
+      [identity.id,identity.username,identity.firstName,identity.photoUrl]);
     req.user=q.rows[0]; next();
   } catch { res.status(401).json({error:'Telegram authentication failed'}); }
 }
@@ -30,9 +30,9 @@ function adminOnly(req,res,next) {
 app.get('/health',(_req,res)=>res.json({ok:true,app:'vibe-api'}));
 app.post('/api/auth/telegram',wrap(async(req,res)=>{
   const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);
-  const q=await pool.query(`INSERT INTO users (telegram_id,username,first_name) VALUES ($1,$2,$3)
-    ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,updated_at=NOW()
-    RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,[i.id,i.username,i.firstName]);
+  const q=await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
+    ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
+    RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,[i.id,i.username,i.firstName,i.photoUrl]);
   res.json({user:q.rows[0]});
 }));
 app.get('/api/me',auth,(req,res)=>res.json({user:req.user}));
@@ -107,21 +107,31 @@ app.post('/telegram/webhook', (req,res) => {
   if (!message?.chat?.id || typeof message.text !== 'string') return;
   const token = process.env.BOT_TOKEN;
   if (!token) return;
-  const text = message.text.trim();
-  const reply = text.startsWith('/start')
-    ? 'Привет! Это VIBE ✨\nЗнакомься, общайся и находи близких по духу людей. Нажми кнопку ниже, чтобы открыть приложение.'
-    : 'Я здесь 😊 Чтобы открыть VIBE, нажми кнопку ниже.';
-  fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: message.chat.id,
-      text: reply,
-      reply_markup: { inline_keyboard: [[{ text: 'Открыть VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] }
-    })
-  }).catch(err => console.error('Telegram reply failed:', err.message));
+  (async () => {
+    const telegramUser = message.from;
+    if (telegramUser?.id && telegramUser?.first_name && message.text.trim().startsWith('/start')) {
+      await pool.query(
+        `INSERT INTO users (telegram_id,username,first_name) VALUES ($1,$2,$3)
+         ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW()`,
+        [String(telegramUser.id), telegramUser.username ?? null, telegramUser.first_name]
+      );
+    }
+    const reply = message.text.trim().startsWith('/start')
+      ? 'Привет! Это VIBE ✨\\nТвой Telegram уже привязан к профилю. Нажми кнопку ниже, чтобы открыть приложение.'
+      : 'Я здесь 😊 Чтобы открыть VIBE, нажми кнопку ниже.';
+    const response = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: message.chat.id,
+        text: reply,
+        reply_markup: { inline_keyboard: [[{ text: 'Открыть VIBE ✨', web_app: { url: 'https://vibe-client-sroc.onrender.com' } }]] }
+      })
+    });
+    if (!response.ok) console.error('Telegram reply failed:', response.status);
+  })().catch(err => console.error('Telegram webhook processing failed:', err.message));
 });
-\napp.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
+app.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
 app.listen(port, () => {
   console.log('VIBE API listening on ' + port);
   const token = process.env.BOT_TOKEN;
