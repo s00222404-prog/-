@@ -279,6 +279,8 @@ export async function handleExtraAdminCommand({ command, parts, pool, role, deve
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+        const protectedUser = await client.query('SELECT id FROM users WHERE telegram_id::text = $1 FOR UPDATE', [developerId]);
+        if (!protectedUser.rowCount) throw new Error('Developer account is not present in users table; refusing bulk deletion.');
         const userIds = await client.query('SELECT id FROM users WHERE telegram_id::text <> $1 FOR UPDATE', [developerId]);
         const ids = userIds.rows.map(u => u.id);
         await client.query("DELETE FROM telegram_support_sessions WHERE telegram_id::text <> $1", [developerId]);
