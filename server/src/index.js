@@ -437,7 +437,7 @@ app.post('/telegram/webhook', (req,res) => {
           await send(reply); return;
         }
       }
-      reply='Welcome to VIBE.\nOpen the app using the button below to continue.';markup={inline_keyboard:[[{text:'Open VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+      reply='VIBE\n\nЗнакомства. Общение. Новые возможности.\n\nДобро пожаловать в пространство, где начинаются новые знакомства.\n\nОткройте приложение, чтобы продолжить.';markup={inline_keyboard:[[{text:'Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
       reply=ok?'VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'⛔ This command is available to administrators only.';
       if(ok)markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/help'}]],resize_keyboard:true};
