@@ -115,6 +115,7 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
      const u=author.rows[0];
      const code=String(req.user.id).padStart(6,'0');
      const created=new Date(listing.created_at).toLocaleString('ru-RU',{timeZone:'Europe/Berlin'});
+     const escapeHtml = value => String(value ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
      const cleanDisplay = value => String(value || '').replace(/[\u200B-\u200F\uFEFF\u2060]/g, '').trim();
      const displayName = cleanDisplay(u?.first_name) || 'Не указано';
      const displayUsername = cleanDisplay(u?.username);
@@ -124,17 +125,17 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
        '🆔 <b>Номер анкеты:</b> #' + listing.id,
        '',
        '👤 <b>Данные анкеты</b>',
-       '• <b>Имя:</b> ' + listing.name,
+       '• <b>Имя:</b> ' + escapeHtml(listing.name),
        '• <b>Возраст:</b> ' + listing.age,
-       '• <b>Город:</b> ' + listing.city + ', ' + listing.country,
-       '• <b>Хобби:</b> ' + (listing.hobbies || '—'),
-       '• <b>Описание:</b> ' + (listing.description || '—'),
+       '• <b>Город:</b> ' + escapeHtml(listing.city) + ', ' + escapeHtml(listing.country),
+       '• <b>Хобби:</b> ' + escapeHtml(listing.hobbies || '—'),
+       '• <b>Описание:</b> ' + escapeHtml(listing.description || '—'),
        '',
        '🪪 <b>Аккаунт</b>',
-       '• <b>Код VIBE:</b> <code>' + code + '</code>',
-       '• <b>Пользователь:</b> ' + displayName + (displayUsername ? ' (@' + displayUsername + ')' : ''),
-       '• <b>Telegram ID:</b> <code>' + (u?.telegram_id || 'не указан') + '</code>',
-       '• <b>Создано:</b> ' + created,
+       '• <b>Код VIBE:</b> <code>' + escapeHtml(code) + '</code>',
+       '• <b>Пользователь:</b> ' + escapeHtml(displayName) + (displayUsername ? ' (@' + escapeHtml(displayUsername) + ')' : ''),
+       '• <b>Telegram ID:</b> <code>' + escapeHtml(u?.telegram_id || 'не указан') + '</code>',
+       '• <b>Создано:</b> ' + escapeHtml(created),
        '• <b>Фото профиля:</b> ' + (u?.photo_url ? 'есть' : 'нет'),
        '',
        '👇 <b>Проверь анкету и выбери действие:</b>'
