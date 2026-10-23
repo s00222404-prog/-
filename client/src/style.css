@@ -202,3 +202,6 @@ footer span{color:#a9a0b5}
 .profile-modal .own-listing-preview{margin-top:18px}
 .profile-modal .back-chat{display:block;margin-left:auto}
 @media(max-width:520px){.profile-modal{padding:20px 16px;max-height:92vh}.profile-modal .own-listing-preview button{width:100%;margin:7px 0 0}}
+
+/* Keep discovery actions compact and visible on mobile */
+.card-actions .save{width:auto;margin-top:0;flex:1}.card-actions .like{flex:1}.card-actions .skip{min-height:42px}.card-actions button{white-space:nowrap}@media(max-width:420px){.card-actions{display:grid;grid-template-columns:1fr 1fr}.card-actions button{width:100%;padding:11px 7px}.card-actions .like,.card-actions .save{flex:initial}}
