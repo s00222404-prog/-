@@ -529,7 +529,7 @@ app.post('/telegram/webhook', (req,res) => {
     if(m && txt && !txt.startsWith('/') && roleRank[role]>=roleRank.admin){
       const q=await pool.query('SELECT salt,password_hash FROM admin_access_passwords WHERE telegram_id=$1',[String(from.id)]);
       if(q.rowCount && verifyAdminPassword(txt,q.rows[0].salt,q.rows[0].password_hash)){
-        await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,NOW()+INTERVAL '8 hours') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
+        await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,(date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') + INTERVAL '1 day') AT TIME ZONE 'Europe/Berlin') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
         await send('✅ Доступ открыт на 8 часов.\n\n'+adminCommandHelp(role));return;
       }
       // Ordinary text is not a bot command; don't respond to it.
@@ -539,7 +539,7 @@ app.post('/telegram/webhook', (req,res) => {
     if(m&&roleRank[role]>=roleRank.admin&&/^\/(вход|adminlogin)(?:@\S+)?$/i.test(cmd)){
       const password=parts[1]||'',q=await pool.query('SELECT salt,password_hash FROM admin_access_passwords WHERE telegram_id=$1',[String(from.id)]);
       if(!password||!q.rowCount||!verifyAdminPassword(password,q.rows[0].salt,q.rows[0].password_hash)){await send('⛔ Неверный пароль.');return;}
-      await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,NOW()+INTERVAL '8 hours') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
+      await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,(date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') + INTERVAL '1 day') AT TIME ZONE 'Europe/Berlin') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
       await send('✅ Доступ открыт на 8 часов.\n\n'+adminCommandHelp(role));return;
     }
     if(m&&roleRank[role]>=roleRank.admin&&!isDeveloper&&!/^\/(start|help|помощь|вход|adminlogin)(?:@\S+)?$/i.test(cmd)&&!await isAdminUnlocked(from.id)){await send('🔒 Админ-команды закрыты паролем.');return;}
