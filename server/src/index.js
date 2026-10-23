@@ -336,6 +336,11 @@ app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
   if(targetExists.rows[0].username&&reportedHandle.toLowerCase()!==targetExists.rows[0].username.toLowerCase())return res.status(400).json({error:'Юзернейм не совпадает с выбранным профилем'});
   const safeListingId=listingId===null?null:Number(listingId);
   if(safeListingId!==null&&(!Number.isSafeInteger(safeListingId)||safeListingId<1))return res.status(400).json({error:'Некорректная публикация'});
+  if(reportType==='post'){
+    if(safeListingId===null)return res.status(400).json({error:'Не удалось определить публикацию'});
+    const post=await pool.query('SELECT id FROM listings WHERE id=$1 AND user_id=$2',[safeListingId,id]);
+    if(!post.rowCount)return res.status(400).json({error:'Публикация не принадлежит выбранному профилю'});
+  }
   const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reason.trim(),details.trim(),reporterUsername.trim(),reportedUsername.trim(),evidence,reportType,safeListingId]);
   if(process.env.BOT_TOKEN){
     try{
