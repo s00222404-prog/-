@@ -32,17 +32,101 @@ const BAN_REASONS = {
   other: { label: 'Другое подтверждённое нарушение правил', reason: 'Другое подтверждённое нарушение правил VIBE' }
 };
 
-function telegramCommandsForRole(_role) { return [{command:'help',description:'Помощь пользователям'}]; }
+const TELEGRAM_COMMAND_DESCRIPTIONS = {
+  help: 'Help and support',
+  adminhelp: 'Show commands available for your role',
+  helpadmin: 'Show administrator help',
+  myrole: 'Show your active and assigned role',
+  switchrole: 'Switch to an assigned role',
+  queue: 'Open moderation queue',
+  ping: 'Check bot response',
+  health: 'Check service health',
+  permissions: 'Show role permissions',
+  stats: 'Show platform statistics',
+  today: 'Show accounts created today',
+  week: 'Show accounts created this week',
+  pending: 'Count profiles awaiting review',
+  published: 'Count published profiles',
+  rejected: 'Count rejected profiles',
+  reports: 'List open user reports',
+  reportstats: 'Show report statistics',
+  flags: 'List moderation flags',
+  flagstats: 'Show moderation flag statistics',
+  recent: 'List recently registered users',
+  inactive: 'List inactive accounts',
+  search: 'Search users by name or username',
+  bycity: 'Count profiles by city',
+  topcities: 'Show popular profile cities',
+  interests: 'Show popular interests',
+  likes: 'Show likes and mutual likes statistics',
+  matches: 'Show mutual matches statistics',
+  chats: 'Show active chat statistics',
+  messages: 'Show message statistics',
+  profiles: 'Show profile statistics',
+  verified: 'Count age-verified adult accounts',
+  unverified: 'Count accounts awaiting age review',
+  agequeue: 'Open age-review queue',
+  ban: 'Ban a user account',
+  unban: 'Restore a banned account',
+  delete: 'Delete a user account',
+  deleteall: 'Preview or confirm bulk account deletion',
+  users: 'Count registered users',
+  bans: 'List banned accounts',
+  staff: 'List team members and roles',
+  admins: 'List administrators',
+  moderators: 'List moderators',
+  helpers: 'List helpers',
+  botinfo: 'Show bot configuration status',
+  dbcheck: 'Check database connectivity',
+  support: 'Open user support options',
+};
+
+function telegramCommandsForRole(role) {
+  const core = [
+    { command: 'help', description: TELEGRAM_COMMAND_DESCRIPTIONS.help },
+    { command: 'adminhelp', description: TELEGRAM_COMMAND_DESCRIPTIONS.adminhelp },
+    { command: 'myrole', description: TELEGRAM_COMMAND_DESCRIPTIONS.myrole },
+    { command: 'switchrole', description: TELEGRAM_COMMAND_DESCRIPTIONS.switchrole },
+    { command: 'queue', description: TELEGRAM_COMMAND_DESCRIPTIONS.queue },
+    { command: 'ping', description: TELEGRAM_COMMAND_DESCRIPTIONS.ping },
+  ];
+  const extra = EXTRA_ADMIN_COMMANDS
+    .filter(item => /^[a-z0-9_]{1,32}$/.test(item.command) && roleCanUseCommand(role, item.command))
+    .map(item => ({
+      command: item.command,
+      description: TELEGRAM_COMMAND_DESCRIPTIONS[item.command] || `Run the ${item.command.replace(/_/g, ' ')} command`,
+    }));
+  const commands = [...core.filter(item => roleCanUseCommand(role, item.command)), ...extra];
+  const unique = [...new Map(commands.map(item => [item.command, item])).values()];
+  return unique.slice(0, 100);
+}
+
 async function hideTelegramCommands(token) {
   if (!token) return;
-  const scopes=[{type:'default'},{type:'all_private_chats'},{type:'all_group_chats'}];
-  const staff=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator','helper')");
-  const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(x=>String(x.telegram_id))]);
-  for(const id of ids) scopes.push({type:'chat',chat_id:Number(id)});
-  for(const scope of scopes) for(const language_code of [undefined,'ru','en']) {
-    const body={commands:scope.type==='default'?[{command:'help',description:'Помощь пользователям'}]:[],scope}; if(language_code) body.language_code=language_code;
-    const r=await fetch('https://api.telegram.org/bot'+token+'/setMyCommands',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-    const result=await r.json(); if(!result.ok) console.error('Telegram menu clear failed:',scope.type,result.description);
+  const call = async (scope, commands) => {
+    const response = await fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ commands, scope }),
+    });
+    const result = await response.json();
+    if (!result.ok) console.error('Telegram command menu update failed:', scope.type, result.description);
+  };
+
+  await call({ type: 'default' }, [{ command: 'help', description: 'Help and support' }]);
+  await call({ type: 'all_group_chats' }, []);
+
+  const staff = await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator','helper')");
+  const staffIds = new Set([
+    DEVELOPER_TELEGRAM_ID,
+    ...(process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(value => value.trim()).filter(Boolean),
+    ...staff.rows.map(row => String(row.telegram_id)),
+  ]);
+
+  for (const id of staffIds) {
+    const role = await getRole(id);
+    if (role === 'none') continue;
+    await call({ type: 'chat', chat_id: Number(id) }, telegramCommandsForRole(role));
   }
 }
 function hashAdminPassword(password,salt){return scryptSync(password,salt,64).toString('hex');}
