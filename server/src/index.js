@@ -501,7 +501,10 @@ async function start() {
         if (!result.ok) console.error('Telegram command menu setup failed:', result.description);
         else console.log('Telegram command menu configured:', scope.type);
       }).catch(err => console.error('Telegram command menu setup failed:', err.message));
+      // Explicitly override every broad scope so stale BotFather / prior command lists cannot expose admin commands in ordinary chats.
       setCommands(publicCommands, { type: 'default' });
+      setCommands(publicCommands, { type: 'all_private_chats' });
+      setCommands(publicCommands, { type: 'all_group_chats' });
       setCommands(developerCommands, { type: 'chat', chat_id: Number(DEVELOPER_TELEGRAM_ID) });
       pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin')")
         .then(q => Promise.all([...new Set([...(process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(x => x.trim()).filter(Boolean), ...q.rows.map(x => String(x.telegram_id))])]
