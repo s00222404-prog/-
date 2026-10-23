@@ -380,7 +380,7 @@ app.post('/telegram/webhook', (req,res) => {
     }
     if(!m)return;
     let reply,markup;
-    if(cmd==='/паливные'||cmd==='/паливный'||cmd==='/безпаливные'||cmd==='/безпаливный'){
+    if(cmd==='/паливные'||cmd==='/паливный'||cmd==='/безпаливные'||cmd==='/безпаливный'||cmd==='/publicstatus'||cmd==='/clearstatus'){
       if(!isDeveloper){await send('⛔ Публичные статусы может выдавать и снимать только Разработчик.');return;}
       const parts=txt.split(/\s+/);
       const key=(parts[1]||'').replace(/^@/,'');
@@ -389,7 +389,7 @@ app.post('/telegram/webhook', (req,res) => {
       if(!target.rowCount){await send('Пользователь не найден. Проверьте @username или шестизначный код профиля.');return;}
       const u=target.rows[0];
       if(String(u.telegram_id)===DEVELOPER_TELEGRAM_ID){await send('Публичный статус разработчика защищён и не может быть изменён.');return;}
-      if(cmd.startsWith('/без')){
+      if(cmd.startsWith('/без')||cmd==='/clearstatus'){
         await pool.query("UPDATE users SET public_status='',updated_at=NOW() WHERE id=$1",[u.id]);
         await send('✅ Публичный статус снят.\nПользователь: '+u.first_name+' (код '+String(u.id).padStart(6,'0')+'). Права аккаунта не изменены.');
         return;
@@ -442,7 +442,7 @@ app.post('/telegram/webhook', (req,res) => {
       else if(!arg)reply='Формат: /юзер @username, /юзер 001234 или /юзер Telegram_ID';
       else{const q=await pool.query(`SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')`,[arg]);if(!q.rowCount)reply='Пользователь не найден. Он должен хотя бы один раз открыть бота или приложение VIBE.';else{await card(q.rows[0].id);return;}}
     }else if(cmd==='/помощь'||cmd==='/help'){
-      reply=ok?'VIBE | СПРАВКА ПО КОМАНДАМ\n\n/адм — открыть панель управления\n/очередь — сводка модерации\n/пользователи — общее число аккаунтов\n/баны — список заблокированных аккаунтов\n/юзер @username или 001234 — карточка пользователя\n/бан 001234 причина — заблокировать аккаунт\n/разбан @username или 001234 — снять блокировку\n/удалить @username или 001234 — удалить аккаунт\n/статус — состояние сервиса\n'+(isDeveloper?'\nКОМАНДЫ РАЗРАБОТЧИКА\n/паливные @username помощник|модератор|администратор|главный_администратор — назначить публичный статус\n/безпаливные @username — снять публичный статус\n\nПубличный статус не предоставляет административных прав. Административные права назначаются отдельно в карточке пользователя.':''):'Добро пожаловать в VIBE. Отправьте /start, чтобы открыть приложение.';
+      reply=ok?'VIBE | СПРАВКА ПО КОМАНДАМ\n\n/адм — открыть панель управления\n/очередь — сводка модерации\n/пользователи — общее число аккаунтов\n/баны — список заблокированных аккаунтов\n/юзер @username или 001234 — карточка пользователя\n/бан 001234 причина — заблокировать аккаунт\n/разбан @username или 001234 — снять блокировку\n/удалить @username или 001234 — удалить аккаунт\n/статус — состояние сервиса\n'+(isDeveloper?'\nКОМАНДЫ РАЗРАБОТЧИКА\n/паливные @username помощник|модератор|администратор|главный_администратор — назначить публичный статус\n/безпаливные @username — снять публичный статус\n/publicstatus @username helper|moderator|admin|chief_admin — назначить статус\n/clearstatus @username — снять публичный статус\n\nПубличный статус не предоставляет административных прав. Административные права назначаются отдельно в карточке пользователя.':''):'Добро пожаловать в VIBE. Отправьте /start, чтобы открыть приложение.';
     }else if(cmd==='/очередь'||cmd==='/queue'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='VIBE | СВОДКА МОДЕРАЦИИ\nОткрытые жалобы: '+r.rows[0].count+'\nОткрытые сигналы модерации: '+f.rows[0].count;}
@@ -474,6 +474,40 @@ async function start() {
     console.log('VIBE API listening on ' + port);
     const token = process.env.BOT_TOKEN;
     if (token) {
+      const publicCommands = [
+        { command: 'start', description: 'Открыть приложение VIBE' },
+        { command: 'help', description: 'Справка и доступные команды' },
+        { command: 'status', description: 'Проверить состояние сервиса' }
+      ];
+      const adminCommands = [...publicCommands,
+        { command: 'admin', description: 'Панель управления' },
+        { command: 'queue', description: 'Сводка модерации' },
+        { command: 'users', description: 'Статистика аккаунтов' },
+        { command: 'bans', description: 'Список заблокированных аккаунтов' },
+        { command: 'user', description: 'Карточка пользователя' },
+        { command: 'ban', description: 'Заблокировать аккаунт' },
+        { command: 'unban', description: 'Снять блокировку' },
+        { command: 'delete', description: 'Удалить аккаунт' }
+      ];
+      const developerCommands = [...adminCommands,
+        { command: 'publicstatus', description: 'Назначить публичный статус профиля' },
+        { command: 'clearstatus', description: 'Снять публичный статус профиля' }
+      ];
+      const setCommands = (commands, scope) => fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ commands, scope, language_code: 'ru' })
+      }).then(r => r.json()).then(result => {
+        if (!result.ok) console.error('Telegram command menu setup failed:', result.description);
+        else console.log('Telegram command menu configured:', scope.type);
+      }).catch(err => console.error('Telegram command menu setup failed:', err.message));
+      setCommands(publicCommands, { type: 'default' });
+      setCommands(developerCommands, { type: 'chat', chat_id: Number(DEVELOPER_TELEGRAM_ID) });
+      pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin')")
+        .then(q => Promise.all([...new Set([...(process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(x => x.trim()).filter(Boolean), ...q.rows.map(x => String(x.telegram_id))])]
+          .filter(id => id !== DEVELOPER_TELEGRAM_ID)
+          .map(id => setCommands(adminCommands, { type: 'chat', chat_id: Number(id) }))))
+        .catch(err => console.error('Telegram admin command menu setup failed:', err.message));
       fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
