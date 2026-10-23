@@ -40,6 +40,35 @@ const translationOriginals = new WeakMap();
 const translationAttributeOriginals = new WeakMap();
 const EXTRA_TRANSLATIONS = {
   en: {
+    "Возрастная сторона доступна":"Age access is available",
+    "возрастная сторона":"age group",
+    "Доступно":"Available",
+    "Взрослая сторона доступна после предусмотренной сервисом проверки возраста.":"Adult access is available after the service’s age verification process.",
+    "VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Взрослая сторона доступна после предусмотренной сервисом проверки возраста.":"VIBE separates teen users (14–17) from adults (18+). Adult access requires the service’s age verification process.",
+    "Анкета на проверке":"Listing pending review",
+    "Анкета отправлена на проверку":"Listing submitted for review",
+    "Твоя анкета находится на проверке модерации.":"Your listing is awaiting moderator review.",
+    "Ожидает одобрения":"Awaiting approval",
+    "Статус анкеты: на проверке":"Listing status: pending review",
+    "Анкета будет опубликована после одобрения модератора.":"Your listing will be published after a moderator approves it.",
+    "Анкета отклонена":"Listing rejected",
+    "Анкета опубликована":"Listing published",
+    "Ваша анкета одобрена и опубликована.":"Your listing has been approved and published.",
+  },
+  de: {
+    "Взрослая сторона доступна после предусмотренной сервисом проверки возраста.":"Der Zugang für Erwachsene ist nach der vorgesehenen Altersprüfung verfügbar.",
+    "VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Взрослая сторона доступна после предусмотренной сервисом проверки возраста.":"VIBE trennt Jugendliche (14–17) und Erwachsene (18+). Der Zugang für Erwachsene erfordert die vorgesehene Altersprüfung.",
+    "Анкета на проверке":"Profilbogen wird geprüft",
+    "Анкета отправлена на проверку":"Profilbogen zur Prüfung eingereicht",
+    "Твоя анкета находится на проверке модерации.":"Dein Profilbogen wird von der Moderation geprüft.",
+    "Ожидает одобрения":"Wartet auf Freigabe",
+    "Статус анкеты: на проверке":"Status des Profilbogens: in Prüfung",
+    "Анкета будет опубликована после одобрения модератора.":"Dein Profilbogen wird nach Freigabe durch die Moderation veröffentlicht.",
+    "Анкета отклонена":"Profilbogen abgelehnt",
+    "Анкета опубликована":"Profilbogen veröffentlicht",
+    "Ваша анкета одобрена и опубликована.":"Dein Profilbogen wurde freigegeben und veröffentlicht.",
+  },
+  en: {
     'ТВОЙ VIBE':'YOUR VIBE','ТВОЯ ИСТОРИЯ НАЧИНАЕТСЯ ЗДЕСЬ':'YOUR STORY STARTS HERE','Пример карточки знакомства':'Example profile card',
     'Публикация: ':'Post: ','Пользователь':'User','Анкета':'Listing','Возраст':'Age','Возраст (14–100 лет)':'Age (14–100)','Например, 22':'e.g. 22','Например, Берлин':'e.g. Berlin','Германия':'Germany','Музыка, спорт, игры, прогулки…':'Music, sports, games, walks…','Расскажи о себе без мата и пошлостей':'Tell people about yourself respectfully','Выбрать фото или видео':'Choose photo or video','Медиа готово к публикации.':'Media is ready to publish.','Медиа выбрано ·':'Media selected ·','фото':'photo','видео':'video','Перед публикацией проверяем текст на ругательства и пошлые выражения. Проверки возрастных групп временно отключены на этапе разработки. Перед запуском платформы их нужно будет вернуть.':'Text is checked for profanity and sexual content before publishing. Age-group checks are temporarily disabled during development and must be restored before launch.','Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.':'Listing saved and submitted for review. Others will see it after approval. You can see your own listing in recommendations.','Фото выбрано. Нажми «Сохранить анкету», чтобы применить изменения.':'Photo selected. Tap “Save profile” to apply changes.','Профиль сохранён.':'Profile saved.','Укажи дату рождения, чтобы создать профиль и пользоваться VIBE.':'Enter your date of birth to create a profile and use VIBE.','Не удалось сохранить профиль.':'Could not save profile.','Не удалось опубликовать анкету.':'Could not publish listing.','Выбери фото или видео.':'Choose a photo or video.','Медиа должно быть не больше 3 МБ.':'Media must be 3 MB or smaller.','Убрать доказательство':'Remove evidence','Подробности':'Details','Обязательная причина':'Required reason','Временно закрыт':'Temporarily unavailable','Твоя волна':'Your vibe','Пока нет новых симпатий.':'No new likes yet.','Анкета отправлена на проверку':'Listing submitted for review','Проверка':'Review','Одобрена':'Approved','На проверке':'Pending review','Отклонена':'Rejected','Лайки':'Likes','Профиль сохранён':'Profile saved','Симпатия отправлена.':'Like sent.','У вас взаимная симпатия 💜':'It’s a match 💜'
   },
