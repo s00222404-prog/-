@@ -81,11 +81,18 @@ async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,so
   } catch (e) { console.error('Developer protection notification failed:', e.message); }
 }
 async function getRole(telegramId) {
-  if (String(telegramId) === DEVELOPER_TELEGRAM_ID) return 'developer';
-  const q = await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1', [String(telegramId)]);
-  if (q.rowCount) return q.rows[0].role;
-  if ((process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(x => x.trim()).includes(String(telegramId))) return 'admin';
-  return 'none';
+  const id=String(telegramId);
+  let assigned='none';
+  if(id===DEVELOPER_TELEGRAM_ID) assigned='developer';
+  else {
+    const q=await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1',[id]);
+    if(q.rowCount) assigned=q.rows[0].role;
+    else if((process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).includes(id)) assigned='admin';
+  }
+  if(assigned==='none') return 'none';
+  const active=await pool.query('SELECT role FROM admin_active_roles WHERE telegram_id=$1',[id]);
+  const current=active.rows[0]?.role;
+  return current && roleRank[current]!==undefined && roleRank[current]<=roleRank[assigned] ? current : assigned;
 }
 async function canManage(req,res,next) {
   try { const role = await getRole(req.user.telegram_id); if (roleRank[role] < roleRank.admin) return res.status(403).json({error:'Admin access denied'}); req.adminRole=role; next(); }
@@ -551,6 +558,25 @@ app.post('/telegram/webhook', (req,res) => {
       await send('✅ VIBE снова открыт. Пользователи могут входить на сайт.');
       return;
     }
+    if(m && (cmd==='/switchrole'||cmd==='/myrole'||cmd==='/роль')) {
+      const id=String(from.id);
+      let assigned='none';
+      if(id===DEVELOPER_TELEGRAM_ID) assigned='developer';
+      else { const aq=await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1',[id]); if(aq.rowCount) assigned=aq.rows[0].role; else if((process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).includes(id)) assigned='admin'; }
+      if(assigned==='none'){await send('⛔ Переключение ролей доступно только участникам команды VIBE.');return;}
+      const names={helper:'Помощник',moderator:'Модератор',admin:'Администратор',chief_admin:'Главный администратор',developer:'Разработчик'};
+      if(cmd==='/myrole'||cmd==='/роль'){
+        await send('🛡 ТВОЯ РОЛЬ VIBE\n━━━━━━━━━━━━━━━━━━\nАктивная роль: '+names[role]+'\nМаксимальная роль: '+names[assigned]+'\n\nПереключить роль: /switchrole helper|moderator|admin|chief_admin|developer\nВернуться к максимальной роли: /switchrole max');
+        return;
+      }
+      const wanted=(parts[1]||'').toLowerCase();
+      const aliases={помощник:'helper',помощникa:'helper',helper:'helper',модератор:'moderator',moderator:'moderator',админ:'admin',admin:'admin',главный:'chief_admin',chief_admin:'chief_admin',разработчик:'developer',developer:'developer',max:assigned,максимум:assigned};
+      const target=aliases[wanted];
+      if(!target||roleRank[target]>roleRank[assigned]){await send('⚠️ Укажи свою роль или роль ниже твоей.\n\n/switchrole helper\n/switchrole moderator\n/switchrole admin\n/switchrole chief_admin\n/switchrole developer\n/switchrole max\n\nПовышать права выше назначенной роли нельзя.');return;}
+      await pool.query('INSERT INTO admin_active_roles(telegram_id,role,updated_at) VALUES($1,$2,NOW()) ON CONFLICT(telegram_id) DO UPDATE SET role=EXCLUDED.role,updated_at=NOW()',[id,target]);
+      await send('✅ Активная роль изменена.\n\nТеперь ты: '+names[target]+'\nМаксимально назначенная роль: '+names[assigned]+'\n\nКоманды и права обновлены. Для возврата: /switchrole max');
+      return;
+    }
     if(m&&isDeveloper&&/^\/(пароли|adminpasswords)(?:@\S+)?$/i.test(txt)){
       const q=await pool.query("SELECT telegram_id,username,role FROM admin_roles WHERE role IN ('chief_admin','admin','moderator','helper') ORDER BY role DESC,username NULLS LAST");
       const lines=['🔐 ПАРОЛИ АДМИНОК','Текущие пароли не хранятся в открытом виде. Для забытого пароля можно выпустить новый.',''];
@@ -602,7 +628,7 @@ app.post('/telegram/webhook', (req,res) => {
       await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,(date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') + INTERVAL '1 day') AT TIME ZONE 'Europe/Berlin') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
       await send('✅ Доступ открыт на 8 часов.\n\n'+adminCommandHelp(role));return;
     }
-    if(m&&roleRank[role]>=roleRank.admin&&!isDeveloper&&!/^\/(start|help|помощь|вход|adminlogin)(?:@\S+)?$/i.test(cmd)&&!await isAdminUnlocked(from.id)){await send('🔒 Админ-команды закрыты паролем.');return;}
+    if(m&&roleRank[role]>=roleRank.admin&&!isDeveloper&&!/^\/(start|help|помощь|вход|adminlogin|switchrole|myrole|роль)(?:@\S+)?$/i.test(cmd)&&!await isAdminUnlocked(from.id)){await send('🔒 Админ-команды закрыты паролем.');return;}
 
     if(ownAccount.rowCount && ownAccount.rows[0].account_status==='banned' && String(from.id)!==DEVELOPER_TELEGRAM_ID){
       const issuer=(ownAccount.rows[0].ban_issuer||'moderator')==='developer'?'разработчиком':'модератором';
@@ -909,6 +935,7 @@ async function start() {
     await pool.query(schema);
     await pool.query("CREATE TABLE IF NOT EXISTS service_maintenance (id INTEGER PRIMARY KEY CHECK (id=1), enabled BOOLEAN NOT NULL DEFAULT FALSE, reason TEXT NOT NULL DEFAULT '', updated_by TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     await pool.query("INSERT INTO service_maintenance(id,enabled,reason) VALUES(1,FALSE,'') ON CONFLICT(id) DO NOTHING");
+    await pool.query("CREATE TABLE IF NOT EXISTS admin_active_roles (telegram_id TEXT PRIMARY KEY, role TEXT NOT NULL CHECK (role IN ('developer','chief_admin','admin','moderator','helper')), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_passwords (telegram_id TEXT PRIMARY KEY, salt TEXT NOT NULL, password_hash TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_sessions (telegram_id TEXT PRIMARY KEY, unlocked_until TIMESTAMPTZ NOT NULL)');
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_timezones (telegram_id TEXT PRIMARY KEY, time_zone TEXT NOT NULL)');
