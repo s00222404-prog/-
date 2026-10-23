@@ -188,7 +188,7 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
  if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя должно содержать от 2 до 60 символов.'});
  if(!Number.isInteger(Number(age))||Number(age)<14||Number(age)>100)return res.status(400).json({error:'Возраст указывается числом от 14 до 100.'});
  const authorBand=await getUserAgeBand(req.user.id);
- if(!['teen','adult'].includes(authorBand))return res.status(403).json({error:'Сначала укажи дату рождения и подтверди возраст от 14 лет.'});
+ if(!['teen','adult'].includes(authorBand))return res.status(403).json({error:'Не удалось определить возрастную сторону. Открой свой профиль → укажи настоящую дату рождения и нажми «Сохранить анкету». Если тебе 14–17 лет, анкета должна указывать возраст 14–17. Для возраста 18+ нужна предусмотренная проверка возраста.'});
  if((authorBand==='teen'&&Number(age)>17)||(authorBand==='adult'&&Number(age)<18))return res.status(403).json({error:'Возраст анкеты не соответствует твоей возрастной стороне VIBE.'});
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
  if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
