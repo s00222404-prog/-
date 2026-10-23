@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw, MessageCircle, ImagePlus, PlusCircle, BadgeCheck, Crown, ShieldCheck, Wrench } from 'lucide-react';
+import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw, MessageCircle, ImagePlus, PlusCircle, BadgeCheck, Crown, ShieldCheck, Wrench, LayoutGrid, Rows3 } from 'lucide-react';
 import './style.css';
 
 const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -15,6 +15,7 @@ function RoleBadge({ role, label }) {
 
 function App() {
   const [tab, setTab] = useState('discover');
+  const [displayMode, setDisplayMode] = useState('large');
   const [user, setUser] = useState(null);
   const [people, setPeople] = useState([]);
   const [likesData, setLikesData] = useState({incoming:[],outgoing:[]});
@@ -244,8 +245,8 @@ function App() {
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
-    {!loading && tab === 'discover' && <section className="people">
-      <div className="section-heading"><div><h2>Для тебя</h2><p>Подборка автоматически учитывает твой профиль, интересы, город и цель знакомства</p></div><span className="count">{people.length} анкет</span></div>
+    {!loading && tab === 'discover' && <section className={'people ' + (displayMode === 'grid' ? 'display-grid' : 'display-large')}>
+      <div className="section-heading"><div><h2>Для тебя</h2><p>Подборка автоматически учитывает твой профиль, интересы, город и цель знакомства</p></div><div className="discovery-heading-actions"><div className="view-switch" aria-label="Вид анкет"><button className={displayMode === 'large' ? 'active' : ''} onClick={() => setDisplayMode('large')} aria-label="Большие карточки" title="Большие карточки"><Rows3 size={16}/></button><button className={displayMode === 'grid' ? 'active' : ''} onClick={() => setDisplayMode('grid')} aria-label="Сетка анкет" title="Сетка анкет"><LayoutGrid size={16}/></button></div><span className="count">{people.length} анкет</span></div></div>
       {people.length === 0 && <div className="empty"><Sparkles/><h3>Пока нет доступных анкет</h3><p>Основной интерфейс открыт для просмотра. Анкеты появятся по мере регистрации пользователей.</p></div>}
       {people.map(p => <article className="profile-card" key={p.id}>
         <div className="profile-cover">
@@ -303,6 +304,7 @@ function App() {
     </form></section>}
     {profileOpen && <div className="report-overlay" onClick={e => { if (e.target === e.currentTarget) setProfileOpen(false); }}><section className="panel report-dialog profile-modal account-profile-modal"><button className="back-chat" type="button" onClick={() => setProfileOpen(false)}>← Закрыть профиль</button><div className="account-avatar">{user?.photo_url ? <img src={user.photo_url} alt="Аватар" /> : <UserRound size={42}/>}</div><h2>{user?.username ? '@' + user.username : (user?.first_name || 'Пользователь')}</h2><RoleBadge role={user?.public_role} label={user?.role_label}/><div className="account-profile-stats"><div><span>Код аккаунта</span><strong>{user?.account_code || String(user?.id || '').padStart(6,'0')}</strong></div><div><span>Симпатии</span><strong><Heart size={17} fill="currentColor"/> {user?.likes_received || 0}</strong></div></div></section></div>}
     {reportingPerson && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" type="button" onClick={() => setReportingPerson(null)}>← Назад</button><h2>Пожаловаться на анкету</h2><p>Жалоба попадёт уполномоченным специалистам в Telegram-бот. Пользователь не увидит, кто отправил жалобу.</p><form onSubmit={submitReport}><label>Причина<select value={reportReason} onChange={e=>setReportReason(e.target.value)}><option>Спам</option><option>Оскорбления или угрозы</option><option>Фейковая анкета</option><option>Неприемлемый контент</option><option>Подозрение на мошенничество</option><option>Другое</option></select></label><label>Подробности<textarea value={reportDetails} onChange={e=>setReportDetails(e.target.value)} maxLength={1000} placeholder="Что именно случилось?"/></label><button className="save" type="submit" disabled={reportSubmitting}>{reportSubmitting?'Отправляем…':'Отправить жалобу'}</button></form></section></div>}
+    <nav className="mobile-nav" aria-label="Основная навигация"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={20}/><span>Поиск</span></button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); setLikesData({incoming:data.incoming||[],outgoing:data.outgoing||[]}); } catch(e) { setError(e.message); } }}><Heart size={20}/><span>Симпатии</span>{likesData.incoming.length > 0 && <i>{likesData.incoming.length}</i>}</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={20}/><span>Чаты</span>{chats.length > 0 && <i>{chats.length}</i>}</button><button className={tab === 'listing' ? 'active' : ''} onClick={() => setTab('listing')}><UserRound size={20}/><span>Анкета</span></button></nav>
     <footer><span>vibe. © 2026</span><span><Lock size={12}/> Безопасность важна</span></footer>
   </main>;
 }
