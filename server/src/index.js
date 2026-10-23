@@ -514,8 +514,6 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Переписка недоступна'});
-  const match=await pool.query('SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2',[req.user.id,other]);
-  if(!match.rowCount)return res.status(403).json({error:'Чат доступен только после взаимной симпатии.'});
   const q=await pool.query(`SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at ASC LIMIT 200`,[req.user.id,other]);
   res.json({messages:q.rows});
 }));
@@ -529,8 +527,6 @@ app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,r
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Нельзя отправить сообщение этому пользователю'});
-  const match=await pool.query('SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2',[req.user.id,other]);
-  if(!match.rowCount)return res.status(403).json({error:'Отправлять сообщения можно только после взаимной симпатии.'});
   const q=await pool.query(`INSERT INTO messages(match_low,match_high,sender_id,body) VALUES(LEAST($1,$2),GREATEST($1,$2),$1,$3) RETURNING id,sender_id,body,created_at`,[req.user.id,other,body.trim()]);
   res.status(201).json({message:q.rows[0]});
 }));
@@ -545,18 +541,21 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   if(!Number.isSafeInteger(id)||id===Number(req.user.id))return res.status(400).json({error:'Некорректный пользователь для жалобы'});
   if(typeof reason!=='string'||!reason.trim()||reason.trim().length>100)return res.status(400).json({error:'Укажи обязательную причину жалобы'});
   if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
-  if(typeof reporterUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reporterUsername.trim()))return res.status(400).json({error:'Укажи свой Telegram-юзернейм (3–32 символа)'});
-  if(typeof reportedUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reportedUsername.trim()))return res.status(400).json({error:'Укажи Telegram-юзернейм пользователя, на которого жалуешься'});
-  if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
+  if(reporterUsername!==undefined && reporterUsername!==null && reporterUsername!=='' && (typeof reporterUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reporterUsername.trim())))return res.status(400).json({error:'Некорректный Telegram-юзернейм отправителя'});
+  if(reportedUsername!==undefined && reportedUsername!==null && reportedUsername!=='' && (typeof reportedUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reportedUsername.trim())))return res.status(400).json({error:'Некорректный Telegram-юзернейм пользователя'});  if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
   if(typeof evidence!=='string'||evidence.length>3000000||(evidence&&!(evidence.startsWith('data:image/')||evidence.startsWith('data:video/')||evidence.startsWith('data:application/pdf;'))))return res.status(400).json({error:'Доказательство должно быть фото, видео или PDF до 2 МБ'});
   const targetExists=await pool.query("SELECT id,first_name,username FROM users WHERE id=$1 AND account_status='active'",[id]);
   if(!targetExists.rowCount)return res.status(404).json({error:'Профиль не найден или недоступен'});
   const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Преследование или угрозы безопасности','Другое'];
   if(!allowedReasons.includes(reason.trim()))return res.status(400).json({error:'Выбери причину из списка жалоб'});
-  const reportedHandle=reportedUsername.trim().replace(/^@/,'');
   const authenticatedHandle=(req.user.username||'').trim();
-  if(authenticatedHandle&&reporterUsername.trim().replace(/^@/,'').toLowerCase()!==authenticatedHandle.toLowerCase())return res.status(400).json({error:'Укажи свой настоящий Telegram-юзернейм'});
-  if(targetExists.rows[0].username&&reportedHandle.toLowerCase()!==targetExists.rows[0].username.toLowerCase())return res.status(400).json({error:'Юзернейм не совпадает с выбранным профилем'});
+  const suppliedReporterHandle=typeof reporterUsername==='string'?reporterUsername.trim().replace(/^@/,''):'';
+  if(suppliedReporterHandle&&authenticatedHandle&&suppliedReporterHandle.toLowerCase()!==authenticatedHandle.toLowerCase())return res.status(400).json({error:'Указанный отправитель не совпадает с аккаунтом Telegram'});
+  const actualTargetHandle=(targetExists.rows[0].username||'').trim();
+  const suppliedTargetHandle=typeof reportedUsername==='string'?reportedUsername.trim().replace(/^@/,''):'';
+  if(suppliedTargetHandle&&actualTargetHandle&&suppliedTargetHandle.toLowerCase()!==actualTargetHandle.toLowerCase())return res.status(400).json({error:'Юзернейм не совпадает с выбранным профилем'});
+  const reporterHandle=authenticatedHandle||('vibe-user-'+req.user.id);
+  const reportedHandle=actualTargetHandle||('vibe-user-'+id);
   const safeListingId=listingId===null?null:Number(listingId);
   if(safeListingId!==null&&(!Number.isSafeInteger(safeListingId)||safeListingId<1))return res.status(400).json({error:'Некорректная публикация'});
   if(reportType==='post'){
@@ -564,13 +563,13 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
     const post=await pool.query('SELECT id FROM listings WHERE id=$1 AND user_id=$2',[safeListingId,id]);
     if(!post.rowCount)return res.status(400).json({error:'Публикация не принадлежит выбранному профилю'});
   }
-  const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reason.trim(),details.trim(),reporterUsername.trim(),reportedUsername.trim(),evidence,reportType,safeListingId]);
+  const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reason.trim(),details.trim(),reporterHandle,reportedHandle,evidence,reportType,safeListingId]);
   if(process.env.BOT_TOKEN){
     try{
       const roles=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin')");
       const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...roles.rows.map(x=>String(x.telegram_id))]);
       const target=targetExists.rows[0];
-      const reportText=['🚨 Новая жалоба VIBE #'+inserted.rows[0].id,'Тип: '+(reportType==='post'?'на публикацию':'на профиль'),'На пользователя: '+(target.first_name||'неизвестно')+' (@'+reportedHandle+')','От: '+(req.user.first_name||'пользователь')+' ('+reporterUsername.trim()+')','Причина: '+reason.trim(),'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'приложены файлом в Telegram':'не приложены'),'Открой /очередь в боте для модерации.'].join(String.fromCharCode(10));
+      const reportText=['🚨 Новая жалоба VIBE #'+inserted.rows[0].id,'Тип: '+(reportType==='post'?'на публикацию':'на профиль'),'На пользователя: '+(target.first_name||'неизвестно')+' ('+(target.username?'@'+reportedHandle:reportedHandle)+')','От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Причина: '+reason.trim(),'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'приложены файлом в Telegram':'не приложены'),'Открой /очередь в боте для модерации.'].join(String.fromCharCode(10));
       await Promise.all([...ids].map(async telegramId=>{
         try{
           await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText})});
