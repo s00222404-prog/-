@@ -493,13 +493,21 @@ async function start() {
         { command: 'publicstatus', description: 'Назначить публичный статус профиля' },
         { command: 'clearstatus', description: 'Снять публичный статус профиля' }
       ];
-      const setCommands = (commands, scope) => fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ commands, scope, language_code: 'ru' })
-      }).then(r => r.json()).then(result => {
-        if (!result.ok) console.error('Telegram command menu setup failed:', result.description);
-        else console.log('Telegram command menu configured:', scope.type);
+      const setCommands = (commands, scope) => Promise.all([
+        fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ commands, scope })
+        }).then(r => r.json()),
+        fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ commands, scope, language_code: 'ru' })
+        }).then(r => r.json())
+      ]).then(results => {
+        const failed = results.filter(result => !result.ok);
+        if (failed.length) console.error('Telegram command menu setup failed:', failed.map(result => result.description).join('; '));
+        else console.log('Telegram command menu configured:', scope.type, 'default and ru');
       }).catch(err => console.error('Telegram command menu setup failed:', err.message));
       // Explicitly override every broad scope so stale BotFather / prior command lists cannot expose admin commands in ordinary chats.
       setCommands(publicCommands, { type: 'default' });
