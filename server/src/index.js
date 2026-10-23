@@ -202,8 +202,7 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
  const listing=q.rows[0];
  if(process.env.BOT_TOKEN){
    try {
-     const admins=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin')");
-     const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...admins.rows.map(x=>String(x.telegram_id))]);
+     const ids=new Set(await staffTelegramIds());
      const author=await pool.query('SELECT telegram_id,username,first_name,photo_url,created_at FROM users WHERE id=$1',[req.user.id]);
      const u=author.rows[0];
      const code=String(req.user.id).padStart(6,'0');
@@ -495,6 +494,7 @@ app.post('/telegram/webhook', (req,res) => {
       catch (e) { console.error('Telegram chat command menu refresh failed:', e.message); }
     }
     const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,...(markup?{reply_markup:markup}:{})})});
+    const staffTelegramIds=async()=>{const q=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('helper','moderator','admin','chief_admin')");return [...new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...q.rows.map(x=>String(x.telegram_id))])];};
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
     const ownAccount=from?.id ? await pool.query('SELECT account_status,moderation_note,ban_issuer FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]) : {rowCount:0,rows:[]};
@@ -537,10 +537,28 @@ app.post('/telegram/webhook', (req,res) => {
     };
     if(cb){
       const [prefix,act,idRaw]=(cb.data||'').split(':'), id=Number(idRaw);
+      if(prefix==='support') {
+        if(act==='new') {
+          await pool.query("INSERT INTO telegram_support_sessions(telegram_id,mode,ticket_id,updated_at) VALUES($1,'new_ticket',NULL,NOW()) ON CONFLICT(telegram_id) DO UPDATE SET mode='new_ticket',ticket_id=NULL,updated_at=NOW()",[String(from.id)]);
+          await answer();
+          await send('✉️ Напиши одним сообщением, чем тебе нужна помощь. Я передам обращение разработчику, модераторам и помощникам VIBE. Не отправляй пароли, коды входа или лишние личные данные.');
+          return;
+        }
+        if(act==='reply') {
+          if(!ok && role!=='moderator' && role!=='helper') {await answer('Отвечать на обращения может только команда VIBE.');return;}
+          const ticketId=Number(idRaw);
+          const t=await pool.query("SELECT id,status,telegram_id FROM telegram_support_tickets WHERE id=$1",[ticketId]);
+          if(!t.rowCount || t.rows[0].status==='closed'){await answer('Обращение не найдено или закрыто.');return;}
+          await pool.query("INSERT INTO telegram_support_sessions(telegram_id,mode,ticket_id,updated_at) VALUES($1,'staff_reply',$2,NOW()) ON CONFLICT(telegram_id) DO UPDATE SET mode='staff_reply',ticket_id=$2,updated_at=NOW()",[String(from.id),ticketId]);
+          await answer();
+          await send('✍️ Напиши ответ для обращения #'+ticketId. Следующее текстовое сообщение будет отправлено пользователю.');
+          return;
+        }
+      }
       if(prefix==='help') {
         await answer();
         const helpText='💜 ПОМОЩНИК VIBE\n\nЯ могу подсказать, как создать или заполнить анкету, объяснить работу лайков и чатов, помочь с правилами и направить жалобу модераторам.\n\nПросто напиши вопрос обычным сообщением — например: «не могу войти», «как удалить анкету» или «хочу сообщить о нарушении».\n\nВозрастные стороны: 14–17 и 18+ разделены.';
-        await send(helpText,{inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'📜 Правила',url:'https://vibe-client-sroc.onrender.com/rules'},{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]});
+        await send(helpText,{inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'✉️ Написать в поддержку',callback_data:'support:new'}],[{text:'📜 Правила',url:'https://vibe-client-sroc.onrender.com/rules'},{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]});
         return;
       }
       if(prefix==='l') {
@@ -614,6 +632,32 @@ app.post('/telegram/webhook', (req,res) => {
     }
     if(!m)return;
     let reply,markup;
+    const session=from?.id?await pool.query('SELECT mode,ticket_id FROM telegram_support_sessions WHERE telegram_id=$1',[String(from.id)]):{rowCount:0,rows:[]};
+    if(session.rowCount && session.rows[0].mode==='staff_reply' && (ok || role==='moderator' || role==='helper') && !txt.startsWith('/')) {
+      const ticketId=Number(session.rows[0].ticket_id);
+      if(!txt || txt.length>3500){await send('Ответ должен содержать от 1 до 3500 символов.');return;}
+      const t=await pool.query("SELECT id,telegram_id,first_name,status FROM telegram_support_tickets WHERE id=$1",[ticketId]);
+      if(!t.rowCount || t.rows[0].status==='closed'){await pool.query('DELETE FROM telegram_support_sessions WHERE telegram_id=$1',[String(from.id)]);await send('Обращение не найдено или уже закрыто.');return;}
+      await pool.query("INSERT INTO telegram_support_messages(ticket_id,sender_telegram_id,sender_role,message) VALUES($1,$2,$3,$4)",[ticketId,String(from.id),role,txt]);
+      await pool.query("UPDATE telegram_support_tickets SET status='answered',updated_at=NOW() WHERE id=$1",[ticketId]);
+      await pool.query('DELETE FROM telegram_support_sessions WHERE telegram_id=$1',[String(from.id)]);
+      await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:t.rows[0].telegram_id,text:'💜 Ответ команды VIBE по обращению #'+ticketId+':\n\n'+txt})});
+      await send('✅ Ответ отправлен пользователю по обращению #'+ticketId+'.');
+      return;
+    }
+    if(session.rowCount && session.rows[0].mode==='new_ticket' && !txt.startsWith('/')) {
+      if(!txt || txt.length>3500){await send('Опиши проблему сообщением до 3500 символов.');return;}
+      const linked=await pool.query('SELECT id,first_name,username FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]);
+      const t=await pool.query("INSERT INTO telegram_support_tickets(telegram_id,username,first_name,user_id,message,status) VALUES($1,$2,$3,$4,$5,'open') RETURNING id",[String(from.id),from.username||null,from.first_name||'Пользователь',linked.rows[0]?.id||null,txt]);
+      const ticketId=t.rows[0].id;
+      await pool.query("INSERT INTO telegram_support_messages(ticket_id,sender_telegram_id,sender_role,message) VALUES($1,$2,'user',$3)",[ticketId,String(from.id),txt]);
+      await pool.query('DELETE FROM telegram_support_sessions WHERE telegram_id=$1',[String(from.id)]);
+      const staffIds=await staffTelegramIds();
+      const note='🆘 НОВОЕ ОБРАЩЕНИЕ VIBE #'+ticketId+'\nОт: '+(from.first_name||'Пользователь')+(from.username?' (@'+from.username+')':'')+'\nTelegram ID: '+from.id+'\n\n'+txt+'\n\nНажми «Ответить», чтобы написать пользователю.';
+      await Promise.all(staffIds.map(staffId=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:staffId,text:note,reply_markup:{inline_keyboard:[[{text:'✍️ Ответить',callback_data:'support:reply:'+ticketId}]]}}).catch(e=>console.error('Support ticket notify failed:',e.message))));
+      await send('✅ Сообщение отправлено разработчику, модераторам и помощникам VIBE. Обращение №'+ticketId+'. Ожидай ответа здесь в Telegram — команда ответит тебе в этом чате.');
+      return;
+    }
     if(cmd==='/паливные'||cmd==='/паливный'||cmd==='/безпаливные'||cmd==='/безпаливный'||cmd==='/publicstatus'||cmd==='/clearstatus'){
       if(!isDeveloper){await send('⛔ Публичные статусы может выдавать и снимать только Разработчик.');return;}
       const parts=txt.split(/\s+/);
@@ -659,7 +703,7 @@ app.post('/telegram/webhook', (req,res) => {
       } else {
         reply='С возвращением'+(firstName ? ', '+firstName : '')+'! 💜\n\nЯ могу помочь с анкетой, чатами, правилами или жалобой. Напиши вопрос обычным сообщением или выбери действие ниже.';
       }
-      markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'},{text:'🛡 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}],[{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
+      markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'},{text:'✉️ Написать в поддержку',callback_data:'support:new'}],[{text:'🛡 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}],[{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
       reply=ok?'VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'⛔ This command is available to administrators only.';
       if(ok)markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/help'}]],resize_keyboard:true};
@@ -741,6 +785,10 @@ async function start() {
       await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS listing_id BIGINT');
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS public_status TEXT NOT NULL DEFAULT ''");
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_issuer TEXT NOT NULL DEFAULT 'moderator'");
+      await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_tickets (id BIGSERIAL PRIMARY KEY, telegram_id TEXT NOT NULL, username TEXT, first_name TEXT NOT NULL DEFAULT 'Пользователь', user_id BIGINT REFERENCES users(id) ON DELETE SET NULL, message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','answered','closed')), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+      await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_messages (id BIGSERIAL PRIMARY KEY, ticket_id BIGINT NOT NULL REFERENCES telegram_support_tickets(id) ON DELETE CASCADE, sender_telegram_id TEXT NOT NULL, sender_role TEXT NOT NULL, message TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+      await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_sessions (telegram_id TEXT PRIMARY KEY, mode TEXT NOT NULL CHECK (mode IN ('new_ticket','staff_reply')), ticket_id BIGINT REFERENCES telegram_support_tickets(id) ON DELETE CASCADE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+
     console.log('VIBE database schema ready');
   } catch (err) {
     console.error('VIBE database schema initialization failed:', err.message);
