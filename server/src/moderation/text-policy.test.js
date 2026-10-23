@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { profileTextProblem } from './moderation/text-policy.js';
+import { profileTextProblem } from './text-policy.js';
 
 test('allows ordinary multilingual profile text', () => {
   assert.equal(profileTextProblem(['Music, sports, games and walks', 'Berlin', 'I like reading']), false);
