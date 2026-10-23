@@ -193,3 +193,12 @@ footer span{color:#a9a0b5}
   *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
 }
 
+
+
+/* Profile and listing review states */
+.profile-modal{width:min(100%,620px);max-height:88vh;overflow:auto}
+.listing-status{display:inline-flex;margin:5px 0 7px;padding:6px 9px;border-radius:9px;background:#332a3d;border:1px solid #75618a66;color:#e0cbed;font-size:11px;line-height:1.4}
+.listing-status.rejected{background:#3a242a;border-color:#98606a66;color:#ffdce0}
+.profile-modal .own-listing-preview{margin-top:18px}
+.profile-modal .back-chat{display:block;margin-left:auto}
+@media(max-width:520px){.profile-modal{padding:20px 16px;max-height:92vh}.profile-modal .own-listing-preview button{width:100%;margin:7px 0 0}}
