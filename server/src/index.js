@@ -653,7 +653,7 @@ app.post('/telegram/webhook', (req,res) => {
       await pool.query('DELETE FROM telegram_support_sessions WHERE telegram_id=$1',[String(from.id)]);
       const staffIds=await staffTelegramIds();
       const note='🆘 НОВОЕ ОБРАЩЕНИЕ VIBE #'+ticketId+'\nОт: '+(from.first_name||'Пользователь')+(from.username?' (@'+from.username+')':'')+'\nTelegram ID: '+from.id+'\n\n'+txt+'\n\nНажми «Ответить», чтобы написать пользователю.';
-      await Promise.all(staffIds.map(staffId=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:staffId,text:note,reply_markup:{inline_keyboard:[[{text:'✍️ Ответить',callback_data:'support:reply:'+ticketId}]]}}).catch(e=>console.error('Support ticket notify failed:',e.message))));
+      await Promise.all(staffIds.map(async staffId=>{try{await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:staffId,text:note,reply_markup:{inline_keyboard:[[{text:'✍️ Ответить',callback_data:'support:reply:'+ticketId}]]}})});}catch(e){console.error('Support ticket notify failed:',e.message);}}));
       await send('✅ Сообщение отправлено разработчику, модераторам и помощникам VIBE. Обращение №'+ticketId+'. Ожидай ответа здесь в Telegram — команда ответит тебе в этом чате.');
       return;
     }
