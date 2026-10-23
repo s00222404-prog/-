@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw, MessageCircle, ImagePlus, PlusCircle, BadgeCheck, Crown, ShieldCheck, Wrench, LayoutGrid, Rows3 } from 'lucide-react';
+import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw, MessageCircle, ImagePlus, PlusCircle, BadgeCheck, Crown, ShieldCheck, Wrench, LayoutGrid, Rows3, Flag } from 'lucide-react';
 import './style.css';
 
 const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -23,8 +23,16 @@ function App() {
   const [viewingProfile, setViewingProfile] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [reportingPerson, setReportingPerson] = useState(null);
-  const [reportReason, setReportReason] = useState('Спам');
+  const [reportType, setReportType] = useState('profile');
+  const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
+  const [reporterUsername, setReporterUsername] = useState('');
+  const [reportedUsername, setReportedUsername] = useState('');
+  const [reportEvidence, setReportEvidence] = useState('');
+  const [reportEvidenceName, setReportEvidenceName] = useState('');
+  const [feedIndex, setFeedIndex] = useState(0);
+  const [listingMediaUrl, setListingMediaUrl] = useState('');
+  const [listingMediaType, setListingMediaType] = useState('image');
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [profile, setProfile] = useState({ birthDate: '', gender: '', bio: '', city: '', photoUrl: '', goal: 'both', interests: '' });
   const [notice, setNotice] = useState('');
@@ -111,7 +119,7 @@ function App() {
     setError('');
     setNotice('');
     if (!file.type.startsWith('image/')) {
-      setError('Пока можно загрузить фото или изображение из галереи. Видео добавим отдельно.');
+      setError('Для фото профиля выбери изображение. Видео можно добавить в публикацию ленты.');
       e.target.value = '';
       return;
     }
@@ -181,11 +189,15 @@ function App() {
   async function submitReport(e) {
     e.preventDefault();
     if (!reportingPerson) return;
+    if (!reportReason.trim() || !reporterUsername.trim() || !reportedUsername.trim()) {
+      setError('Укажи свой Telegram-юзернейм, юзернейм пользователя и обязательную причину жалобы.');
+      return;
+    }
     setReportSubmitting(true); setError('');
     try {
-      await request('/api/reports/' + encodeURIComponent(reportingPerson.id), { method:'POST', body:JSON.stringify({reason:reportReason,details:reportDetails}) });
-      setReportingPerson(null); setReportDetails('');
-      setNotice('Жалоба отправлена уполномоченным специалистам. Спасибо за сигнал.');
+      await request('/api/reports/' + encodeURIComponent(reportingPerson.id), { method:'POST', body:JSON.stringify({reason:reportReason,details:reportDetails,reporterUsername:reporterUsername.trim(),reportedUsername:reportedUsername.trim(),evidence:reportEvidence,reportType,listingId:reportingPerson.listing_id || null}) });
+      setReportingPerson(null); setReportDetails(''); setReportEvidence(''); setReportEvidenceName(''); setReportReason('');
+      setNotice('Жалоба отправлена модерации. Спасибо за сигнал.');
     } catch (e) { setError(e.message || 'Не удалось отправить жалобу.'); }
     finally { setReportSubmitting(false); }
   }
@@ -220,10 +232,11 @@ function App() {
     e.preventDefault();
     setPublishing(true); setError(''); setNotice('');
     try {
-      const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:Number(listing.age)})});
+      const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:Number(listing.age),mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
       const savedListing={...result.listing,age:String(result.listing.age)};
       setListing(savedListing);
       setMyListing(savedListing);
+      setListingMediaUrl(savedListing.media_url || ''); setListingMediaType(savedListing.media_type || 'image');
       const discovery=await request('/api/discover'); setPeople(discovery.people||[]);
       setNotice('Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.');
       setTab('discover');
@@ -245,32 +258,26 @@ function App() {
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
-    {!loading && tab === 'discover' && <section className={'people ' + (displayMode === 'grid' ? 'display-grid' : 'display-large')}>
-      <div className="section-heading"><div><h2>Для тебя</h2><p>Подборка автоматически учитывает твой профиль, интересы, город и цель знакомства</p></div><div className="discovery-heading-actions"><div className="view-switch" aria-label="Вид анкет"><button className={displayMode === 'large' ? 'active' : ''} onClick={() => setDisplayMode('large')} aria-label="Большие карточки" title="Большие карточки"><Rows3 size={16}/></button><button className={displayMode === 'grid' ? 'active' : ''} onClick={() => setDisplayMode('grid')} aria-label="Сетка анкет" title="Сетка анкет"><LayoutGrid size={16}/></button></div><span className="count">{people.length} анкет</span></div></div>
-      {people.length === 0 && <div className="empty"><Sparkles/><h3>Пока нет доступных анкет</h3><p>Основной интерфейс открыт для просмотра. Анкеты появятся по мере регистрации пользователей.</p></div>}
-      {people.map(p => <article className="profile-card" key={p.id}>
-        <div className="profile-cover">
-          {p.photo_url ? <img className="profile-cover-image" src={p.photo_url} alt={'Фото: ' + (p.name || 'пользователь')}/> : <div className="profile-cover-placeholder"><span>{(p.name || '?').slice(0,1).toUpperCase()}</span><small>ТВОЙ ВАЙБ. ТВОЯ ИСТОРИЯ.</small></div>}
-          <span className="profile-cover-label"><Sparkles size={13}/> VIBE</span>
-          {String(p.id) !== String(user?.id) && <button className="profile-report" aria-label="Пожаловаться на анкету" title="Пожаловаться" onClick={() => { setReportingPerson(p); setReportReason('Спам'); setReportDetails(''); }}><ShieldAlert size={18}/></button>}
-          {p.status === 'pending' && <span className="profile-status">На проверке</span>}
-          {p.status === 'rejected' && <span className="profile-status rejected">Отклонена</span>}
-          <div className="profile-cover-gradient"/>
-          <div className="profile-cover-heading"><h3>{p.name || 'Пользователь'}{p.age ? <span>, {p.age}</span> : ''}</h3><RoleBadge role={p.public_role} label={p.role_label}/><span className="profile-location"><MapPin size={14}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span></div>
+    {!loading && tab === 'discover' && <section className="people tiktok-feed">
+      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2></div><span className="count">{people.length} публикаций</span></div>
+      {people.length === 0 && <div className="empty"><Sparkles/><h3>Лента пока пуста</h3><p>Публикации появятся, когда пользователи добавят фото или видео и их анкеты будут одобрены.</p><button className="save" onClick={() => setTab('listing')}><PlusCircle size={16}/> Добавить публикацию</button></div>}
+      <div className="feed-scroll" onScroll={e=>{const el=e.currentTarget;setFeedIndex(Math.round(el.scrollTop/Math.max(el.clientHeight,1)));}}>
+      {people.map((p,i) => <article className="feed-post" key={p.id} data-index={i}>
+        <div className="feed-media">
+          {(p.media_type === 'video' && p.media_url) ? <video className="feed-media-asset" src={p.media_url} controls playsInline loop muted preload="metadata"/> :
+            (p.media_url || p.photo_url) ? <img className="feed-media-asset" src={p.media_url || p.photo_url} alt={'Публикация: ' + (p.name || 'пользователь')}/> :
+            <div className="profile-cover-placeholder feed-placeholder"><span>{(p.name || '?').slice(0,1).toUpperCase()}</span><small>ТВОЙ ВАЙБ. ТВОЯ ИСТОРИЯ.</small></div>}
+          <div className="feed-media-shade"/>
+          <div className="feed-profile-copy"><button className="feed-name" onClick={()=>setViewingProfile(p)}>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}</button><RoleBadge role={p.public_role} label={p.role_label}/><span className="profile-location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span><p>{p.description || p.bio || 'Пока ничего не рассказал о себе.'}</p>{(p.interests || []).length>0 && <div className="profile-interests">{p.interests.slice(0,5).map(x=><span key={x}>#{x}</span>)}</div>}</div>
+          <div className="feed-action-rail">
+            {String(p.id)!==String(user?.id) && <><button onClick={()=>like(p)} aria-label="Поставить лайк" title="Лайк"><Heart size={25} fill="currentColor"/><span>Лайк</span></button><button onClick={()=>openChat({user_id:p.id,first_name:p.name||'Пользователь',photo_url:p.photo_url})} aria-label="Написать в личные сообщения" title="Написать"><MessageCircle size={24}/><span>ЛС</span></button><button onClick={()=>{setReportingPerson(p);setReportType('post');setReportReason('');setReportDetails('');setReporterUsername(user?.username?'@'+user.username:'');setReportedUsername(p.username?'@'+p.username:'');setReportEvidence('');setReportEvidenceName('');}} aria-label="Пожаловаться на публикацию" title="Пожаловаться"><Flag size={23}/><span>Жалоба</span></button></>}
+          </div>
         </div>
-        <div className="profile-card-body">
-          <p className="profile-bio">{p.description || p.bio || 'Пока ничего не рассказал о себе.'}</p>
-          {(p.interests || []).length > 0 && <div className="profile-interests">{(p.interests || []).slice(0,8).map(x => <span key={x}>#{x}</span>)}</div>}
-          {String(p.id) === String(user?.id) ? <button className="profile-edit-cta" onClick={() => setProfileOpen(true)}><UserRound size={17}/> Это твоя анкета · профиль</button> : <div className="profile-actions-bar">
-            <button className="profile-action profile-skip" aria-label="Пропустить анкету" title="Пропустить" onClick={() => skip(p)}><ArrowRight size={19}/><span>Пропустить</span></button>
-            <button className="profile-action profile-like" onClick={() => like(p)}><Heart size={20} fill="currentColor"/><span>Лайк</span></button>
-            <button className="profile-action profile-chat" onClick={() => openChat({user_id:p.id,first_name:p.name || 'Пользователь',photo_url:p.photo_url})}><MessageCircle size={19}/><span>Написать</span></button>
-          </div>}
-          {String(p.id) !== String(user?.id) && <button className="profile-details-link" onClick={() => setViewingProfile(p)}>Подробнее об анкете <ArrowRight size={15}/></button>}
-        </div>
+        <div className="feed-post-footer"><span>@{(p.username || p.name || 'vibe').replace(/^@/,'')}</span><button onClick={()=>setViewingProfile(p)}>Профиль <ArrowRight size={14}/></button><span>{i+1} / {people.length}</span></div>
       </article>)}
+      </div>
     </section>}
-    {viewingProfile && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setViewingProfile(null)}>← Назад</button><h2>{viewingProfile.name || 'Пользователь'}{viewingProfile.age ? ', ' + viewingProfile.age : ''}</h2><RoleBadge role={viewingProfile.public_role} label={viewingProfile.role_label}/>{viewingProfile.photo_url && <img src={viewingProfile.photo_url} alt="Фото анкеты" style={{width:'100%',maxHeight:320,objectFit:'contain',borderRadius:14,background:'#0f0d16',margin:'14px 0'}}/>}<p><b>Город:</b> {[viewingProfile.city,viewingProfile.country].filter(Boolean).join(', ') || 'Не указан'}</p><p><b>О себе:</b> {viewingProfile.description || viewingProfile.bio || 'Описание не добавлено.'}</p><p><b>Интересы:</b> {(viewingProfile.interests || []).join(', ') || 'Не указаны'}</p>{String(viewingProfile.id) !== String(user?.id) && <div className="profile-actions"><button className="like" onClick={() => { const person = viewingProfile; setViewingProfile(null); like(person); }}><Heart size={17} fill="currentColor"/> Поставить лайк</button><button className="save" onClick={() => openChat({user_id:viewingProfile.id,first_name:viewingProfile.name || 'Пользователь',photo_url:viewingProfile.photo_url})}><MessageCircle size={17}/> Написать в ЛС</button><button className="skip" onClick={() => { setReportingPerson(viewingProfile); setReportReason('Спам'); setReportDetails(''); setViewingProfile(null); }}>Пожаловаться</button></div>}</section></div>}
+    {viewingProfile && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setViewingProfile(null)}>← Назад</button><h2>{viewingProfile.name || 'Пользователь'}{viewingProfile.age ? ', ' + viewingProfile.age : ''}</h2><RoleBadge role={viewingProfile.public_role} label={viewingProfile.role_label}/>{viewingProfile.photo_url && <img src={viewingProfile.photo_url} alt="Фото анкеты" style={{width:'100%',maxHeight:320,objectFit:'contain',borderRadius:14,background:'#0f0d16',margin:'14px 0'}}/>}<p><b>Город:</b> {[viewingProfile.city,viewingProfile.country].filter(Boolean).join(', ') || 'Не указан'}</p><p><b>О себе:</b> {viewingProfile.description || viewingProfile.bio || 'Описание не добавлено.'}</p><p><b>Интересы:</b> {(viewingProfile.interests || []).join(', ') || 'Не указаны'}</p>{String(viewingProfile.id) !== String(user?.id) && <div className="profile-actions"><button className="like" onClick={() => { const person = viewingProfile; setViewingProfile(null); like(person); }}><Heart size={17} fill="currentColor"/> Поставить лайк</button><button className="save" onClick={() => openChat({user_id:viewingProfile.id,first_name:viewingProfile.name || 'Пользователь',photo_url:viewingProfile.photo_url})}><MessageCircle size={17}/> Написать в ЛС</button><button className="skip" onClick={() => { setReportingPerson(viewingProfile); setReportType('profile'); setReportReason(''); setReportDetails(''); setReporterUsername(user?.username?'@'+user.username:''); setReportedUsername(viewingProfile.username?'@'+viewingProfile.username:''); setReportEvidence(''); setReportEvidenceName(''); setViewingProfile(null); }}>Пожаловаться</button></div>}</section></div>}
 
 
     {!loading && tab === 'likes' && <section className="panel">
@@ -297,6 +304,7 @@ function App() {
       <label>Возраст (числом)<input type="number" inputMode="numeric" min="18" max="100" step="1" value={listing.age} onChange={e=>setListing({...listing,age:e.target.value})} placeholder="Например, 22" required/></label>
       <label>Город<input value={listing.city} onChange={e=>setListing({...listing,city:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Берлин" required/></label>
       <label>Страна<input value={listing.country} onChange={e=>setListing({...listing,country:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Германия" required/></label>
+      <label>Фото или видео для ленты<span className="media-picker"><ImagePlus size={17}/>{listingMediaUrl ? 'Медиа выбрано · '+(listingMediaType==='video'?'видео':'фото') : 'Выбрать фото или видео'}<input type="file" accept="image/*,video/*" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;const isVideo=file.type.startsWith('video/');if(!file.type.startsWith('image/')&&!isVideo){setError('Выбери фото или видео.');e.target.value='';return;}if(file.size>3*1024*1024){setError('Медиа должно быть не больше 3 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать медиа'));reader.readAsDataURL(file);});setListingMediaUrl(data);setListingMediaType(isVideo?'video':'image');setError('');setNotice('Медиа готово к публикации.');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>{listingMediaUrl && <div className="listing-media-preview">{listingMediaType==='video'?<video src={listingMediaUrl} controls playsInline/>:<img src={listingMediaUrl} alt="Предпросмотр публикации"/>}<button className="skip" type="button" onClick={()=>{setListingMediaUrl('');setListingMediaType('image');}}>Убрать медиа</button></div>}
       <label>Хобби и занятия<textarea value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, прогулки…"/></label>
       <label>Описание<textarea value={listing.description} onChange={e=>setListing({...listing,description:e.target.value})} maxLength={1000} placeholder="Расскажи о себе без мата и пошлостей" required/></label>
       <p className="field-hint">Перед публикацией проверяем текст на ругательства и пошлые выражения. Возраст анкеты должен быть 18+.</p>
@@ -321,7 +329,7 @@ function App() {
         <button className="skip profile-public-listing-link" type="button" onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={15}/> Управлять публичной анкетой</button>
       </form>
       </section></div>}
-    {reportingPerson && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" type="button" onClick={() => setReportingPerson(null)}>← Назад</button><h2>Пожаловаться на анкету</h2><p>Жалоба попадёт уполномоченным специалистам в Telegram-бот. Пользователь не увидит, кто отправил жалобу.</p><form onSubmit={submitReport}><label>Причина<select value={reportReason} onChange={e=>setReportReason(e.target.value)}><option>Спам</option><option>Оскорбления или угрозы</option><option>Фейковая анкета</option><option>Неприемлемый контент</option><option>Подозрение на мошенничество</option><option>Другое</option></select></label><label>Подробности<textarea value={reportDetails} onChange={e=>setReportDetails(e.target.value)} maxLength={1000} placeholder="Что именно случилось?"/></label><button className="save" type="submit" disabled={reportSubmitting}>{reportSubmitting?'Отправляем…':'Отправить жалобу'}</button></form></section></div>}
+    {reportingPerson && <div className="report-overlay" onClick={e=>{if(e.target===e.currentTarget){setReportingPerson(null);setError('');}}}><section className="panel report-dialog"><button className="back-chat" type="button" onClick={()=>{setReportingPerson(null);setError('');}}>← Назад</button><h2>Пожаловаться на {reportType === 'post' ? 'публикацию' : 'профиль'}</h2><p>Жалоба отправится модерации VIBE. Причина обязательна; доказательства можно приложить, если они есть.</p><form onSubmit={submitReport}><label>Твой Telegram-юзернейм<input value={reporterUsername} onChange={e=>setReporterUsername(e.target.value)} placeholder="@твой_username" maxLength={64} required/></label><label>Telegram-юзернейм пользователя<input value={reportedUsername} onChange={e=>setReportedUsername(e.target.value)} placeholder="@username_на_кого_жалоба" maxLength={64} required/></label><label>Обязательная причина<select value={reportReason} onChange={e=>setReportReason(e.target.value)} required><option value="" disabled>Выбери причину</option><option>Спам</option><option>Оскорбления или угрозы</option><option>Фейковая анкета</option><option>Неприемлемый контент</option><option>Подозрение на мошенничество</option><option>Преследование или угрозы безопасности</option><option>Другое</option></select></label><label>Подробности<textarea value={reportDetails} onChange={e=>setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло (необязательно)"/></label><label>Доказательства (необязательно)<span className="media-picker"><ImagePlus size={17}/>{reportEvidenceName || 'Прикрепить фото или видео'}<input type="file" accept="image/*,video/*" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>2*1024*1024){setError('Доказательство должно быть не больше 2 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать файл'));reader.readAsDataURL(file);});setReportEvidence(data);setReportEvidenceName(file.name);setError('');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>{reportEvidence && <button className="skip" type="button" onClick={()=>{setReportEvidence('');setReportEvidenceName('');}}>Убрать доказательство</button>}<button className="save" type="submit" disabled={reportSubmitting}>{reportSubmitting?'Отправляем…':'Отправить жалобу'}</button></form></section></div>}
     <nav className="mobile-nav" aria-label="Основная навигация"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={20}/><span>Поиск</span></button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); setLikesData({incoming:data.incoming||[],outgoing:data.outgoing||[]}); } catch(e) { setError(e.message); } }}><Heart size={20}/><span>Симпатии</span>{likesData.incoming.length > 0 && <i>{likesData.incoming.length}</i>}</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={20}/><span>Чаты</span>{chats.length > 0 && <i>{chats.length}</i>}</button><button className={profileOpen ? 'active' : ''} onClick={() => setProfileOpen(true)}><UserRound size={20}/><span>Профиль</span></button></nav>
     <footer><span>vibe. © 2026</span><span><Lock size={12}/> Безопасность важна</span></footer>
   </main>;
