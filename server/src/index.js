@@ -84,6 +84,10 @@ function profileTextProblem(values){
  const compact=text.replace(/[\s._*\-+!@#$%^&()\[\]{}:;'"~`/\\|]+/g,'');
  return bannedProfileTerms.some(term=>text.includes(term)||compact.includes(term.replace(/[^a-zа-яё]/gi,'')));
 }
+app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
+ const q=await pool.query(`SELECT user_id AS id,name,age,city,country,hobbies,description,status,created_at,updated_at FROM listings WHERE user_id=$1`,[req.user.id]);
+ res.json({listing:q.rows[0]||null});
+}));
 app.post('/api/listings',auth,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description=''}=req.body||{};
  if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя должно содержать от 2 до 60 символов.'});
@@ -141,6 +145,10 @@ app.post('/api/blocks/:userId',auth,wrap(async(req,res)=>{
 app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
   const id=Number(req.params.userId); const {reason,details=''}=req.body||{};
   if(!Number.isSafeInteger(id)||id===req.user.id||typeof reason!=='string'||!reason.trim()||reason.trim().length>100||typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Укажи причину жалобы (до 100 символов)'});
+  const targetExists=await pool.query("SELECT id,first_name,username FROM users WHERE id=$1 AND account_status='active'",[id]);
+  if(!targetExists.rowCount)return res.status(404).json({error:'Анкета не найдена или недоступна'});
+  const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Другое'];
+  if(!allowedReasons.includes(reason.trim()))return res.status(400).json({error:'Выбери причину из списка жалоб'});
   const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details) VALUES($1,$2,$3,$4) RETURNING id',[req.user.id,id,reason.trim(),details.trim()]);
   // Notify every currently configured admin through Telegram as soon as a report is filed.
   if(process.env.BOT_TOKEN){
@@ -148,7 +156,7 @@ app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
       const roles=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin')");
       const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...roles.rows.map(x=>String(x.telegram_id))]);
       const target=await pool.query('SELECT first_name,username,telegram_id FROM users WHERE id=$1',[id]);
-      const reportText='🚨 Новая жалоба VIBE #'+inserted.rows[0].id+'\\nНа пользователя: '+(target.rows[0]?.first_name||'неизвестно')+' (@'+(target.rows[0]?.username||'нет username')+')\\nОт: '+(req.user.first_name||'пользователь')+' (@'+(req.user.username||'нет username')+')\\nПричина: '+reason.trim()+'\\nПодробности: '+(details.trim()||'—')+'\\nОткрой /очередь в боте для модерации.';
+      const reportText='🚨 Новая жалоба VIBE #'+inserted.rows[0].id+'\nНа пользователя: '+(target.rows[0]?.first_name||'неизвестно')+' (@'+(target.rows[0]?.username||'нет username')+')\nОт: '+(req.user.first_name||'пользователь')+' (@'+(req.user.username||'нет username')+')\nПричина: '+reason.trim()+'\nПодробности: '+(details.trim()||'—')+'\nОткрой /очередь в боте для модерации.';
       await Promise.all([...ids].map(telegramId=>fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText})}).catch(e=>console.error('Report notification failed:',e.message))));
     }catch(e){console.error('Report admin notification failed:',e.message);}
   }
