@@ -38,6 +38,7 @@ function App() {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [maintenance, setMaintenance] = useState(null);
   const [saving, setSaving] = useState(false);
   const [ageStatus, setAgeStatus] = useState(null);
   const [chats, setChats] = useState([]);
@@ -113,7 +114,7 @@ function App() {
     }
   }
 
-  useEffect(() => { if (initData) loadApp(); else setLoading(false); }, []);
+  useEffect(() => { fetch(API+'/api/service-status').then(r=>r.json()).then(s=>{if(s.maintenance)setMaintenance(s);else if(initData)loadApp();else setLoading(false)}).catch(()=>{if(initData)loadApp();else setLoading(false)}); }, []);
 
   async function chooseMedia(e) {
     const file = e.target.files?.[0];
@@ -254,6 +255,7 @@ function App() {
     setPeople(current => current.filter(p => p.id !== person.id));
   }
 
+  if (maintenance) return <main className="app-shell"><section className="panel" style={{margin:'10vh auto',maxWidth:560,textAlign:'center',padding:28}}><div style={{fontSize:48}}>🔒</div><h1>VIBE временно закрыт</h1><p style={{whiteSpace:'pre-wrap',lineHeight:1.6}}>{maintenance.reason || 'Проект временно недоступен.'}</p><p>Пожалуйста, попробуйте зайти позже.</p></section></main>;
   if (user?.account_status === 'banned') return <main className={tab === 'discover' ? 'app-shell feed-mode' : 'app-shell'}><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш аккаунт забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Кем заблокирован:</b> {user.ban_issuer_label || (user.ban_issuer === 'developer' ? 'разработчиком' : 'модератором')}</p><p><b>Причина:</b> {user.moderation_note || user.reason || 'Причина не указана'}</p></section></main>;
   if (!initData) return <Landing />;
   return <main className="app-shell">
