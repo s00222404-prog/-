@@ -97,7 +97,7 @@ function telegramCommandsForRole(role) {
       command: item.command,
       description: TELEGRAM_COMMAND_DESCRIPTIONS[item.command] || `Run the ${item.command.replace(/_/g, ' ')} command`,
     }));
-  const commands = [...core.filter(item => roleCanUseCommand(role, item.command)), ...extra];
+  const commands = [...core.filter(item => item.command === 'help' || roleCanUseCommand(role, item.command)), ...extra];
   const unique = [...new Map(commands.map(item => [item.command, item])).values()];
   return unique.slice(0, 100);
 }
