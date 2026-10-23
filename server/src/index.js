@@ -384,7 +384,23 @@ app.post('/telegram/webhook', (req,res) => {
       const parts=txt.split(/\s+/);
       const key=(parts[1]||'').replace(/^@/,'');
       if(!key){await send(cmd.startsWith('/без')?'Использование: /безпаливные @username или 001234':'Использование: /паливные @username или 001234 помощник|модератор|администратор|главный_администратор');return;}
-      const target=await pool.query("SELECT id,telegram_id,username,first_name FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}
+      const target=await pool.query("SELECT id,telegram_id,username,first_name FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);
+      if(!target.rowCount){await send('Пользователь не найден. Проверь username или 6-значный код профиля.');return;}
+      const u=target.rows[0];
+      if(String(u.telegram_id)===DEVELOPER_TELEGRAM_ID){await send('Статус разработчика закреплён и не изменяется.');return;}
+      if(cmd.startsWith('/без')){
+        await pool.query("UPDATE users SET public_status='',updated_at=NOW() WHERE id=$1",[u.id]);
+        await send('🕶 Публичный статус снят: '+u.first_name+' (код '+String(u.id).padStart(6,'0')+'). Права аккаунта не изменены.');
+        return;
+      }
+      const statusKey=(parts[2]||'').toLowerCase().replace(/ё/g,'е');
+      const statusMap={'помощник':'helper','helper':'helper','модератор':'moderator','moderator':'moderator','администратор':'admin','админ':'admin','admin':'admin','главный_администратор':'chief_admin','главный-администратор':'chief_admin','chief_admin':'chief_admin'};
+      const publicStatus=statusMap[statusKey];
+      if(!publicStatus){await send('Укажи публичный статус: помощник, модератор, администратор или главный_администратор. Пример: /паливные @username помощник');return;}
+      await pool.query('UPDATE users SET public_status=$1,updated_at=NOW() WHERE id=$2',[publicStatus,u.id]);
+      await send('🏷 Публичный статус выдан: '+u.first_name+' — '+PUBLIC_STATUS_LABELS[publicStatus]+'. Права аккаунта не изменены.');
+      return;
+    }else if(cmd==='/статус'||cmd==='/status'){
       const maintenance=String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';
       reply=maintenance?'🟡 VIBE: технические работы\\n'+(process.env.MAINTENANCE_MESSAGE||'Временно проводятся технические работы. Попробуй позже.'):'🟢 VIBE: сервер работает нормально.\\nСайт доступен.';
     }else if(cmd==='/start'){
