@@ -115,7 +115,30 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
      const u=author.rows[0];
      const code=String(req.user.id).padStart(6,'0');
      const created=new Date(listing.created_at).toLocaleString('ru-RU',{timeZone:'Europe/Berlin'});
-     const details='🆕 АНКЕТА НА МОДЕРАЦИЮ VIBE #'+listing.id+'\\nИмя: '+listing.name+'\\nВозраст: '+listing.age+'\\nГород: '+listing.city+', '+listing.country+'\\nХобби: '+(listing.hobbies||'—')+'\\nОписание: '+(listing.description||'—')+'\\nПрофиль сайта: '+code+'\\nПользователь: '+(u?.first_name||'неизвестно')+' (@'+(u?.username||'нет username')+')\\nTelegram ID: '+(u?.telegram_id||'нет аккаунта')+'\\nСоздано: '+created+'\\nФото: '+(u?.photo_url?'есть':'нет')+'\\nПроверь данные и выбери действие.';
+     const cleanDisplay = value => String(value || '').replace(/[\u200B-\u200F\uFEFF\u2060]/g, '').trim();
+     const displayName = cleanDisplay(u?.first_name) || 'Не указано';
+     const displayUsername = cleanDisplay(u?.username);
+     const details = [
+       '🆕 <b>НОВАЯ АНКЕТА — VIBE</b>',
+       '━━━━━━━━━━━━━━━━',
+       '🆔 <b>Номер анкеты:</b> #' + listing.id,
+       '',
+       '👤 <b>Данные анкеты</b>',
+       '• <b>Имя:</b> ' + listing.name,
+       '• <b>Возраст:</b> ' + listing.age,
+       '• <b>Город:</b> ' + listing.city + ', ' + listing.country,
+       '• <b>Хобби:</b> ' + (listing.hobbies || '—'),
+       '• <b>Описание:</b> ' + (listing.description || '—'),
+       '',
+       '🪪 <b>Аккаунт</b>',
+       '• <b>Код VIBE:</b> <code>' + code + '</code>',
+       '• <b>Пользователь:</b> ' + displayName + (displayUsername ? ' (@' + displayUsername + ')' : ''),
+       '• <b>Telegram ID:</b> <code>' + (u?.telegram_id || 'не указан') + '</code>',
+       '• <b>Создано:</b> ' + created,
+       '• <b>Фото профиля:</b> ' + (u?.photo_url ? 'есть' : 'нет'),
+       '',
+       '👇 <b>Проверь анкету и выбери действие:</b>'
+     ].join('\n');
      const keyboard={inline_keyboard:[[{text:'✅ Одобрить',callback_data:'l:approve:'+listing.id},{text:'❌ Отклонить',callback_data:'l:reject:'+listing.id}]]};
      await Promise.all([...ids].map(async chatId=>{
        if(u?.photo_url){
@@ -129,7 +152,7 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
            }
          } catch(e) { console.error('Listing photo notification failed:',e.message); }
        }
-       return fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:details,reply_markup:keyboard})}).catch(e=>console.error('Listing notification failed:',e.message));
+       return fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:details,parse_mode:'HTML',reply_markup:keyboard})}).catch(e=>console.error('Listing notification failed:',e.message));
      }));
    } catch(e) { console.error('Listing moderation notification failed:',e.message); }
  }
