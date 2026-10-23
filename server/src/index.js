@@ -707,8 +707,31 @@ app.post('/telegram/webhook', (req,res) => {
       reply=ok?'VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'⛔ This command is available to administrators only.';
       if(ok)markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/help'}]],resize_keyboard:true};
     }else if(cmd==='/бан'||cmd==='/ban'){
-      if(!ok)reply='⛔ Доступ разрешён только администраторам.';
-      else{const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(@?[A-Za-z0-9_]{5,32}|\d{6})$/i);if(!bm)reply='Формат: /ban @username или /ban 001234. Затем выбери причину из списка.';else{const key=bm[1].replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Бан разработчика (команда /ban)',source:'Telegram-команда'});reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';}else if(!found.rowCount)reply='Пользователь не найден.';else{const targetRole=await getRole(String(found.rows[0].telegram_id));if((roleRank[targetRole]??0)>=(roleRank[role]??0))reply='⛔ Нельзя банить пользователя с равным или более высоким рангом.';else{reply='Выбери причину блокировки для '+found.rows[0].first_name+'.';markup={inline_keyboard:Object.entries(BAN_REASONS).map(([reasonKey,item])=>[{text:item.label,callback_data:'br:'+found.rows[0].id+':'+reasonKey}])};}}}
+      if(!ok){
+        reply='⛔ Доступ разрешён только администраторам.';
+      } else {
+        const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(@?[A-Za-z0-9_]{5,32}|\d{6})$/i);
+        if(!bm){
+          reply='Формат: /ban @username или /ban 001234. Затем выбери причину из списка.';
+        } else {
+          const key=bm[1].replace(/^@/,'');
+          const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);
+          if(found.rowCount && String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){
+            await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Бан разработчика (команда /ban)',source:'Telegram-команда'});
+            reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';
+          } else if(!found.rowCount){
+            reply='Пользователь не найден.';
+          } else {
+            const targetRole=await getRole(String(found.rows[0].telegram_id));
+            if((roleRank[targetRole]??0)>=(roleRank[role]??0)){
+              reply='⛔ Нельзя банить пользователя с равным или более высоким рангом.';
+            } else {
+              reply='Выбери причину блокировки для '+found.rows[0].first_name+'.';
+              markup={inline_keyboard:Object.entries(BAN_REASONS).map(([reasonKey,item])=>[{text:item.label,callback_data:'br:'+found.rows[0].id+':'+reasonKey}])};
+            }
+          }
+        }
+      }
     }else if(cmd==='/разбан'||cmd==='/unban'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else if(!/^(@?[A-Za-z0-9_]{5,32}|\d{6})$/.test(arg))reply='Формат: /разбан @username или /разбан 001234';
