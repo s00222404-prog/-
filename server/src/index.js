@@ -171,6 +171,26 @@ app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
   await pool.query('INSERT INTO likes(from_user,to_user) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,id]);
   const m=await pool.query('SELECT 1 FROM likes WHERE from_user=$1 AND to_user=$2',[id,req.user.id]); res.json({liked:true,matched:!!m.rowCount});
 }));
+app.get('/api/likes',auth,wrap(async(req,res)=>{
+  const [incoming,outgoing]=await Promise.all([
+    pool.query(\`SELECT u.id AS id,lst.id AS listing_id,lst.name,lst.age,lst.city,lst.country,lst.hobbies,lst.description,u.photo_url,
+      CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
+      FROM likes l JOIN users u ON u.id=l.from_user JOIN listings lst ON lst.user_id=u.id
+      WHERE l.to_user=$1 AND lst.status='published' AND u.account_status='active'
+      AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'
+      AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
+      ORDER BY l.created_at DESC LIMIT 50\`,[req.user.id,DEVELOPER_TELEGRAM_ID]),
+    pool.query(\`SELECT u.id AS id,lst.id AS listing_id,lst.name,lst.age,lst.city,lst.country,lst.hobbies,lst.description,u.photo_url,
+      CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
+      FROM likes l JOIN users u ON u.id=l.to_user JOIN listings lst ON lst.user_id=u.id
+      WHERE l.from_user=$1 AND lst.status='published' AND u.account_status='active'
+      AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'
+      AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
+      ORDER BY l.created_at DESC LIMIT 50\`,[req.user.id,DEVELOPER_TELEGRAM_ID])
+  ]);
+  const normalize = rows => rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}));
+  res.json({incoming:normalize(incoming.rows),outgoing:normalize(outgoing.rows)});
+}));
 app.get('/api/chats',auth,wrap(async(req,res)=>{
   const q=await pool.query(`SELECT u.id AS user_id,u.first_name,u.photo_url,
     (SELECT m.body FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id) ORDER BY m.created_at DESC LIMIT 1) AS last_message,
