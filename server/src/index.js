@@ -174,20 +174,20 @@ app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
 }));
 app.get('/api/likes',auth,wrap(async(req,res)=>{
   const [incoming,outgoing]=await Promise.all([
-    pool.query(\`SELECT u.id AS id,lst.id AS listing_id,lst.name,lst.age,lst.city,lst.country,lst.hobbies,lst.description,u.photo_url,
+    pool.query(`SELECT u.id AS id,lst.id AS listing_id,lst.name,lst.age,lst.city,lst.country,lst.hobbies,lst.description,u.photo_url,
       CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
       FROM likes l JOIN users u ON u.id=l.from_user JOIN listings lst ON lst.user_id=u.id
       WHERE l.to_user=$1 AND lst.status='published' AND u.account_status='active'
       AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'
       AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
-      ORDER BY l.created_at DESC LIMIT 50\`,[req.user.id,DEVELOPER_TELEGRAM_ID]),
-    pool.query(\`SELECT u.id AS id,lst.id AS listing_id,lst.name,lst.age,lst.city,lst.country,lst.hobbies,lst.description,u.photo_url,
+      ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID]),
+    pool.query(`SELECT u.id AS id,lst.id AS listing_id,lst.name,lst.age,lst.city,lst.country,lst.hobbies,lst.description,u.photo_url,
       CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
       FROM likes l JOIN users u ON u.id=l.to_user JOIN listings lst ON lst.user_id=u.id
       WHERE l.from_user=$1 AND lst.status='published' AND u.account_status='active'
       AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'
       AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
-      ORDER BY l.created_at DESC LIMIT 50\`,[req.user.id,DEVELOPER_TELEGRAM_ID])
+      ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID])
   ]);
   const normalize = rows => rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}));
   res.json({incoming:normalize(incoming.rows),outgoing:normalize(outgoing.rows)});
