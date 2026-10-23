@@ -514,7 +514,11 @@ app.post('/telegram/webhook', (req,res) => {
       const maintenance=String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';
       reply=maintenance?'VIBE | SERVICE STATUS\nStatus: maintenance\n'+(process.env.MAINTENANCE_MESSAGE||'Maintenance is in progress. Please try again later.'):'VIBE | SERVICE STATUS\nStatus: operational\nThe app is available.';
     }else if(cmd==='/start'){
+      let firstVisit = false;
+      let firstName = (from?.first_name || '').trim();
       if(from?.id&&from?.first_name) {
+        const existing = await pool.query('SELECT 1 FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]);
+        firstVisit = existing.rowCount === 0;
         const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
         if (u.rows[0]?.account_status === 'banned') {
           reply='⛔ Ваша учётная запись VIBE заблокирована.\nПричина: '+(u.rows[0].moderation_note||'Причина не указана')+'\nДоступ к сайту и функциям аккаунта закрыт.';
@@ -525,7 +529,12 @@ app.post('/telegram/webhook', (req,res) => {
           await send(reply); return;
         }
       }
-      reply='VIBE\n\nЗнакомства. Общение. Новые возможности.\n\nДобро пожаловать в пространство, где начинаются новые знакомства.\n\nОткройте приложение, чтобы продолжить.';markup={inline_keyboard:[[{text:'Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+      if (firstVisit) {
+        reply='✨ Привет'+(firstName ? ', '+firstName : '')+'! Добро пожаловать в VIBE 💜\n\nРады, что ты с нами! Здесь можно знакомиться, находить людей со схожими интересами и начинать общение без лишнего напряжения.\n\n🌟 С чего начать:\n1. Открой VIBE кнопкой ниже.\n2. Создай свою анкету и добавь немного о себе.\n3. Укажи интересы и цель знакомства — так другим будет проще найти с тобой общий вайб.\n\n💡 Маленький совет: будь собой — именно так начинаются самые интересные знакомства.\n\nГотов(а) начать? Жми «Открыть VIBE» 👇';
+      } else {
+        reply='С возвращением'+(firstName ? ', '+firstName : '')+'! 💜\n\nПродолжим искать твой вайб? Открывай VIBE кнопкой ниже 👇';
+      }
+      markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
       reply=ok?'VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'⛔ This command is available to administrators only.';
       if(ok)markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/help'}]],resize_keyboard:true};
