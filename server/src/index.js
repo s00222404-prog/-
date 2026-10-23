@@ -140,19 +140,22 @@ function profileTextProblem(values){
  return bannedProfileTerms.some(term=>text.includes(term)||compact.includes(term.replace(/[^a-zа-яё]/gi,'')));
 }
 app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
- const q=await pool.query(`SELECT l.user_id AS id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.status,l.created_at,l.updated_at,l.id AS listing_id FROM listings l WHERE l.user_id=$1`,[req.user.id]);
+ const q=await pool.query(`SELECT l.user_id AS id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,l.updated_at,l.id AS listing_id FROM listings l WHERE l.user_id=$1`,[req.user.id]);
  res.json({listing:q.rows[0]||null});
 }));
 app.post('/api/listings',auth,wrap(async(req,res)=>{
- const {name,age,city,country,hobbies='',description=''}=req.body||{};
+ const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
  if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя должно содержать от 2 до 60 символов.'});
  if(!Number.isInteger(Number(age))||Number(age)<18||Number(age)>100)return res.status(400).json({error:'Возраст указывается числом от 18 до 100.'});
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
  if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
+ if(mediaUrl!==null&&(typeof mediaUrl!=='string'||mediaUrl.length>4400000||!(mediaUrl.startsWith('data:image/')||mediaUrl.startsWith('data:video/'))))return res.status(400).json({error:'Медиа должно быть фото или видео размером до 3 МБ.'});
+ if(!['image','video'].includes(mediaType))return res.status(400).json({error:'Некорректный тип медиа.'});
+ if(mediaUrl&&((mediaType==='video'&&!mediaUrl.startsWith('data:video/'))||(mediaType==='image'&&!mediaUrl.startsWith('data:image/'))))return res.status(400).json({error:'Тип файла не совпадает с выбранным типом медиа.'});
  if(profileTextProblem([name,city,country,hobbies,description]))return res.status(400).json({error:'В анкете найдены запрещённые ругательства или пошлые слова. Исправь текст.'});
- const q=await pool.query(`INSERT INTO listings(user_id,name,age,city,country,hobbies,description,status) VALUES($1,$2,$3,$4,$5,$6,$7,'pending')
- ON CONFLICT(user_id) DO UPDATE SET name=EXCLUDED.name,age=EXCLUDED.age,city=EXCLUDED.city,country=EXCLUDED.country,hobbies=EXCLUDED.hobbies,description=EXCLUDED.description,status='pending',updated_at=NOW()
- RETURNING id,user_id,name,age,city,country,hobbies,description,status,created_at,updated_at`,[req.user.id,name.trim(),Number(age),city.trim(),country.trim(),hobbies.trim(),description.trim()]);
+ const q=await pool.query(`INSERT INTO listings(user_id,name,age,city,country,hobbies,description,media_url,media_type,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
+ ON CONFLICT(user_id) DO UPDATE SET name=EXCLUDED.name,age=EXCLUDED.age,city=EXCLUDED.city,country=EXCLUDED.country,hobbies=EXCLUDED.hobbies,description=EXCLUDED.description,media_url=EXCLUDED.media_url,media_type=EXCLUDED.media_type,status='pending',updated_at=NOW()
+ RETURNING id,user_id,name,age,city,country,hobbies,description,media_url,media_type,status,created_at,updated_at`,[req.user.id,name.trim(),Number(age),city.trim(),country.trim(),hobbies.trim(),description.trim(),mediaUrl,mediaType]);
  const listing=q.rows[0];
  if(process.env.BOT_TOKEN){
    try {
@@ -212,7 +215,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
        FROM users WHERE id=$1
      ),
      candidates AS (
-       SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.status,l.created_at,u.photo_url,
+       SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,u.photo_url,u.username,
          CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role,
          (
            CASE WHEN NULLIF(TRIM(viewer.city),'') IS NOT NULL
@@ -314,21 +317,33 @@ app.post('/api/blocks/:userId',auth,wrap(async(req,res)=>{
   await pool.query('DELETE FROM likes WHERE (from_user=$1 AND to_user=$2) OR (from_user=$2 AND to_user=$1)',[req.user.id,id]);res.json({blocked:true});
 }));
 app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
-  const id=Number(req.params.userId); const {reason,details=''}=req.body||{};
-  if(!Number.isSafeInteger(id)||id===req.user.id||typeof reason!=='string'||!reason.trim()||reason.trim().length>100||typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Укажи причину жалобы (до 100 символов)'});
+  const id=Number(req.params.userId);
+  const {reason,details='',reporterUsername,reportedUsername,evidence='',reportType='profile',listingId=null}=req.body||{};
+  if(!Number.isSafeInteger(id)||id===Number(req.user.id))return res.status(400).json({error:'Некорректный пользователь для жалобы'});
+  if(typeof reason!=='string'||!reason.trim()||reason.trim().length>100)return res.status(400).json({error:'Укажи обязательную причину жалобы'});
+  if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
+  if(typeof reporterUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reporterUsername.trim()))return res.status(400).json({error:'Укажи свой Telegram-юзернейм (3–32 символа)'});
+  if(typeof reportedUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reportedUsername.trim()))return res.status(400).json({error:'Укажи Telegram-юзернейм пользователя, на которого жалуешься'});
+  if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
+  if(typeof evidence!=='string'||evidence.length>3000000||(evidence&&!evidence.startsWith('data:image/')&&!evidence.startsWith('data:video/')))return res.status(400).json({error:'Доказательство должно быть фото или видео до 2 МБ'});
   const targetExists=await pool.query("SELECT id,first_name,username FROM users WHERE id=$1 AND account_status='active'",[id]);
-  if(!targetExists.rowCount)return res.status(404).json({error:'Анкета не найдена или недоступна'});
-  const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Другое'];
+  if(!targetExists.rowCount)return res.status(404).json({error:'Профиль не найден или недоступен'});
+  const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Преследование или угрозы безопасности','Другое'];
   if(!allowedReasons.includes(reason.trim()))return res.status(400).json({error:'Выбери причину из списка жалоб'});
-  const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details) VALUES($1,$2,$3,$4) RETURNING id',[req.user.id,id,reason.trim(),details.trim()]);
-  // Notify every currently configured admin through Telegram as soon as a report is filed.
+  const reportedHandle=reportedUsername.trim().replace(/^@/,'');
+  const authenticatedHandle=(req.user.username||'').trim();
+  if(authenticatedHandle&&reporterUsername.trim().replace(/^@/,'').toLowerCase()!==authenticatedHandle.toLowerCase())return res.status(400).json({error:'Укажи свой настоящий Telegram-юзернейм'});
+  if(targetExists.rows[0].username&&reportedHandle.toLowerCase()!==targetExists.rows[0].username.toLowerCase())return res.status(400).json({error:'Юзернейм не совпадает с выбранным профилем'});
+  const safeListingId=listingId===null?null:Number(listingId);
+  if(safeListingId!==null&&(!Number.isSafeInteger(safeListingId)||safeListingId<1))return res.status(400).json({error:'Некорректная публикация'});
+  const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reason.trim(),details.trim(),reporterUsername.trim(),reportedUsername.trim(),evidence,reportType,safeListingId]);
   if(process.env.BOT_TOKEN){
     try{
       const roles=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin')");
       const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...roles.rows.map(x=>String(x.telegram_id))]);
-      const target=await pool.query('SELECT first_name,username,telegram_id FROM users WHERE id=$1',[id]);
-      const reportText='🚨 Новая жалоба VIBE #'+inserted.rows[0].id+'\nНа пользователя: '+(target.rows[0]?.first_name||'неизвестно')+' (@'+(target.rows[0]?.username||'нет username')+')\nОт: '+(req.user.first_name||'пользователь')+' (@'+(req.user.username||'нет username')+')\nПричина: '+reason.trim()+'\nПодробности: '+(details.trim()||'—')+'\nОткрой /очередь в боте для модерации.';
-      await Promise.all([...ids].map(telegramId=>fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText})}).catch(e=>console.error('Report notification failed:',e.message))));
+      const target=targetExists.rows[0];
+      const reportText='🚨 Новая жалоба VIBE #'+inserted.rows[0].id+'\\nТип: '+(reportType==='post'?'на публикацию':'на профиль')+'\\nНа пользователя: '+(target.first_name||'неизвестно')+' (@'+reportedHandle+')\\nОт: '+(req.user.first_name||'пользователь')+' ('+reporterUsername.trim()+')\\nПричина: '+reason.trim()+'\\nПодробности: '+(details.trim()||'—')+'\\nДоказательства: '+(evidence?'приложены в очереди модерации':'не приложены')+'\\nОткрой /очередь в боте для модерации.';
+      await Promise.all([...ids].map(telegramId=>fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText})}).catch(e=>console.error('Report admin notification failed:',e.message))));
     }catch(e){console.error('Report admin notification failed:',e.message);}
   }
   res.status(201).json({reported:true,reportId:inserted.rows[0].id});
@@ -364,7 +379,7 @@ app.get('/api/admin/bans',auth,adminOnly,wrap(async(_req,res)=>{
 }));
 app.get('/api/admin/queue',auth,adminOnly,wrap(async(_req,res)=>{
   const [reports,flags]=await Promise.all([
-    pool.query(`SELECT r.id,r.reporter_id, a.first_name reporter_name,a.username reporter_username,a.telegram_id reporter_telegram_id,a.account_status reporter_account_status,a.profile_review_status reporter_profile_status,a.bio reporter_bio,a.city reporter_city,a.photo_url reporter_photo_url,a.created_at reporter_created_at,r.reported_id,t.first_name reported_name,r.reason,r.details,r.status,r.created_at,t.username reported_username,t.telegram_id reported_telegram_id,t.account_status,t.profile_review_status,t.photo_url,t.bio FROM reports r JOIN users a ON a.id=r.reporter_id JOIN users t ON t.id=r.reported_id WHERE r.status IN ('open','reviewing') ORDER BY r.created_at ASC LIMIT 200`),
+    pool.query(`SELECT r.id,r.reporter_id, a.first_name reporter_name,a.username reporter_username,a.telegram_id reporter_telegram_id,a.account_status reporter_account_status,a.profile_review_status reporter_profile_status,a.bio reporter_bio,a.city reporter_city,a.photo_url reporter_photo_url,a.created_at reporter_created_at,r.reported_id,t.first_name reported_name,r.reason,r.details,r.reporter_telegram_username,r.reported_telegram_username,r.evidence,r.report_type,r.listing_id,r.status,r.created_at,t.username reported_username,t.telegram_id reported_telegram_id,t.account_status,t.profile_review_status,t.photo_url,t.bio FROM reports r JOIN users a ON a.id=r.reporter_id JOIN users t ON t.id=r.reported_id WHERE r.status IN ('open','reviewing') ORDER BY r.created_at ASC LIMIT 200`),
     pool.query(`SELECT f.id,f.user_id,u.first_name,u.username,u.photo_url,u.bio,f.category,f.reason,f.evidence,f.status,f.created_at,u.account_status,u.profile_review_status FROM moderation_flags f JOIN users u ON u.id=f.user_id WHERE f.status IN ('open','reviewing') ORDER BY f.created_at ASC LIMIT 200`)
   ]);res.json({reports:reports.rows,flags:flags.rows});
 }));
@@ -586,6 +601,13 @@ async function start() {
     await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_roles (telegram_id TEXT PRIMARY KEY, username TEXT, role TEXT NOT NULL CHECK (role IN ('chief_admin','admin','moderator','helper')), assigned_by TEXT NOT NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
       await pool.query('ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE');
+      await pool.query('ALTER TABLE listings ADD COLUMN IF NOT EXISTS media_url TEXT');
+      await pool.query("ALTER TABLE listings ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'image'");
+      await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS reporter_telegram_username TEXT');
+      await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS reported_telegram_username TEXT');
+      await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS evidence TEXT');
+      await pool.query("ALTER TABLE reports ADD COLUMN IF NOT EXISTS report_type TEXT NOT NULL DEFAULT 'profile'");
+      await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS listing_id BIGINT');
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS public_status TEXT NOT NULL DEFAULT ''");
     console.log('VIBE database schema ready');
   } catch (err) {
