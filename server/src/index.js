@@ -546,11 +546,52 @@ app.post('/telegram/webhook', (req,res) => {
     const isDeveloper = role === 'developer';
     const adminCommandNames = new Set([...EXTRA_ADMIN_COMMANDS.map(x=>x.command), 'adminhelp','helpadmin','queue','users','пользователи','bans','баны','user','юзер','ban','бан','unban','разбан','delete','удалить','пароли','resetadminpass','часовойпояс','пароль']);
     if(m && cmd.startsWith('/') && adminCommandNames.has(cmd.slice(1)) && roleRank[role]>=roleRank.helper && !roleCanUseCommand(role,cmd)) { await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:'⛔ Команда недоступна для активной роли «'+({helper:'Помощник',moderator:'Модератор',admin:'Администратор',chief_admin:'Главный администратор',developer:'Разработчик'}[role]||role)+'». Используй /adminhelp для списка доступных команд.'})}); return; }
+    if(cb?.data?.startsWith('lang:set:')) {
+      const chosen=cb.data.split(':')[2];
+      if(['en','ru','de'].includes(chosen) && from?.id) {
+        await pool.query("INSERT INTO users(telegram_id,username,first_name,language) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET language=EXCLUDED.language,updated_at=NOW()",[String(from.id),from.username||null,from.first_name||'User',chosen]);
+        botLanguage=chosen;
+        await answer(chosen==='ru'?'Язык сохранён':chosen==='de'?'Sprache gespeichert':'Language saved');
+        await send(chosen==='ru'?'Язык сохранён. Напиши /start, чтобы открыть меню.':chosen==='de'?'Sprache gespeichert. Sende /start, um das Menü zu öffnen.':'Language saved. Send /start to open the menu.');
+      } else await answer('Unsupported language');
+      return;
+    }
     if (m && ['/start','/help','/помощь','/admin','/адм'].includes(cmd)) {
       try { await hideTelegramCommands(token); }
       catch (e) { console.error('Telegram chat command menu refresh failed:', e.message); }
     }
-    const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,...(markup?{reply_markup:markup}:{})})});
+    let botLanguage = 'en';
+    if(from?.id) {
+      try { const langRow=await pool.query("SELECT language FROM users WHERE telegram_id=$1 LIMIT 1",[String(from.id)]); botLanguage=['en','ru','de'].includes(langRow.rows[0]?.language)?langRow.rows[0].language:'en'; } catch {}
+    }
+    const botWords = {
+      ru: {},
+      en: {
+        'С возвращением':'Welcome back','Добро пожаловать в VIBE':'Welcome to VIBE','Я — помощник VIBE. Можешь не только нажимать кнопки, но и писать мне обычными словами':'I’m the VIBE assistant. You can tap buttons or write to me in your own words',
+        'Для начала открой VIBE, создай анкету и добавь интересы. Возрастные стороны разделены: 14–17 лет и 18+.':'To get started, open VIBE, create your profile, and add interests. Teen and adult spaces are separated by age.',
+        'Что тебе нужно? Напиши вопрос или выбери действие ниже':'What do you need? Send a question or choose an action below',
+        'Я могу помочь с анкетой, чатами, правилами или жалобой. Напиши вопрос обычным сообщением или выбери действие ниже.':'I can help with your profile, chats, rules, or a report. Send a message or choose an action below.',
+        'Открыть VIBE':'Open VIBE','Помощь':'Help','Написать в поддержку':'Contact support','Правила':'Rules','Конфиденциальность':'Privacy',
+        'Пожалуйста, выберите язык':'Please choose your language','Язык сохранён.':'Language saved.','Анкета':'Profile','на проверке':'pending review','Твоя анкета VIBE':'Your VIBE profile','прошла проверку и теперь доступна в рекомендациях.':'has been approved and is now visible in recommendations.','не прошла проверку. Пожалуйста, исправьте данные и отправьте анкету повторно.':'was not approved. Please correct the details and submit it again.',
+        'Ваш аккаунт забанен':'Your account is banned','Причина не указана':'No reason provided','Доступ к VIBE заблокирован.':'Access to VIBE is blocked.'
+      },
+      de: {
+        'С возвращением':'Willkommen zurück','Добро пожаловать в VIBE':'Willkommen bei VIBE','Я — помощник VIBE. Можешь не только нажимать кнопки, но и писать мне обычными словами':'Ich bin der VIBE-Assistent. Du kannst Schaltflächen antippen oder mir ganz normal schreiben',
+        'Для начала открой VIBE, создай анкету и добавь интересы. Возрастные стороны разделены: 14–17 лет и 18+.':'Öffne zuerst VIBE, erstelle dein Profil und füge Interessen hinzu. Jugend- und Erwachsenenbereiche sind nach Alter getrennt.',
+        'Что тебе нужно? Напиши вопрос или выбери действие ниже':'Was brauchst du? Schreib eine Frage oder wähle unten eine Aktion',
+        'Я могу помочь с анкетой, чатами, правилами или жалобой. Напиши вопрос обычным сообщением или выбери действие ниже.':'Ich helfe dir mit deinem Profil, Chats, Regeln oder einer Meldung. Schreib mir oder wähle unten eine Aktion.',
+        'Открыть VIBE':'VIBE öffnen','Помощь':'Hilfe','Написать в поддержку':'Support kontaktieren','Правила':'Regeln','Конфиденциальность':'Datenschutz',
+        'Пожалуйста, выберите язык':'Bitte wähle deine Sprache','Язык сохранён.':'Sprache gespeichert.','Анкета':'Profil','на проверке':'wird geprüft','Твоя анкета VIBE':'Dein VIBE-Profil','прошла проверку и теперь доступна в рекомендациях.':'wurde freigegeben und ist jetzt in den Empfehlungen sichtbar.','не прошла проверку. Пожалуйста, исправьте данные и отправьте анкету повторно.':'wurde nicht freigegeben. Bitte korrigiere die Angaben und reiche es erneut ein.',
+        'Ваш аккаунт забанен':'Dein Konto ist gesperrt','Причина не указана':'Kein Grund angegeben','Доступ к VIBE заблокирован.':'Der Zugang zu VIBE ist gesperrt.'
+      }
+    };
+    const translateBot = value => {
+      if(botLanguage==='ru') return value;
+      let out=value;
+      for(const [fromText,toText] of Object.entries(botWords[botLanguage]||{}).sort((a,b)=>b[0].length-a[0].length)) out=out.split(fromText).join(toText);
+      return out;
+    };
+    const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:translateBot(text),...(markup?{reply_markup:markup}:{})})});
     const staffTelegramIds=async()=>{const q=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('helper','moderator','admin','chief_admin')");return [...new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...q.rows.map(x=>String(x.telegram_id))])];};
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
@@ -841,7 +882,10 @@ app.post('/telegram/webhook', (req,res) => {
           await send(reply); return;
         }
       }
-      if (firstVisit) {
+      if (firstVisit && !['en','ru','de'].includes((await pool.query("SELECT language FROM users WHERE telegram_id=$1",[String(from.id)])).rows[0]?.language)) {
+        reply='✨ Welcome to VIBE! Please choose your language:';
+        markup={inline_keyboard:[[{text:'🇬🇧 English',callback_data:'lang:set:en'},{text:'🇩🇪 Deutsch',callback_data:'lang:set:de'},{text:'🇷🇺 Русский',callback_data:'lang:set:ru'}]]};
+      } else if (firstVisit) {
         reply='✨ Привет'+(firstName ? ', '+firstName : '')+'! Добро пожаловать в VIBE 💜\n\nЯ — помощник VIBE. Можешь не только нажимать кнопки, но и писать мне обычными словами: например, «как создать анкету», «не работает чат» или «хочу пожаловаться». Я подскажу, что делать, а вопросы безопасности помогу передать модерации.\n\n🌟 Для начала открой VIBE, создай анкету и добавь интересы. Возрастные стороны разделены: 14–17 лет и 18+.\n\nЧто тебе нужно? Напиши вопрос или выбери действие ниже 👇';
       } else {
         reply='С возвращением'+(firstName ? ', '+firstName : '')+'! 💜\n\nЯ могу помочь с анкетой, чатами, правилами или жалобой. Напиши вопрос обычным сообщением или выбери действие ниже.';
@@ -964,6 +1008,7 @@ async function start() {
       await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS evidence TEXT');
       await pool.query("ALTER TABLE reports ADD COLUMN IF NOT EXISTS report_type TEXT NOT NULL DEFAULT 'profile'");
       await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS listing_id BIGINT');
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'");
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS public_status TEXT NOT NULL DEFAULT ''");
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_issuer TEXT NOT NULL DEFAULT 'moderator'");
       await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_tickets (id BIGSERIAL PRIMARY KEY, telegram_id TEXT NOT NULL, username TEXT, first_name TEXT NOT NULL DEFAULT 'Пользователь', user_id BIGINT REFERENCES users(id) ON DELETE SET NULL, message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','answered','closed')), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
