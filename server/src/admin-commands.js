@@ -260,7 +260,7 @@ export async function handleExtraAdminCommand({ command, parts, pool, role, deve
     if (String(q.rows[0].telegram_id) === developerId) return '⛔ The developer account is protected.';
     const reason = parts.slice(2).join(' ').trim();
     if (['restricted','suspended'].includes(status) && !reason) return 'Add a reason. Example: /' + command + ' 001234 spam';
-    await pool.query('UPDATE users SET account_status=$1,discoverable=CASE WHEN $1=\'active\' THEN discoverable ELSE FALSE END,moderation_note=$2,updated_at=NOW() WHERE id=$3', [status, reason || ('Admin action: ' + status), q.rows[0].id]);
+    await pool.query('UPDATE users SET account_status=$1,discoverable=CASE WHEN $1=\'active\' THEN TRUE ELSE FALSE END,moderation_note=CASE WHEN $1=\'active\' THEN NULL ELSE $2 END,updated_at=NOW() WHERE id=$3', [status, reason || ('Admin action: ' + status), q.rows[0].id]);
     return 'Account ' + String(q.rows[0].id).padStart(6,'0') + ' updated to ' + status + '.';
   };
   switch (command) {
