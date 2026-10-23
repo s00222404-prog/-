@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { readFile } from 'node:fs/promises';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
@@ -30,52 +31,20 @@ const BAN_REASONS = {
   other: { label: 'Другое подтверждённое нарушение правил', reason: 'Другое подтверждённое нарушение правил VIBE' }
 };
 
-function telegramCommandsForRole(role) {
-  const publicCommands = [
-    { command: 'start', description: 'Открыть приложение VIBE' },
-    { command: 'help', description: 'Справка и доступные команды' },
-    { command: 'status', description: 'Проверить состояние сервиса' },
-    { command: 'support', description: 'Помощь и сообщить о проблеме' }
-  ];
-  const adminCommands = [...publicCommands,
-    { command: 'admin', description: 'Открыть панель администратора' },
-    { command: 'queue', description: 'Очередь модерации' },
-    { command: 'users', description: 'Количество пользователей' },
-    { command: 'bans', description: 'Список заблокированных аккаунтов' },
-    { command: 'user', description: 'Карточка пользователя' },
-    { command: 'ban', description: 'Заблокировать аккаунт' },
-    { command: 'unban', description: 'Снять блокировку аккаунта' },
-    { command: 'delete', description: 'Удалить аккаунт' },
-    ...EXTRA_ADMIN_COMMANDS
-  ];
-  if (role === 'developer') return [...adminCommands,
-    { command: 'publicstatus', description: 'Установить публичный статус профиля' },
-    { command: 'clearstatus', description: 'Убрать публичный статус профиля' }
-  ];
-  return roleRank[role] >= roleRank.admin ? adminCommands : publicCommands;
+function telegramCommandsForRole(_role) { return []; }
+async function hideTelegramCommands(token) {
+  if (!token) return;
+  for (const language_code of [undefined, 'ru', 'en']) {
+    const body={commands:[]}; if(language_code) body.language_code=language_code;
+    await fetch('https://api.telegram.org/bot'+token+'/setMyCommands',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  }
 }
-
-async function refreshTelegramCommands(chatId, role, token) {
-  const commands = telegramCommandsForRole(role);
-  const scope = { type: 'chat', chat_id: Number(chatId) };
-  const results = await Promise.all([
-    fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ commands, scope })
-    }).then(r => r.json()),
-    fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ commands, scope, language_code: 'ru' })
-    }).then(r => r.json())
-  ]);
-  const failed = results.filter(result => !result.ok);
-  if (failed.length) console.error('Telegram chat command menu refresh failed:', String(chatId), role, failed.map(result => result.description).join('; '));
-  else console.log('Telegram chat command menu refreshed:', String(chatId), role, commands.length, 'commands; default and ru scopes');
-}
+function hashAdminPassword(password,salt){return scryptSync(password,salt,64).toString('hex');}
+function verifyAdminPassword(password,salt,storedHash){try{const a=Buffer.from(hashAdminPassword(password,salt),'hex'),b=Buffer.from(storedHash,'hex');return a.length===b.length&&timingSafeEqual(a,b);}catch{return false;}}
+async function isAdminUnlocked(id){const q=await pool.query('SELECT unlocked_until FROM admin_access_sessions WHERE telegram_id=$1',[String(id)]);return q.rowCount>0&&new Date(q.rows[0].unlocked_until)>new Date();}
 // Public profile badges are independent from admin_roles permissions.
 const roleRank = { none: 0, helper: 1, moderator: 2, admin: 3, chief_admin: 4, developer: 5 };
+function adminCommandHelp(role){let t='VIBE — АДМИН-КОМАНДЫ\\n/adminhelp — полный список\\n/queue — очередь модерации\\n/users — количество пользователей\\n/bans — баны\\n/user @username или 001234 — карточка пользователя\\n/ban @username или 001234 — бан\\n/unban @username или 001234 — разбан\\n/delete @username или 001234 — удаление аккаунта';if(role==='developer')t+='\\n/deleteall — предпросмотр массового удаления\\n/deleteall CONFIRM — подтвердить\\n/пароли — список администраторов\\n/resetadminpass TELEGRAM_ID — новый пароль';return t;}
 async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
   if (!process.env.BOT_TOKEN) return;
   const text = 'VIBE | СИСТЕМА БЕЗОПАСНОСТИ\nЗарегистрирована заблокированная попытка действия в отношении разработчика.\nДействие: ' + action + '\nКто пытался: ' + (actorUsername ? '@' + actorUsername : (actorName || 'неизвестно')) + (actorUsername && actorName ? ' (' + actorName + ')' : '') + '\nИсточник: ' + source + '\nРезультат: действие заблокировано системой безопасности VIBE.';
@@ -527,7 +496,7 @@ app.post('/telegram/webhook', (req,res) => {
     const ok = roleRank[role] >= roleRank.admin;
     const isDeveloper = role === 'developer';
     if (m && ['/start','/help','/помощь','/admin','/адм'].includes(cmd)) {
-      try { await refreshTelegramCommands(chatId, role, token); }
+      try { await hideTelegramCommands(token); }
       catch (e) { console.error('Telegram chat command menu refresh failed:', e.message); }
     }
     const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,...(markup?{reply_markup:markup}:{})})});
@@ -535,6 +504,30 @@ app.post('/telegram/webhook', (req,res) => {
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
     const ownAccount=from?.id ? await pool.query('SELECT account_status,moderation_note,ban_issuer FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]) : {rowCount:0,rows:[]};
+    if(m&&isDeveloper&&/^\/(пароли|adminpasswords)(?:@\S+)?$/i.test(txt)){
+      const q=await pool.query("SELECT telegram_id,username,role FROM admin_roles WHERE role IN ('chief_admin','admin','moderator','helper') ORDER BY role DESC,username NULLS LAST");
+      const lines=['🔐 ПАРОЛИ АДМИНОК','Текущие пароли не хранятся в открытом виде. Для забытого пароля можно выпустить новый.',''];
+      for(const a of q.rows)lines.push((a.username?'@'+a.username:'Telegram ID '+a.telegram_id)+' — '+a.role+' — /resetadminpass '+a.telegram_id);
+      await send(lines.join('\n'));return;
+    }
+    if(m&&isDeveloper&&cmd==='/resetadminpass'){
+      const id=parts[1]||'';if(!/^\d{5,20}$/.test(id)){await send('Формат: /resetadminpass TELEGRAM_ID. Сначала /пароли.');return;}
+      const q=await pool.query("SELECT telegram_id,username,role FROM admin_roles WHERE telegram_id=$1 AND role IN ('chief_admin','admin','moderator','helper')",[id]);
+      if(!q.rowCount){await send('Администратор не найден.');return;}
+      const password=randomBytes(9).toString('base64url'),salt=randomBytes(16).toString('hex');
+      await pool.query("INSERT INTO admin_access_passwords(telegram_id,salt,password_hash,updated_at) VALUES($1,$2,$3,NOW()) ON CONFLICT(telegram_id) DO UPDATE SET salt=EXCLUDED.salt,password_hash=EXCLUDED.password_hash,updated_at=NOW()",[id,salt,hashAdminPassword(password,salt)]);
+      await pool.query('DELETE FROM admin_access_sessions WHERE telegram_id=$1',[id]);
+      await send('🔐 Новый пароль для '+(q.rows[0].username?'@'+q.rows[0].username:'Telegram ID '+id)+' ('+q.rows[0].role+'):\n\n'+password+'\n\nПередай его лично. Повторно показать нельзя — только выпустить новый.');
+      await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:id,text:'Для доступа к админ-командам VIBE введи: /вход ВАШ_ПАРОЛЬ. Не пересылай пароль другим.'})});return;
+    }
+    if(m&&roleRank[role]>=roleRank.admin&&/^\/(вход|adminlogin)(?:@\S+)?$/i.test(cmd)){
+      const password=parts[1]||'',q=await pool.query('SELECT salt,password_hash FROM admin_access_passwords WHERE telegram_id=$1',[String(from.id)]);
+      if(!password||!q.rowCount||!verifyAdminPassword(password,q.rows[0].salt,q.rows[0].password_hash)){await send('⛔ Неверный пароль. Если забыл, попроси разработчика выпустить новый.');return;}
+      await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,NOW()+INTERVAL '8 hours') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
+      await send('✅ Доступ открыт на 8 часов.\n\n'+adminCommandHelp(role));return;
+    }
+    if(m&&roleRank[role]>=roleRank.admin&&!isDeveloper&&!/^\/(start|help|помощь|вход|adminlogin)(?:@\S+)?$/i.test(cmd)&&!await isAdminUnlocked(from.id)){await send('🔒 Админ-команды закрыты паролем. Введи /вход ВАШ_ПАРОЛЬ');return;}
+
     if(ownAccount.rowCount && ownAccount.rows[0].account_status==='banned' && String(from.id)!==DEVELOPER_TELEGRAM_ID){
       const issuer=(ownAccount.rows[0].ban_issuer||'moderator')==='developer'?'разработчиком':'модератором';
       const bannedText='⛔ Ваш аккаунт забанен.\nКем заблокирован: '+issuer+'.\nПричина: '+(ownAccount.rows[0].moderation_note||'Причина не указана')+'\nДоступ к VIBE заблокирован.';
@@ -842,6 +835,8 @@ async function start() {
     // Create VIBE tables in the configured VIBE database; CREATE IF NOT EXISTS preserves existing rows.
     const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
     await pool.query(schema);
+    await pool.query('CREATE TABLE IF NOT EXISTS admin_access_passwords (telegram_id TEXT PRIMARY KEY, salt TEXT NOT NULL, password_hash TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
+    await pool.query('CREATE TABLE IF NOT EXISTS admin_access_sessions (telegram_id TEXT PRIMARY KEY, unlocked_until TIMESTAMPTZ NOT NULL)');
     await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_status_check");
     await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
     // Existing databases retain old CREATE TABLE constraints; migrate listing ages for the teen band.
@@ -870,15 +865,8 @@ async function start() {
     console.log('VIBE API listening on ' + port);
     const token = process.env.BOT_TOKEN;
     if (token) {
-      const publicCommands = telegramCommandsForRole('none');
-      const adminCommands = telegramCommandsForRole('admin');
-      const developerCommands = telegramCommandsForRole('developer');
-      const setCommands = (commands, scope) => Promise.all([
-        fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ commands, scope })
-        }).then(r => r.json()),
+      hideTelegramCommands(token).catch(err => console.error('Telegram command menu hiding failed:', err.message));
+    }).then(r => r.json()),
         fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
