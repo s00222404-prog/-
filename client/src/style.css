@@ -218,3 +218,22 @@ footer span{color:#a9a0b5}
 .account-profile-stats strong{display:flex;align-items:center;gap:7px;font-size:17px;overflow-wrap:anywhere}
 .account-profile-stats strong svg{color:#c39aff;flex-shrink:0}
 @media(max-width:420px){.account-profile-stats{gap:8px}.account-profile-stats>div{padding:12px 9px}.account-profile-stats strong{font-size:15px}}
+
+
+/* Distinctive VIBE role insignias */
+.role-badge{position:relative;isolation:isolate;display:inline-flex;align-items:center;gap:7px;width:max-content;max-width:100%;margin:5px 0 8px;padding:5px 11px 5px 6px;border:1px solid rgba(197,164,255,.48);border-radius:999px;overflow:hidden;background:linear-gradient(115deg,rgba(125,65,190,.25),rgba(36,24,54,.9) 55%,rgba(155,91,255,.18));color:#e7d7ff;font-size:11px;font-weight:800;letter-spacing:.35px;box-shadow:0 4px 18px rgba(100,48,160,.14),inset 0 1px rgba(255,255,255,.09);vertical-align:middle}
+.role-badge-icon{display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:linear-gradient(145deg,#d6b6ff,#8c4ee5);color:#20102f;box-shadow:0 0 0 2px rgba(209,173,255,.12),0 2px 9px rgba(164,100,255,.25)}
+.role-badge-glint{position:absolute;z-index:-1;inset:-30% auto -30% -35%;width:28%;transform:skewX(-25deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent)}
+.role-developer{border-color:rgba(255,211,125,.6);background:linear-gradient(110deg,rgba(129,81,20,.3),rgba(43,31,25,.92),rgba(239,177,71,.14));color:#ffe2a1}
+.role-developer .role-badge-icon,.role-chief_admin .role-badge-icon{background:linear-gradient(145deg,#fff0ad,#d39a35);color:#3a2607}
+.role-chief_admin{border-color:rgba(255,211,125,.5);color:#ffe8b2}
+.role-admin{border-color:rgba(128,179,255,.55);background:linear-gradient(110deg,rgba(37,84,151,.28),rgba(24,31,49,.92),rgba(77,136,255,.14));color:#c6ddff}
+.role-admin .role-badge-icon{background:linear-gradient(145deg,#c4e0ff,#6599ed);color:#102a50}
+.role-moderator{border-color:rgba(111,231,204,.5);background:linear-gradient(110deg,rgba(24,112,100,.24),rgba(20,39,41,.92),rgba(56,201,168,.12));color:#a9f5e1}
+.role-moderator .role-badge-icon{background:linear-gradient(145deg,#c1ffed,#4bbda4);color:#073b31}
+.role-helper{border-color:rgba(197,164,255,.58);background:linear-gradient(110deg,rgba(123,65,190,.32),rgba(38,26,55,.94),rgba(188,127,255,.19));color:#e9d6ff}
+.role-helper .role-badge-icon{background:linear-gradient(145deg,#eddcff,#ad79f4);color:#351650}
+.account-profile-modal>.role-badge{margin:-12px auto 22px}
+.report-dialog>.role-badge{margin-top:0;margin-bottom:12px}
+.person-title{flex-wrap:wrap}
+.person-title>div{min-width:0}
