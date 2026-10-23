@@ -525,13 +525,24 @@ app.post('/telegram/webhook', (req,res) => {
       await send('🔐 Новый пароль для '+(q.rows[0].username?'@'+q.rows[0].username:'Telegram ID '+id)+' ('+q.rows[0].role+'):\n\n'+password+'\n\nПередай его лично. Повторно показать нельзя — только выпустить новый.');
       await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:id,text:'Для доступа к админ-командам VIBE введи: /вход ВАШ_ПАРОЛЬ. Не пересылай пароль другим.'})});return;
     }
+    // Plain-text password login: no slash or command prefix. Non-staff messages are ignored.
+    if(m && txt && !txt.startsWith('/') && roleRank[role]>=roleRank.admin){
+      const q=await pool.query('SELECT salt,password_hash FROM admin_access_passwords WHERE telegram_id=$1',[String(from.id)]);
+      if(q.rowCount && verifyAdminPassword(txt,q.rows[0].salt,q.rows[0].password_hash)){
+        await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,NOW()+INTERVAL '8 hours') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
+        await send('✅ Доступ открыт на 8 часов.\n\n'+adminCommandHelp(role));return;
+      }
+      // Ordinary text is not a bot command; don't respond to it.
+      if(!isDeveloper) return;
+    }
+    // Keep the old slash login compatible, if an admin still uses it.
     if(m&&roleRank[role]>=roleRank.admin&&/^\/(вход|adminlogin)(?:@\S+)?$/i.test(cmd)){
       const password=parts[1]||'',q=await pool.query('SELECT salt,password_hash FROM admin_access_passwords WHERE telegram_id=$1',[String(from.id)]);
-      if(!password||!q.rowCount||!verifyAdminPassword(password,q.rows[0].salt,q.rows[0].password_hash)){await send('⛔ Неверный пароль. Если забыл, попроси разработчика выпустить новый.');return;}
+      if(!password||!q.rowCount||!verifyAdminPassword(password,q.rows[0].salt,q.rows[0].password_hash)){await send('⛔ Неверный пароль.');return;}
       await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,NOW()+INTERVAL '8 hours') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
       await send('✅ Доступ открыт на 8 часов.\n\n'+adminCommandHelp(role));return;
     }
-    if(m&&roleRank[role]>=roleRank.admin&&!isDeveloper&&!/^\/(start|help|помощь|вход|adminlogin)(?:@\S+)?$/i.test(cmd)&&!await isAdminUnlocked(from.id)){await send('🔒 Админ-команды закрыты паролем. Введи /вход ВАШ_ПАРОЛЬ');return;}
+    if(m&&roleRank[role]>=roleRank.admin&&!isDeveloper&&!/^\/(start|help|помощь|вход|adminlogin)(?:@\S+)?$/i.test(cmd)&&!await isAdminUnlocked(from.id)){await send('🔒 Админ-команды закрыты паролем.');return;}
 
     if(ownAccount.rowCount && ownAccount.rows[0].account_status==='banned' && String(from.id)!==DEVELOPER_TELEGRAM_ID){
       const issuer=(ownAccount.rows[0].ban_issuer||'moderator')==='developer'?'разработчиком':'модератором';
