@@ -314,7 +314,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
          )))
      )
      SELECT * FROM candidates
-     ORDER BY CASE WHEN user_id=$1 THEN 0 ELSE 1 END, match_score DESC, RANDOM()
+     ORDER BY CASE WHEN user_id=$1 THEN 0 ELSE 1 END, RANDOM()
      LIMIT 50
    `,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand]);
    res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
