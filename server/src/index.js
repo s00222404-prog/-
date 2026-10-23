@@ -49,28 +49,37 @@ function verifyAdminPassword(password,salt,storedHash){try{const a=Buffer.from(h
 async function isAdminUnlocked(id){const q=await pool.query('SELECT unlocked_until FROM admin_access_sessions WHERE telegram_id=$1',[String(id)]);return q.rowCount>0&&new Date(q.rows[0].unlocked_until)>new Date();}
 // Public profile badges are independent from admin_roles permissions.
 const roleRank = { none: 0, helper: 1, moderator: 2, admin: 3, chief_admin: 4, developer: 5 };
+const ROLE_COMMANDS = {
+  helper: new Set(['adminhelp','helpadmin','myrole','роль','switchrole','помощь','help','support','helpuser','queue','review','resolve','dismiss','reports','reportqueue','flags','flagqueue','ping','health','permissions','myrole','reportstats','flagstats']),
+  moderator: new Set(['adminhelp','helpadmin','myrole','роль','switchrole','queue','review','resolve','dismiss','reports','reportqueue','flags','flagqueue','ping','health','permissions','reportstats','flagstats','pending','published','rejected','approve','reject','hide','show','profilequeue','queueall','oldreports','closedreports','agequeue','verified','unverified','restrict','suspend','restore','user','юзер','роль','myrole']),
+  admin: new Set(['adminhelp','helpadmin','myrole','роль','switchrole','queue','users','пользователи','bans','баны','user','юзер','ban','бан','unban','разбан','delete','удалить','stats','today','week','pending','published','rejected','reports','reportqueue','reportstats','flags','flagqueue','flagstats','recent','inactive','search','bycity','topcities','interests','likes','matches','chats','messages','profiles','staff','admins','moderators','helpers','rolecheck','permissions','statuslist','review','resolve','dismiss','approve','reject','hide','show','restrict','suspend','restore','health','ping','dbcheck','botinfo','queueall','profilequeue','oldreports','closedreports','banned','restricted','suspended','blocked','blocks','likesstats','matchstats','activity','часовойпояс','пароль']),
+  chief_admin: new Set(['*']),
+  developer: new Set(['*'])
+};
+function roleCanUseCommand(role, command){
+  if(role==='developer'||role==='chief_admin') return true;
+  const normalized=String(command||'').replace(/^\\//,'').split('@')[0].toLowerCase();
+  return ROLE_COMMANDS[role]?.has(normalized) || EXTRA_ADMIN_COMMANDS.some(item=>item.command===normalized && (role==='admin' || role==='moderator' && ROLE_COMMANDS.moderator.has(normalized) || role==='helper' && ROLE_COMMANDS.helper.has(normalized)));
+}
 function adminCommandHelp(role){
   const core=[
     ['/adminhelp','полный список команд'],
+    ['/myrole','показать активную и максимальную роли'],
+    ['/switchrole helper|moderator|admin|chief_admin|developer|max','переключить активную роль в пределах назначенного ранга'],
     ['/queue','очередь жалоб и сигналов модерации'],
-    ['/users','количество пользователей'],
-    ['/bans','список заблокированных аккаунтов'],
-    ['/user @username или 001234','карточка пользователя'],
-    ['/ban @username или 001234','заблокировать пользователя'],
-    ['/unban @username или 001234','снять блокировку'],
-    ['/delete @username или 001234','удалить аккаунт'],
-    ['/часовойпояс Europe/Berlin','установить личный часовой пояс'],
-    ['/пароль ВАШ_ПАРОЛЬ','задать пароль (от 4 символов)']
+    ['/ping','проверить ответ бота']
   ];
-  if(role==='developer') core.push(
-    ['/deleteall','предпросмотр массового удаления'],
-    ['/deleteall CONFIRM','подтвердить массовое удаление'],
-    ['/пароли','список администраторов'],
-    ['/resetadminpass TELEGRAM_ID','сбросить пароль администратора']
-  );
-  const extras=EXTRA_ADMIN_COMMANDS.filter(item=>role==='developer'||item.command!=='deleteall').map(item=>['/'+item.command,item.description]);
-  const format=items=>items.map(([command,description])=>'• '+command+' — '+description).join('\n');
-  return '🛡 VIBE | АДМИН-КОМАНДЫ\n━━━━━━━━━━━━━━━━━━\n🔑 ДОСТУП И ОСНОВНЫЕ КОМАНДЫ\n'+format(core)+'\n\n📚 ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ('+extras.length+')\n'+format(extras)+'\n\n⚠️ Команды работают только при наличии соответствующих прав.';
+  const adminCore=[
+    ['/users','количество пользователей'], ['/bans','список заблокированных аккаунтов'],
+    ['/user @username или 001234','карточка пользователя'], ['/ban @username или 001234','заблокировать пользователя'],
+    ['/unban @username или 001234','снять блокировку'], ['/delete @username или 001234','удалить аккаунт'],
+    ['/часовойпояс Europe/Berlin','установить личный часовой пояс'], ['/пароль ВАШ_ПАРОЛЬ','задать пароль (от 4 символов)']
+  ];
+  const developerCore=[['/deleteall','предпросмотр массового удаления'],['/deleteall CONFIRM','подтвердить массовое удаление'],['/пароли','список администраторов'],['/resetadminpass TELEGRAM_ID','сбросить пароль администратора']];
+  const format=items=>items.map(([command,description])=>'• '+command+' — '+description).join('\\n');
+  const visibleCore=core.concat(roleRank[role]>=roleRank.admin?adminCore:[]).concat(role==='developer'?developerCore:[]);
+  const extras=EXTRA_ADMIN_COMMANDS.filter(item=>roleCanUseCommand(role,item.command)).map(item=>['/'+item.command,item.description]);
+  return '🛡 VIBE | КОМАНДЫ РОЛИ: '+({helper:'ПОМОЩНИК',moderator:'МОДЕРАТОР',admin:'АДМИНИСТРАТОР',chief_admin:'ГЛАВНЫЙ АДМИНИСТРАТОР',developer:'РАЗРАБОТЧИК'}[role]||'НЕТ ДОСТУПА')+'\\n━━━━━━━━━━━━━━━━━━\\n🔑 ОСНОВНЫЕ КОМАНДЫ\\n'+format(visibleCore)+'\\n\\n📚 ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ('+extras.length+')\\n'+format(extras)+'\\n\\nДоступ зависит от активной роли. Вернуться к максимальной: /switchrole max';
 }
 async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
   if (!process.env.BOT_TOKEN) return;
@@ -533,8 +542,10 @@ app.post('/telegram/webhook', (req,res) => {
     const from=m?.from||cb?.from, chatId=m?.chat?.id||cb?.message?.chat?.id, txt=(m?.text||'').trim();
     const parts=txt.split(/\s+/), cmd=(parts[0]||'').split('@')[0].toLowerCase(), arg=(parts[1]||'').replace(/^@/,'');
     const role = from?.id ? await getRole(from.id) : 'none';
-    const ok = roleRank[role] >= roleRank.admin;
+    const ok = roleRank[role] >= roleRank.helper;
     const isDeveloper = role === 'developer';
+    const adminCommandNames = new Set([...EXTRA_ADMIN_COMMANDS.map(x=>x.command), 'adminhelp','helpadmin','queue','users','пользователи','bans','баны','user','юзер','ban','бан','unban','разбан','delete','удалить','пароли','resetadminpass','часовойпояс','пароль']);
+    if(m && cmd.startsWith('/') && adminCommandNames.has(cmd.slice(1)) && roleRank[role]>=roleRank.helper && !roleCanUseCommand(role,cmd)) { await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:'⛔ Команда недоступна для активной роли «'+({helper:'Помощник',moderator:'Модератор',admin:'Администратор',chief_admin:'Главный администратор',developer:'Разработчик'}[role]||role)+'». Используй /adminhelp для списка доступных команд.'})}); return; }
     if (m && ['/start','/help','/помощь','/admin','/адм'].includes(cmd)) {
       try { await hideTelegramCommands(token); }
       catch (e) { console.error('Telegram chat command menu refresh failed:', e.message); }
