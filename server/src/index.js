@@ -323,7 +323,7 @@ app.get('/api/likes',auth,wrap(async(req,res)=>{
       CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
       FROM likes l JOIN users u ON u.id=l.to_user JOIN listings lst ON lst.user_id=u.id
       WHERE l.from_user=$1 AND lst.status='published' AND u.account_status='active'
-      AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'
+      AND (($3='teen' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($3='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
       AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
       ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand])
   ]);
@@ -331,20 +331,27 @@ app.get('/api/likes',auth,wrap(async(req,res)=>{
   res.json({incoming:normalize(incoming.rows),outgoing:normalize(outgoing.rows)});
 }));
 app.get('/api/chats',auth,wrap(async(req,res)=>{
+  const viewerBand=await getUserAgeBand(req.user.id);
+  if(!['teen','adult'].includes(viewerBand))return res.json({chats:[]});
   const q=await pool.query(`SELECT u.id AS user_id,u.first_name,u.photo_url,
     (SELECT m.body FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id) ORDER BY m.created_at DESC LIMIT 1) AS last_message,
     (SELECT m.created_at FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id) ORDER BY m.created_at DESC LIMIT 1) AS last_message_at
     FROM users u
     WHERE u.id<>$1 AND u.account_status='active'
+      AND (($2='teen' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($2='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
       AND (EXISTS (SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=u.id)
         OR EXISTS (SELECT 1 FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id)))
       AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
-    ORDER BY last_message_at DESC NULLS LAST,u.first_name ASC`,[req.user.id]);
+    ORDER BY last_message_at DESC NULLS LAST,u.first_name ASC`,[req.user.id,viewerBand]);
   res.json({chats:q.rows});
 }));
 app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   const other=Number(req.params.userId);
   if(!Number.isSafeInteger(other)||other===Number(req.user.id))return res.status(400).json({error:'Invalid user'});
+  const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(other);
+  if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Личные сообщения доступны только внутри твоей возрастной стороны VIBE.'});
+  const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(other);
+  if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Личные сообщения доступны только внутри твоей возрастной стороны VIBE.'});
   const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[other]);
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
