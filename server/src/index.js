@@ -11,6 +11,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process
 const port = Number(process.env.PORT || 3001);
 const DEVELOPER_TELEGRAM_ID = '8745499515';
 const ROLE_LABELS = { developer: 'Разработчик', chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
+const PUBLIC_STATUS_LABELS = { chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const roleRank = { none: 0, helper: 1, moderator: 2, admin: 3, chief_admin: 4, developer: 5 };
 async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
   if (!process.env.BOT_TOKEN) return;
@@ -65,7 +66,7 @@ app.post('/api/auth/telegram',wrap(async(req,res)=>{
   if (['suspended','restricted'].includes(u.account_status)) return res.status(403).json({ error: 'Доступ к аккаунту ограничен', restricted: true, reason: u.moderation_note || 'Причина не указана' });
   res.json({user:u});
 }));
-app.get('/api/me',auth,wrap(async(req,res)=>{const [r,likes]=await Promise.all([pool.query('SELECT role,is_public FROM admin_roles WHERE telegram_id=$1',[String(req.user.telegram_id)]),pool.query('SELECT COUNT(*)::int AS count FROM likes WHERE to_user=$1',[req.user.id])]);const role=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(r.rows[0]?.role||'none');res.json({user:{...req.user,account_code:String(req.user.id).padStart(6,'0'),likes_received:likes.rows[0]?.count||0,admin_access:roleRank[role]>=roleRank.admin,public_role:role==='developer'?role:(r.rows[0]?.is_public?role:'none'),role_label:role==='developer'?'Разработчик':(r.rows[0]?.is_public?(ROLE_LABELS[role]||null):null)}});}));
+app.get('/api/me',auth,wrap(async(req,res)=>{const [r,likes]=await Promise.all([pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1',[String(req.user.telegram_id)]),pool.query('SELECT COUNT(*)::int AS count FROM likes WHERE to_user=$1',[req.user.id])]);const role=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(r.rows[0]?.role||'none');const status=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(req.user.public_status||'none');res.json({user:{...req.user,account_code:String(req.user.id).padStart(6,'0'),likes_received:likes.rows[0]?.count||0,admin_access:roleRank[role]>=roleRank.admin,public_role:status,role_label:status==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[status]||null)}});}));
 app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
@@ -159,8 +160,8 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
  res.status(201).json({listing});
 }));
 app.get('/api/discover',auth,wrap(async(req,res)=>{
-  const q=await pool.query(`SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.status,l.created_at,u.photo_url,CASE WHEN u.telegram_id::text=$2 THEN 'developer' WHEN ar.is_public THEN ar.role ELSE 'none' END AS public_role FROM listings l JOIN users u ON u.id=l.user_id LEFT JOIN admin_roles ar ON ar.telegram_id=u.telegram_id::text WHERE (l.status='published' OR l.user_id=$1) AND u.account_status='active' AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1)) AND (l.user_id=$1 OR (l.status='published' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years')) ORDER BY CASE WHEN l.user_id=$1 THEN 0 ELSE 1 END, RANDOM() LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID]);
-  res.json({people:q.rows.map(p=>({...p,role_label:ROLE_LABELS[p.public_role]||null,bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
+  const q=await pool.query(`SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.status,l.created_at,u.photo_url,CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role FROM listings l JOIN users u ON u.id=l.user_id WHERE (l.status='published' OR l.user_id=$1) AND u.account_status='active' AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1)) AND (l.user_id=$1 OR (l.status='published' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years')) ORDER BY CASE WHEN l.user_id=$1 THEN 0 ELSE 1 END, RANDOM() LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID]);
+  res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
 }));
 app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
@@ -309,16 +310,16 @@ app.post('/telegram/webhook', (req,res) => {
       const q=await pool.query('SELECT id,telegram_id,username,first_name,account_status,profile_review_status,moderation_note,bio,city,photo_url,goal,interests,created_at FROM users WHERE id=$1',[id]);
       if(!q.rowCount){if(editMode)await edit('Пользователь не найден или аккаунт удалён.');else await send('Пользователь не найден.');return;}
       const u=q.rows[0];
-      const roleRow = await pool.query('SELECT role,is_public FROM admin_roles WHERE telegram_id=$1', [String(u.telegram_id)]);
+      const roleRow = await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1', [String(u.telegram_id)]);
       const userRole = String(u.telegram_id)===DEVELOPER_TELEGRAM_ID ? 'developer' : (roleRow.rows[0]?.role || 'none');
-      const rolePublic = String(u.telegram_id)===DEVELOPER_TELEGRAM_ID ? true : Boolean(roleRow.rows[0]?.is_public);
+      const publicStatus = String(u.telegram_id)===DEVELOPER_TELEGRAM_ID ? 'developer' : (u.public_status || 'none');
       const kb={inline_keyboard:[[{text:'🔎 Проверить',callback_data:'u:check:'+id}],[{text:u.account_status==='banned'?'✅ Разбанить':'⛔ Забанить Telegram',callback_data:'u:'+(u.account_status==='banned'?'unban':'ban')+':'+id}],[{text:'🧹 Удалить анкету',callback_data:'u:profile:'+id}],[{text:'🗑 Удалить аккаунт',callback_data:'u:account:'+id}]]};
-      if (String(u.telegram_id)!==DEVELOPER_TELEGRAM_ID) {
-        if (isDeveloper) kb.inline_keyboard.push([{text:'👑 Главный админ',callback_data:'role:chief_admin:'+id},{text:'🛡 Админ',callback_data:'role:admin:'+id}],[{text:'🔨 Модератор',callback_data:'role:moderator:'+id},{text:'🧰 Помощник',callback_data:'role:helper:'+id}],[{text:'👁 Статус публичный',callback_data:'visibility:public:'+id},{text:'🕶 Статус скрытый',callback_data:'visibility:hidden:'+id}],[{text:'❌ Снять права',callback_data:'role:none:'+id}]);
-        else if (role==='admin' && ['none','helper'].includes(userRole)) kb.inline_keyboard.push([{text:'🧰 Выдать статус помощника',callback_data:'role:helper:'+id},{text:'➖ Снять статус помощника',callback_data:'role:none:'+id}]);
+      if (String(u.telegram_id)!==DEVELOPER_TELEGRAM_ID && isDeveloper) {
+        kb.inline_keyboard.push([{text:'👑 Права: главный админ',callback_data:'role:chief_admin:'+id},{text:'🛡 Права: админ',callback_data:'role:admin:'+id}],[{text:'🔨 Права: модератор',callback_data:'role:moderator:'+id},{text:'🧰 Права: помощник',callback_data:'role:helper:'+id}],[{text:'❌ Снять админ-права',callback_data:'role:none:'+id}]);
+        kb.inline_keyboard.push([{text:'🏷 Статус: помощник',callback_data:'pubstatus:helper:'+id},{text:'🏷 Статус: модератор',callback_data:'pubstatus:moderator:'+id}],[{text:'🏷 Статус: администратор',callback_data:'pubstatus:admin:'+id},{text:'🏷 Статус: главный админ',callback_data:'pubstatus:chief_admin:'+id}],[{text:'🚫 Убрать публичный статус',callback_data:'pubstatus:none:'+id}]);
       }
       const profileCode=String(u.id).padStart(6,'0');
-       const details='👤 '+u.first_name+'\nКод профиля: '+profileCode+'\nUsername: '+(u.username?'@'+u.username:'не указан')+'\nTelegram ID: '+u.telegram_id+'\nID анкеты: '+u.id+'\nРоль: '+(ROLE_LABELS[userRole]||'Пользователь')+' ('+(rolePublic?'публичный':'скрытый')+')'+'\nАккаунт: '+u.account_status+'\nПричина бана/модерации: '+(u.moderation_note||'—')+'\nАнкета: '+u.profile_review_status+'\nГород: '+(u.city||'—')+'\nЦель: '+u.goal+'\nИнтересы: '+((u.interests||[]).join(', ')||'—')+'\nФото: '+(u.photo_url?'есть':'нет')+'\nОписание: '+(u.bio||'—')+'\nСоздан: '+new Date(u.created_at).toLocaleString('ru-RU');
+       const details='👤 '+u.first_name+'\nКод профиля: '+profileCode+'\nUsername: '+(u.username?'@'+u.username:'не указан')+'\nTelegram ID: '+u.telegram_id+'\nID анкеты: '+u.id+'\nПрава: '+(ROLE_LABELS[userRole]||'Пользователь')+'\nПубличный статус: '+(publicStatus==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[publicStatus]||'нет'))+'\nАккаунт: '+u.account_status+'\nПричина бана/модерации: '+(u.moderation_note||'—')+'\nАнкета: '+u.profile_review_status+'\nГород: '+(u.city||'—')+'\nЦель: '+u.goal+'\nИнтересы: '+((u.interests||[]).join(', ')||'—')+'\nФото: '+(u.photo_url?'есть':'нет')+'\nОписание: '+(u.bio||'—')+'\nСоздан: '+new Date(u.created_at).toLocaleString('ru-RU');
       if(editMode)await edit(details,kb);else await send(details+'\nВыбери действие:',kb);
     };
     if(cb){
@@ -336,29 +337,26 @@ app.post('/telegram/webhook', (req,res) => {
         await edit((act==='approve'?'✅ ОДОБРЕНО':'❌ ОТКЛОНЕНО')+' — анкета #'+id+' («'+found.rows[0].name+'»)'+ '\\nРешение: '+new Date().toLocaleString('ru-RU'));
         return;
       }
-      if(prefix==='visibility') {
-        if(!isDeveloper){await answer('Менять видимость статуса может только Разработчик');return;}
-        if(!Number.isSafeInteger(id)||id<=0||!['public','hidden'].includes(act)){await answer('Некорректная настройка');return;}
+      if(prefix==='pubstatus') {
+        if(!isDeveloper){await answer('Публичные статусы выдаёт только Разработчик');return;}
+        if(!Number.isSafeInteger(id)||id<=0||!['none','helper','moderator','admin','chief_admin'].includes(act)){await answer('Некорректный публичный статус');return;}
         const target=await pool.query('SELECT telegram_id FROM users WHERE id=$1',[id]);
         if(!target.rowCount){await answer('Пользователь не зарегистрирован');return;}
-        if(String(target.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение видимости разработчика',source:'Telegram-кнопка статуса'});await answer('Статус Разработчика всегда публичный');return;}
-        await pool.query('UPDATE admin_roles SET is_public=$1,updated_at=NOW() WHERE telegram_id=$2',[act==='public',String(target.rows[0].telegram_id)]);
-        await answer(act==='public'?'Статус будет виден на сайте':'Статус скрыт на сайте');
+        if(String(target.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение публичного статуса разработчика',source:'Telegram-кнопка статуса'});await answer('Статус Разработчика закреплён');return;}
+        await pool.query('UPDATE users SET public_status=$1,updated_at=NOW() WHERE id=$2',[act==='none'?'':act,id]);
+        await answer(act==='none'?'Публичный статус снят':'Выдан публичный статус: '+PUBLIC_STATUS_LABELS[act]);
         await card(id,true);return;
       }
       if(prefix==='role') {
-        const allowedByAdmin = role==='admin' && ['helper','none'].includes(act);
-        if(!isDeveloper&&!allowedByAdmin){await answer('Назначать роли может только Разработчик или Администратор (только помощника)');return;}
+        if(!isDeveloper){await answer('Админ-права может назначать и снимать только Разработчик');return;}
         if(!Number.isSafeInteger(id)||id<=0||!['chief_admin','admin','moderator','helper','none'].includes(act)){await answer('Некорректная роль');return;}
         const target=await pool.query('SELECT telegram_id,username FROM users WHERE id=$1',[id]);
         if(!target.rowCount){await answer('Пользователь не зарегистрирован');return;}
         const targetId=String(target.rows[0].telegram_id);
         if(targetId===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение роли разработчика',source:'Telegram-кнопка ролей'});await answer('Нельзя изменить роль Разработчика');return;}
-        const currentRole = await getRole(targetId);
-        if (!isDeveloper && (roleRank[currentRole] > roleRank.helper || (act==='none' && currentRole!=='helper'))) { await answer('Администратор может менять только статус помощника'); return; }
         if(act==='none') await pool.query('DELETE FROM admin_roles WHERE telegram_id=$1',[targetId]);
         else await pool.query(`INSERT INTO admin_roles(telegram_id,username,role,assigned_by) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,role=EXCLUDED.role,assigned_by=EXCLUDED.assigned_by,updated_at=NOW()`,[targetId,target.rows[0].username,act,String(from.id)]);
-        await answer(act==='none'?'Статус помощника снят':'Назначено: '+(ROLE_LABELS[act]||act));
+        await answer(act==='none'?'Админ-права сняты':'Назначены админ-права: '+(ROLE_LABELS[act]||act));
         await card(id,true);
         return;
       }
@@ -445,6 +443,7 @@ async function start() {
     await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_roles (telegram_id TEXT PRIMARY KEY, username TEXT, role TEXT NOT NULL CHECK (role IN ('chief_admin','admin','moderator','helper')), assigned_by TEXT NOT NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
       await pool.query('ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE');
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS public_status TEXT NOT NULL DEFAULT ''");
     console.log('VIBE database schema ready');
   } catch (err) {
     console.error('VIBE database schema initialization failed:', err.message);
