@@ -550,7 +550,7 @@ app.post('/telegram/webhook', (req,res) => {
           if(!t.rowCount || t.rows[0].status==='closed'){await answer('Обращение не найдено или закрыто.');return;}
           await pool.query("INSERT INTO telegram_support_sessions(telegram_id,mode,ticket_id,updated_at) VALUES($1,'staff_reply',$2,NOW()) ON CONFLICT(telegram_id) DO UPDATE SET mode='staff_reply',ticket_id=$2,updated_at=NOW()",[String(from.id),ticketId]);
           await answer();
-          await send('✍️ Напиши ответ для обращения #'+ticketId. Следующее текстовое сообщение будет отправлено пользователю.');
+          await send('✍️ Напиши ответ для обращения #'+ticketId+'. Следующее текстовое сообщение будет отправлено пользователю.');
           return;
         }
       }
