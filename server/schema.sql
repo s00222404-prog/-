@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS listings (
   country TEXT NOT NULL,
   hobbies TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
+  media_url TEXT,
+  media_type TEXT NOT NULL DEFAULT 'image',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('draft','pending','published','hidden','rejected')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -57,6 +59,11 @@ CREATE TABLE IF NOT EXISTS reports (
   reported_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   reason TEXT NOT NULL,
   details TEXT NOT NULL DEFAULT '',
+  reporter_telegram_username TEXT,
+  reported_telegram_username TEXT,
+  evidence TEXT,
+  report_type TEXT NOT NULL DEFAULT 'profile',
+  listing_id BIGINT,
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','reviewing','resolved','dismissed')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (reporter_id <> reported_id)
