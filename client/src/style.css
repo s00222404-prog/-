@@ -660,3 +660,57 @@ footer{border-top:1px solid #ffffff12}
 @keyframes vibeRise{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 @media(max-width:620px){.topbar{border-radius:17px;padding:10px}.landing-top-actions{gap:7px}.landing-top-actions .landing-online{display:none}.language-picker select{max-width:88px}.landing-demo-card{transform:none}.report-overlay{padding:8px}.report-dialog{max-height:calc(100dvh - 16px);overflow:auto}}
+
+
+/* Full-screen TikTok-style discovery feed */
+.app-shell.feed-mode,
+.app-shell:has(.tiktok-feed){width:100%;max-width:none;min-height:100dvh;margin:0;padding:0 0 76px}
+.app-shell:has(.tiktok-feed) .topbar{position:relative;z-index:20;width:min(100% - 28px,920px);margin:14px auto 0}
+.app-shell:has(.tiktok-feed) .hero{width:min(100% - 32px,920px);margin:14px auto 12px;padding:8px 0 0}
+.app-shell:has(.tiktok-feed) .hero h1{font-size:clamp(22px,3vw,34px);margin:7px 0}
+.app-shell:has(.tiktok-feed) .hero p{font-size:12px;margin:0}
+.app-shell:has(.tiktok-feed) .hero .eyebrow{font-size:10px}
+.app-shell:has(.tiktok-feed) .tabs{width:min(100% - 28px,920px);margin:12px auto}
+.app-shell:has(.tiktok-feed) .notice{width:min(100% - 28px,920px);margin:10px auto}
+.app-shell:has(.tiktok-feed) .people.tiktok-feed{width:100%;max-width:none;margin:0;padding:0}
+.app-shell:has(.tiktok-feed) .feed-topline{width:min(100% - 28px,920px);margin:0 auto 12px;padding:12px 16px;border-radius:16px;background:rgba(22,17,32,.8)}
+.app-shell:has(.tiktok-feed) .feed-scroll{height:calc(100dvh - 190px);min-height:520px;max-height:none;width:min(100% - 28px,760px);margin:0 auto;overflow-y:auto;overscroll-behavior-y:contain;scroll-snap-type:y mandatory;border-radius:24px;scrollbar-width:thin;scrollbar-color:#6e548a transparent}
+.app-shell:has(.tiktok-feed) .feed-post{height:100%;min-height:520px;max-height:none;margin:0 0 12px;border-radius:24px;scroll-snap-align:start;scroll-snap-stop:always;overflow:hidden;position:relative;background:#100d17}
+.app-shell:has(.tiktok-feed) .feed-media{position:absolute;inset:0;min-height:0;border-radius:inherit}
+.app-shell:has(.tiktok-feed) .feed-media-asset{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.app-shell:has(.tiktok-feed) .feed-media-shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(5,4,9,.28),transparent 22%,transparent 45%,rgba(5,4,9,.15) 60%,rgba(5,4,9,.94) 100%)}
+.app-shell:has(.tiktok-feed) .feed-profile-copy{left:clamp(18px,4vw,38px);right:96px;bottom:clamp(24px,5vh,48px);max-width:600px;gap:9px}
+.app-shell:has(.tiktok-feed) .feed-name{font-size:clamp(25px,4vw,38px);font-weight:850;letter-spacing:-.7px}
+.app-shell:has(.tiktok-feed) .feed-profile-copy p{font-size:clamp(13px,1.5vw,16px);line-height:1.55;max-width:580px;-webkit-line-clamp:4}
+.app-shell:has(.tiktok-feed) .feed-action-rail{right:clamp(12px,2.5vw,24px);bottom:clamp(25px,5vh,48px);gap:18px}
+.app-shell:has(.tiktok-feed) .feed-action-rail button{width:58px;min-width:58px;min-height:58px;gap:6px;border-radius:19px;background:rgba(20,14,30,.55);border:1px solid #ffffff35;box-shadow:0 8px 28px #0005;backdrop-filter:blur(16px)}
+.app-shell:has(.tiktok-feed) .feed-action-rail button svg{width:26px;height:26px}
+.app-shell:has(.tiktok-feed) .feed-action-rail button span{font-size:10px;font-weight:700}
+.app-shell:has(.tiktok-feed) .feed-post-footer{position:absolute;top:14px;left:14px;right:14px;z-index:4;padding:8px 10px;border-radius:13px;background:rgba(12,9,18,.38);backdrop-filter:blur(14px)}
+.app-shell:has(.tiktok-feed) .feed-post-footer>span:first-child{font-size:12px}
+.app-shell:has(.tiktok-feed) .feed-placeholder{position:absolute;inset:0;display:grid;place-content:center}
+.app-shell:has(.tiktok-feed) .feed-placeholder span{font-size:clamp(140px,24vw,250px)}
+.app-shell:has(.tiktok-feed) .empty{width:min(100% - 28px,760px);margin:20px auto}
+@media(min-width:1000px){
+ .app-shell:has(.tiktok-feed) .feed-scroll{height:calc(100dvh - 200px);width:min(100% - 40px,820px)}
+}
+@media(max-width:619px){
+ .app-shell:has(.tiktok-feed){padding:0 0 calc(68px + env(safe-area-inset-bottom))}
+ .app-shell:has(.tiktok-feed) .topbar{width:calc(100% - 16px);margin:8px auto 0;border-radius:16px}
+ .app-shell:has(.tiktok-feed) .hero{width:calc(100% - 24px);margin:9px auto 10px;padding-top:0}
+ .app-shell:has(.tiktok-feed) .hero h1{font-size:22px;line-height:1.12}
+ .app-shell:has(.tiktok-feed) .hero p{font-size:11px}
+ .app-shell:has(.tiktok-feed) .tabs{width:calc(100% - 16px);margin:9px auto 10px;padding:6px;gap:4px;overflow-x:auto}
+ .app-shell:has(.tiktok-feed) .tabs button{flex:1 0 auto;padding:9px 10px;font-size:11px}
+ .app-shell:has(.tiktok-feed) .feed-topline{width:calc(100% - 16px);margin-bottom:8px;padding:10px 12px}
+ .app-shell:has(.tiktok-feed) .feed-scroll{width:100%;height:calc(100dvh - 218px - env(safe-area-inset-bottom));min-height:390px;border-radius:0;scroll-padding-top:0}
+ .app-shell:has(.tiktok-feed) .feed-post{height:100%;min-height:390px;margin:0 0 8px;border-radius:0;box-shadow:none}
+ .app-shell:has(.tiktok-feed) .feed-profile-copy{left:16px;right:76px;bottom:22px;gap:7px}
+ .app-shell:has(.tiktok-feed) .feed-name{font-size:27px}
+ .app-shell:has(.tiktok-feed) .feed-profile-copy p{font-size:13px;line-height:1.45;-webkit-line-clamp:3}
+ .app-shell:has(.tiktok-feed) .feed-action-rail{right:10px;bottom:24px;gap:13px}
+ .app-shell:has(.tiktok-feed) .feed-action-rail button{width:49px;min-width:49px;min-height:49px;border-radius:16px;padding:7px 3px}
+ .app-shell:has(.tiktok-feed) .feed-action-rail button svg{width:22px;height:22px}
+ .app-shell:has(.tiktok-feed) .feed-post-footer{top:10px;left:10px;right:10px}
+ .app-shell:has(.tiktok-feed) footer{display:none}
+}
