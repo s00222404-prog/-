@@ -240,16 +240,19 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
      ].join('\n');
      const keyboard={inline_keyboard:[[{text:'✅ Одобрить',callback_data:'l:approve:'+listing.id},{text:'❌ Отклонить',callback_data:'l:reject:'+listing.id}]]};
      await Promise.all([...ids].map(async chatId=>{
-       if(u?.photo_url){
+       if(listing.media_url){
          try {
-           const endpoint='https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendPhoto';
-           if(u.photo_url.startsWith('http://') || u.photo_url.startsWith('https://')) {
-             await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,photo:u.photo_url,caption:'Фото анкеты #'+listing.id})});
-           } else {
-             const encoded=u.photo_url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
-             if(encoded){const form=new FormData();form.append('chat_id',String(chatId));form.append('photo',new Blob([Buffer.from(encoded[2],'base64')],{type:encoded[1]}),'listing-photo');await fetch(endpoint,{method:'POST',body:form});}
+           const isVideo=listing.media_type==='video';
+           const endpoint='https://api.telegram.org/bot'+process.env.BOT_TOKEN+(isVideo?'/sendVideo':'/sendPhoto');
+           const match=listing.media_url.match(/^data:(image\/[a-zA-Z0-9.+-]+|video\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
+           if(match){
+             const form=new FormData();form.append('chat_id',String(chatId));
+             form.append(isVideo?'video':'photo',new Blob([Buffer.from(match[2],'base64')],{type:match[1]}),isVideo?'listing-media.mp4':'listing-media.jpg');
+             form.append('caption','Медиа для проверки анкеты #'+listing.id+' · '+(isVideo?'видео':'фото'));
+             const mediaResult=await fetch(endpoint,{method:'POST',body:form});
+             if(!mediaResult.ok)console.error('Listing media moderation upload failed:',await mediaResult.text());
            }
-         } catch(e) { console.error('Listing photo notification failed:',e.message); }
+         } catch(e) { console.error('Listing media moderation notification failed:',e.message); }
        }
        return fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:details,parse_mode:'HTML',reply_markup:keyboard})}).catch(e=>console.error('Listing notification failed:',e.message));
      }));
