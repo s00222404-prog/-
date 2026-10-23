@@ -420,7 +420,7 @@ app.post('/telegram/webhook', (req,res) => {
           await send(reply); return;
         }
       }
-      reply='Добро пожаловать в VIBE.\nДля продолжения откройте приложение с помощью кнопки ниже.';markup={inline_keyboard:[[{text:'Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+      reply='VIBE\n\nЗнакомства. Общение. Новые возможности.\n\nДобро пожаловать в пространство, где начинаются новые знакомства.\n\nОткройте приложение, чтобы продолжить.';markup={inline_keyboard:[[{text:'Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
       reply=ok?'VIBE | ПАНЕЛЬ УПРАВЛЕНИЯ\nВаша роль: '+(role==='developer'?'Разработчик':ROLE_LABELS[role])+'\nВыберите действие из меню ниже:':'⛔ Команда доступна только администраторам.';
       if(ok)markup={keyboard:[[{text:'/очередь'},{text:'/пользователи'}],[{text:'/юзер'},{text:'/помощь'}]],resize_keyboard:true};
