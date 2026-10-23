@@ -233,11 +233,7 @@ async function auth(req,res,next) {
     if(maintenance.rows[0]?.enabled){const identity=validateTelegramInitData(req.get('X-Telegram-Init-Data'),process.env.BOT_TOKEN);if(String(identity.id)!==DEVELOPER_TELEGRAM_ID)return res.status(503).json({error:'VIBE временно закрыт',maintenance:true,reason:maintenance.rows[0].reason});}
 
     const identity = validateTelegramInitData(req.get('X-Telegram-Init-Data'), process.env.BOT_TOKEN);
-    const q = await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
-      ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
-      RETURNING id,telegram_id,username,first_name,birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status,ban_issuer`,
-      [identity.id,identity.username,identity.firstName,identity.photoUrl]);
-    req.user=q.rows[0];
+    req.user = await upsertTelegramUser(identity);
     if (req.user.account_status === 'banned') {
       return res.status(403).json({ error: 'Ваш аккаунт забанен', banned: true, reason: req.user.moderation_note || 'Причина не указана', moderation_note: req.user.moderation_note || '', ban_issuer: req.user.ban_issuer || 'moderator', ban_issuer_label: (req.user.ban_issuer || 'moderator') === 'developer' ? 'разработчиком' : 'модератором' });
     }
@@ -248,6 +244,21 @@ async function auth(req,res,next) {
   } catch { res.status(401).json({error:'Telegram authentication failed'}); }
 }
 const adminOnly = canManage;
+async function upsertTelegramUser(identity) {
+  const result = await pool.query(`INSERT INTO users (telegram_id, username, first_name, photo_url)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (telegram_id) DO UPDATE
+      SET username = EXCLUDED.username,
+          first_name = EXCLUDED.first_name,
+          photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
+          updated_at = NOW()
+    RETURNING id, telegram_id, username, first_name, birth_date,
+      age_verification_status, age_verified_at, gender, profile_review_status,
+      account_status, bio, city, photo_url, goal, interests, discoverable,
+      moderation_note, public_status, ban_issuer`,
+    [identity.id, identity.username, identity.firstName, identity.photoUrl]);
+  return result.rows[0];
+}
 app.get('/api/service-status',wrap(async(_req,res)=>{const q=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");const m=q.rows[0];res.json({maintenance:Boolean(m?.enabled),reason:m?.reason||''});}));
 app.get('/health',wrap(async(_req,res)=>{const q=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");const m=q.rows[0];const maintenance=Boolean(m?.enabled)||String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';res.status(maintenance?503:200).json({ok:!maintenance,status:maintenance?'maintenance':'online',app:'vibe-api',message:maintenance?(m?.reason||process.env.MAINTENANCE_MESSAGE||'Проводятся технические работы. Попробуйте позже.'): 'Сервер работает нормально'});}));
 
@@ -255,10 +266,7 @@ app.post('/api/auth/telegram',authRateLimit,wrap(async(req,res)=>{
   const maintenance=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");
   if(maintenance.rows[0]?.enabled){const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);if(String(i.id)!==DEVELOPER_TELEGRAM_ID)return res.status(503).json({error:'VIBE временно закрыт',maintenance:true,reason:maintenance.rows[0].reason});}
   const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);
-  const q=await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
-    ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
-    RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable,account_status,moderation_note`,[i.id,i.username,i.firstName,i.photoUrl]);
-  const u = q.rows[0];
+  const u = await upsertTelegramUser(i);
   if (u.account_status === 'banned') return res.status(403).json({ error: 'Ваш аккаунт забанен', banned: true, reason: u.moderation_note || 'Причина не указана', moderation_note: u.moderation_note || '' });
   if (['suspended','restricted'].includes(u.account_status)) return res.status(403).json({ error: 'Доступ к аккаунту ограничен', restricted: true, reason: u.moderation_note || 'Причина не указана' });
   res.json({user:u});
