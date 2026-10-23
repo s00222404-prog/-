@@ -18,7 +18,6 @@ function App() {
   const [user, setUser] = useState(null);
   const [people, setPeople] = useState([]);
   const [likesData, setLikesData] = useState({incoming:[],outgoing:[]});
-  const [filters, setFilters] = useState({city:'',minAge:'18',maxAge:'100',interest:''});
   const [myListing, setMyListing] = useState(null);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -39,16 +38,6 @@ function App() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [listing, setListing] = useState({name:'',age:'',city:'',country:'',hobbies:'',description:''});
   const [publishing, setPublishing] = useState(false);
-
-  const filteredPeople = people.filter(person => {
-    const cityMatch = !filters.city.trim() || [person.city,person.country].filter(Boolean).join(' ').toLocaleLowerCase().includes(filters.city.trim().toLocaleLowerCase());
-    const age = Number(person.age);
-    const minMatch = !filters.minAge || (Number.isFinite(age) && age >= Number(filters.minAge));
-    const maxMatch = !filters.maxAge || (Number.isFinite(age) && age <= Number(filters.maxAge));
-    const interestText = (person.interests || []).join(' ').toLocaleLowerCase();
-    const interestMatch = !filters.interest.trim() || interestText.includes(filters.interest.trim().toLocaleLowerCase());
-    return cityMatch && minMatch && maxMatch && interestMatch;
-  });
 
   async function request(path, options = {}) {
     const response = await fetch(API + path, {
@@ -256,16 +245,9 @@ function App() {
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
     {!loading && tab === 'discover' && <section className="people">
-      <div className="section-heading"><div><h2>Для тебя</h2><p>Новые люди в случайном порядке — листай, ставь лайки и начинай общение</p></div><span className="count">{filteredPeople.length} анкет</span></div>
-      <div className="discovery-filters" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,margin:'14px 0 20px'}}>
-        <input aria-label="Город или страна" value={filters.city} onChange={e=>setFilters({...filters,city:e.target.value})} placeholder="Город или страна" />
-        <input aria-label="Возраст от" type="number" min="18" max="100" value={filters.minAge} onChange={e=>setFilters({...filters,minAge:e.target.value})} placeholder="Возраст от" />
-        <input aria-label="Возраст до" type="number" min="18" max="100" value={filters.maxAge} onChange={e=>setFilters({...filters,maxAge:e.target.value})} placeholder="Возраст до" />
-        <input aria-label="Интересы" value={filters.interest} onChange={e=>setFilters({...filters,interest:e.target.value})} placeholder="Интересы" />
-        <button className="skip" type="button" onClick={()=>setFilters({city:'',minAge:'18',maxAge:'100',interest:''})}>Сбросить фильтры</button>
-      </div>
-      {filteredPeople.length === 0 && <div className="empty"><Sparkles/><h3>Пока нет доступных анкет</h3><p>Основной интерфейс открыт для просмотра. Анкеты появятся по мере регистрации пользователей.</p></div>}
-      {filteredPeople.map(p => <article className="person-card" key={p.id}>
+      <div className="section-heading"><div><h2>Для тебя</h2><p>Подборка автоматически учитывает твой профиль, интересы, город и цель знакомства</p></div><span className="count">{people.length} анкет</span></div>
+      {people.length === 0 && <div className="empty"><Sparkles/><h3>Пока нет доступных анкет</h3><p>Основной интерфейс открыт для просмотра. Анкеты появятся по мере регистрации пользователей.</p></div>}
+      {people.map(p => <article className="person-card" key={p.id}>
         <div className="person-art violet">{p.photo_url ? <img src={p.photo_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <div className="person-initial">{(p.name || '?').slice(0,1)}</div>}<span className="art-caption">VIBE / MEMBER</span></div>
         <div className="person-info"><div className="person-title"><div><h3>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}{String(p.id) === String(user?.id) ? ' · Это ты' : ''}</h3><RoleBadge role={p.public_role} label={p.role_label}/>{p.status === 'pending' && <span className="listing-status">Анкета на проверке — видна только тебе</span>}{p.status === 'rejected' && <span className="listing-status rejected">Анкета не одобрена. Исправь данные и отправь снова.</span>}<span className="location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span></div></div><p>{p.description || p.bio || 'Пока без описания.'}</p><div className="chips">{(p.interests || []).map(x => <span key={x}>{x}</span>)}</div><div className="card-actions"><button className="skip" onClick={() => setViewingProfile(p)}>Посмотреть анкету</button>{String(p.id) !== String(user?.id) && <><button className="like" onClick={() => like(p)}><Heart size={17} fill="currentColor"/> Лайк</button><button className="save" onClick={() => openChat({user_id:p.id,first_name:p.name || 'Пользователь',photo_url:p.photo_url})}><MessageCircle size={17}/> Написать</button><button className="skip" onClick={() => { setReportingPerson(p); setReportReason('Спам'); setReportDetails(''); }}>Пожаловаться</button><button className="skip" onClick={() => skip(p)}>Пропустить</button></>}</div></div>
       </article>)}
