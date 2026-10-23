@@ -352,7 +352,6 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(other);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Личные сообщения доступны только внутри твоей возрастной стороны VIBE.'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(other);
-  if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Личные сообщения доступны только внутри твоей возрастной стороны VIBE.'});
   const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[other]);
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
