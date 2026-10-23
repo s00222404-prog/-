@@ -206,9 +206,49 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
  res.status(201).json({listing});
 }));
 app.get('/api/discover',auth,wrap(async(req,res)=>{
-  const q=await pool.query(`SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.status,l.created_at,u.photo_url,CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role FROM listings l JOIN users u ON u.id=l.user_id WHERE (l.status='published' OR l.user_id=$1) AND u.account_status='active' AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1)) AND (l.user_id=$1 OR (l.status='published' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years')) ORDER BY CASE WHEN l.user_id=$1 THEN 0 ELSE 1 END, RANDOM() LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID]);
-  res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
-}));
+   const q=await pool.query(`
+     WITH viewer AS (
+       SELECT city, verified_birth_date, goal, interests
+       FROM users WHERE id=$1
+     ),
+     candidates AS (
+       SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.status,l.created_at,u.photo_url,
+         CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role,
+         (
+           CASE WHEN NULLIF(TRIM(viewer.city),'') IS NOT NULL
+                  AND LOWER(TRIM(COALESCE(l.city,'')))=LOWER(TRIM(viewer.city)) THEN 10 ELSE 0 END
+           + CASE WHEN COALESCE(viewer.goal,'both')='both'
+                    OR COALESCE(u.goal,'both')='both'
+                    OR COALESCE(viewer.goal,'both')=COALESCE(u.goal,'both') THEN 4 ELSE 0 END
+           + (
+             SELECT COUNT(*) * 3
+             FROM unnest(COALESCE(viewer.interests, ARRAY[]::text[])) AS vi(value)
+             WHERE TRIM(vi.value) <> ''
+               AND (
+                 EXISTS (SELECT 1 FROM unnest(COALESCE(u.interests, ARRAY[]::text[])) AS ui(value)
+                         WHERE LOWER(TRIM(ui.value))=LOWER(TRIM(vi.value)))
+                 OR EXISTS (SELECT 1 FROM regexp_split_to_table(COALESCE(l.hobbies,''), ',') AS lh(value)
+                            WHERE LOWER(TRIM(lh.value))=LOWER(TRIM(vi.value)))
+               )
+           )
+           + CASE WHEN viewer.verified_birth_date IS NOT NULL
+                    THEN GREATEST(0, 5 - FLOOR(ABS(l.age - EXTRACT(YEAR FROM AGE(CURRENT_DATE, viewer.verified_birth_date))) / 5)::int)
+                    ELSE 0 END
+         ) AS match_score
+       FROM listings l
+       JOIN users u ON u.id=l.user_id
+       CROSS JOIN viewer
+       WHERE (l.status='published' OR l.user_id=$1)
+         AND u.account_status='active'
+         AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
+         AND (l.user_id=$1 OR (l.status='published' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
+     )
+     SELECT * FROM candidates
+     ORDER BY CASE WHEN user_id=$1 THEN 0 ELSE 1 END, match_score DESC, RANDOM()
+     LIMIT 50
+   `,[req.user.id,DEVELOPER_TELEGRAM_ID]);
+   res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
+ }));
 app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
   const q=await pool.query(`SELECT id FROM users WHERE id=$1 AND age_verification_status='verified' AND verified_birth_date<=CURRENT_DATE-INTERVAL '18 years' AND account_status='active'`,[id]);
