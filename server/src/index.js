@@ -16,24 +16,24 @@ const PUBLIC_STATUS_LABELS = { chief_admin: 'Главный администра
 
 function telegramCommandsForRole(role) {
   const publicCommands = [
-    { command: 'start', description: 'Open the VIBE app' },
-    { command: 'help', description: 'Show help and available commands' },
-    { command: 'status', description: 'Check service status' }
+    { command: 'start', description: 'Открыть приложение VIBE' },
+    { command: 'help', description: 'Справка и доступные команды' },
+    { command: 'status', description: 'Проверить состояние сервиса' }
   ];
   const adminCommands = [...publicCommands,
-    { command: 'admin', description: 'Open the admin panel' },
-    { command: 'queue', description: 'View the moderation queue' },
-    { command: 'users', description: 'Count registered accounts' },
-    { command: 'bans', description: 'List banned accounts' },
-    { command: 'user', description: 'View a user profile card' },
-    { command: 'ban', description: 'Ban a user account' },
-    { command: 'unban', description: 'Unban a user account' },
-    { command: 'delete', description: 'Delete a user account' },
+    { command: 'admin', description: 'Открыть панель администратора' },
+    { command: 'queue', description: 'Очередь модерации' },
+    { command: 'users', description: 'Количество пользователей' },
+    { command: 'bans', description: 'Список заблокированных аккаунтов' },
+    { command: 'user', description: 'Карточка пользователя' },
+    { command: 'ban', description: 'Заблокировать аккаунт' },
+    { command: 'unban', description: 'Снять блокировку аккаунта' },
+    { command: 'delete', description: 'Удалить аккаунт' },
     ...EXTRA_ADMIN_COMMANDS
   ];
   if (role === 'developer') return [...adminCommands,
-    { command: 'publicstatus', description: 'Set a public profile badge' },
-    { command: 'clearstatus', description: 'Remove a public profile badge' }
+    { command: 'publicstatus', description: 'Установить публичный статус профиля' },
+    { command: 'clearstatus', description: 'Убрать публичный статус профиля' }
   ];
   return roleRank[role] >= roleRank.admin ? adminCommands : publicCommands;
 }
