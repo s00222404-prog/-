@@ -26,8 +26,8 @@ function getStoredLanguage() {
 function LanguagePicker({className=''}) {
   const [language,setLanguage] = useState(getStoredLanguage);
   function changeLanguage(value) {
-    setLanguage(value);
     if (!Object.prototype.hasOwnProperty.call(LANGUAGES, value)) return;
+    setLanguage(value);
     try { localStorage.setItem('vibe-language', value); } catch {}
     document.documentElement.lang = value;
     window.dispatchEvent(new CustomEvent('vibe-language-change',{detail:value}));
