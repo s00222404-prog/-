@@ -14,12 +14,20 @@ const LANGUAGES = {
   de: {label:'Deutsch', flag:'🇩🇪'},
   ru: {label:'Русский', flag:'🇷🇺'}
 };
+function getStoredLanguage() {
+  try {
+    const saved = localStorage.getItem('vibe-language');
+    return saved && Object.prototype.hasOwnProperty.call(LANGUAGES, saved) ? saved : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
 function LanguagePicker({className=''}) {
-  const [language,setLanguage] = useState(() => {
-    try { return localStorage.getItem('vibe-language') || 'en'; } catch { return 'en'; }
-  });
+  const [language,setLanguage] = useState(getStoredLanguage);
   function changeLanguage(value) {
     setLanguage(value);
+    if (!Object.prototype.hasOwnProperty.call(LANGUAGES, value)) return;
     try { localStorage.setItem('vibe-language', value); } catch {}
     document.documentElement.lang = value;
     window.dispatchEvent(new CustomEvent('vibe-language-change',{detail:value}));
@@ -34,7 +42,7 @@ function RoleBadge({ role, label }) {
 }
 
 function App() {
-  const [language, setLanguage] = useState(() => { try { return localStorage.getItem('vibe-language') || 'en'; } catch { return 'en'; } });
+  const [language, setLanguage] = useState(getStoredLanguage);
   useEffect(() => {
     const updateLanguage = event => setLanguage(event.detail || 'en');
     window.addEventListener('vibe-language-change', updateLanguage);
@@ -95,6 +103,9 @@ function App() {
   const [reportEvidence, setReportEvidence] = useState('');
   const [reportEvidenceName, setReportEvidenceName] = useState('');
   const [feedIndex, setFeedIndex] = useState(0);
+  const [feedSearch, setFeedSearch] = useState('');
+  const [feedCity, setFeedCity] = useState('all');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [listingMediaUrl, setListingMediaUrl] = useState('');
   const [listingMediaType, setListingMediaType] = useState('image');
   const [reportSubmitting, setReportSubmitting] = useState(false);
@@ -287,14 +298,21 @@ function App() {
 
   async function sendMessage(e) {
     e.preventDefault();
-    if (!activeChat || !draft.trim()) return;
+    const body = draft.trim();
+    if (!activeChat || !body || sendingMessage) return;
+    setSendingMessage(true);
+    setError('');
     try {
       const data = await request('/api/chats/' + encodeURIComponent(activeChat.user_id) + '/messages', {
-        method: 'POST', body: JSON.stringify({ body: draft.trim() })
+        method: 'POST', body: JSON.stringify({ body })
       });
-      setMessages(current => [...current, data.message]);
+      if (data.message) setMessages(current => [...current, data.message]);
       setDraft('');
-    } catch (e) { setError(e.message); }
+    } catch (e) {
+      setError(e.message || 'Не удалось отправить сообщение.');
+    } finally {
+      setSendingMessage(false);
+    }
   }
 
   async function publishListing(e) {
@@ -316,8 +334,18 @@ function App() {
 
   async function skip(person) {
     // Hiding a card is only a local action; it does not create a like.
-    setPeople(current => current.filter(p => p.id !== person.id));
+    setPeople(current => current.filter(p => String(p.id) !== String(person.id)));
   }
+
+  const normalizedFeedSearch = feedSearch.trim().toLocaleLowerCase();
+  const cityOptions = [...new Set(people.map(person => person.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const filteredPeople = people.filter(person => {
+    const searchable = [person.name, person.username, person.city, person.country, person.description, person.bio, ...(person.interests || [])]
+      .filter(Boolean).join(' ').toLocaleLowerCase();
+    const matchesSearch = !normalizedFeedSearch || searchable.includes(normalizedFeedSearch);
+    const matchesCity = feedCity === 'all' || person.city === feedCity;
+    return matchesSearch && matchesCity;
+  });
 
   if (maintenance) return <main className="app-shell"><section className="panel" style={{margin:'10vh auto',maxWidth:560,textAlign:'center',padding:28}}><div style={{fontSize:48}}>🔒</div><h1>VIBE временно закрыт</h1><p style={{whiteSpace:'pre-wrap',lineHeight:1.6}}>{maintenance.reason || 'Проект временно недоступен.'}</p><p>Пожалуйста, попробуйте зайти позже.</p></section></main>;
   if (user?.account_status === 'banned') return <main className={tab === 'discover' ? 'app-shell feed-mode' : 'app-shell'}><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш аккаунт забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Кем заблокирован:</b> {user.ban_issuer_label || (user.ban_issuer === 'developer' ? 'разработчиком' : 'модератором')}</p><p><b>Причина:</b> {user.moderation_note || user.reason || 'Причина не указана'}</p></section></main>;
@@ -330,10 +358,16 @@ function App() {
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
     {!loading && tab === 'discover' && <section className="people tiktok-feed">
-      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2></div><span className="count">{people.length} публикаций</span></div>
+      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам или городу.</p></div><span className="count">{filteredPeople.length} из {people.length}</span></div>
+      <div className="feed-tools" role="search">
+        <label className="feed-search"><Compass size={17} aria-hidden="true"/><input value={feedSearch} onChange={e=>setFeedSearch(e.target.value)} placeholder="Поиск по имени, интересам или описанию" aria-label="Поиск по анкетам"/></label>
+        <label className="feed-city-filter"><MapPin size={16} aria-hidden="true"/><select value={feedCity} onChange={e=>setFeedCity(e.target.value)} aria-label="Фильтр по городу"><option value="all">Все города</option>{cityOptions.map(city=><option key={city} value={city}>{city}</option>)}</select></label>
+        {(feedSearch || feedCity !== 'all') && <button type="button" className="feed-reset" onClick={()=>{setFeedSearch('');setFeedCity('all');}}>Сбросить</button>}
+      </div>
       {people.length === 0 && <div className="empty"><Sparkles/><h3>Лента пока пуста</h3><p>Публикации появятся, когда пользователи добавят фото или видео и их анкеты будут одобрены.</p><button className="save" onClick={() => setTab('listing')}><PlusCircle size={16}/> Добавить публикацию</button></div>}
-      <div className="feed-scroll" onScroll={e=>{const el=e.currentTarget;setFeedIndex(Math.round(el.scrollTop/Math.max(el.clientHeight,1)));}}>
-      {people.map((p,i) => <article className="feed-post" key={p.id} data-index={i}>
+      {people.length > 0 && filteredPeople.length === 0 && <div className="empty feed-no-results"><Compass/><h3>Ничего не найдено</h3><p>Попробуй изменить поисковый запрос или выбрать другой город.</p><button className="skip" onClick={()=>{setFeedSearch('');setFeedCity('all');}}>Сбросить фильтры</button></div>}
+      {filteredPeople.length > 0 && <div className="feed-scroll" onScroll={e=>{const el=e.currentTarget;setFeedIndex(Math.round(el.scrollTop/Math.max(el.clientHeight,1)));}}>
+      {filteredPeople.map((p,i) => <article className="feed-post" key={p.id} data-index={i}>
         <div className="feed-media">
           {(p.media_type === 'video' && p.media_url) ? <video className="feed-media-asset" src={p.media_url} controls playsInline loop muted preload="metadata"/> :
             (p.media_url || p.photo_url) ? <img className="feed-media-asset" src={p.media_url || p.photo_url} alt={'Публикация: ' + (p.name || 'пользователь')}/> :
@@ -346,7 +380,7 @@ function App() {
         </div>
         <div className="feed-post-footer"><span>@{(p.username || p.name || 'vibe').replace(/^@/,'')}</span><button onClick={()=>setViewingProfile(p)}>Профиль <ArrowRight size={14}/></button><span>{i+1} / {people.length}</span></div>
       </article>)}
-      </div>
+      </div>}
     </section>}
     {viewingProfile && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setViewingProfile(null)}>← Назад</button><h2>{viewingProfile.name || 'Пользователь'}{viewingProfile.age ? ', ' + viewingProfile.age : ''}</h2><RoleBadge role={viewingProfile.public_role} label={viewingProfile.role_label}/>{viewingProfile.media_type==='video'&&viewingProfile.media_url ? <video src={viewingProfile.media_url} controls playsInline style={{width:'100%',maxHeight:360,borderRadius:14,background:'#0f0d16',margin:'14px 0'}}/> : (viewingProfile.media_url||viewingProfile.photo_url) ? <img src={viewingProfile.media_url||viewingProfile.photo_url} alt="Медиа анкеты" style={{width:'100%',maxHeight:320,objectFit:'contain',borderRadius:14,background:'#0f0d16',margin:'14px 0'}}/> : null}<p><b>Город:</b> {[viewingProfile.city,viewingProfile.country].filter(Boolean).join(', ') || 'Не указан'}</p><p><b>О себе:</b> {viewingProfile.description || viewingProfile.bio || 'Описание не добавлено.'}</p><p><b>Интересы:</b> {(viewingProfile.interests || []).join(', ') || 'Не указаны'}</p>{String(viewingProfile.id) !== String(user?.id) && <div className="profile-actions"><button className="like" onClick={() => { const person = viewingProfile; setViewingProfile(null); like(person); }}><Heart size={17} fill="currentColor"/> Поставить лайк</button><button className="save" onClick={() => openChat({user_id:viewingProfile.id,first_name:viewingProfile.name || 'Пользователь',photo_url:viewingProfile.photo_url})}><MessageCircle size={17}/> Написать в ЛС</button><button className="skip" onClick={() => { setReportingPerson(viewingProfile); setReportType('profile'); setReportReason(''); setReportDetails(''); setReporterUsername(user?.username?'@'+user.username:''); setReportedUsername(viewingProfile.username?'@'+viewingProfile.username:''); setReportEvidence(''); setReportEvidenceName(''); setViewingProfile(null); }}>Пожаловаться</button></div>}</section></div>}
 
@@ -369,7 +403,7 @@ function App() {
       <button className="save" style={{marginTop:18}} onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button>
     </section>}
     {!loading && tab === 'chats' && <section className="panel"><div className="panel-icon"><MessageCircle/></div><h2>Твои чаты</h2><p>Переписывайся напрямую с людьми из ленты VIBE.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{(chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
-    {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required/><button className="like" type="submit"><ArrowRight size={17}/></button></form></section>}
+    {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required disabled={sendingMessage}/><button className="like" type="submit" disabled={sendingMessage || !draft.trim()} aria-label="Отправить сообщение">{sendingMessage ? <RefreshCw size={17} className="spin"/> : <ArrowRight size={17}/>}</button></form></section>}
     {!loading && tab === 'listing' && <section className="panel profile-panel"><div className="panel-icon"><PlusCircle/></div><h2>Добавить анкету</h2><p>Это отдельная публичная анкета для рекомендаций. Она не меняет данные твоего профиля Telegram.</p><form onSubmit={publishListing}>
       <label>Имя<input value={listing.name} onChange={e=>setListing({...listing,name:e.target.value})} minLength={2} maxLength={60} placeholder="Как тебя показывать" required/></label>
       <label>Возраст (14–100 лет)<input type="number" inputMode="numeric" min="1" max="120" step="1" value={listing.age} onChange={e=>setListing({...listing,age:e.target.value})} placeholder="Например, 22" required/></label>
