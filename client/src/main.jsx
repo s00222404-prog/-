@@ -330,24 +330,40 @@ function App() {
 
 function Landing() {
   return <main className="app-shell landing-shell">
-    <header className="topbar">
-      <div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div>
-      <a className="landing-menu" href="#about">О VIBE</a>
+    <header className="topbar landing-topbar">
+      <a className="brand" href="#" aria-label="VIBE главная"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></a>
+      <div className="landing-top-actions"><span className="landing-online"><i/> Знакомства нового уровня</span><a className="landing-menu" href="#about">О VIBE <ArrowRight size={14}/></a></div>
     </header>
     <section className="landing-hero">
-      <div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА</div>
-      <div className="landing-orb"><div className="orb-core">v<span>.</span></div><span className="orb-dot orb-dot-one">✦</span><span className="orb-dot orb-dot-two">♡</span><span className="orb-dot orb-dot-three">✧</span></div>
-      <h1>Твой человек.<br/><span>Твой вайб.</span></h1>
-      <p>Знакомься с людьми, с которыми легко быть собой. Начни с Telegram — это быстро и без лишних паролей.</p>
-      <a className="register-button" href="https://t.me/iBEDatig_Bot?start=register"><span className="telegram-icon">➤</span> Зарегистрироваться через Telegram <ArrowRight size={18}/></a>
-      <div className="landing-trust"><span><Lock size={14}/> Вход через Telegram</span><span><Sparkles size={14}/> Твой профиль — твой вайб</span></div>
+      <div className="landing-copy">
+        <div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА · ТВОИ ЛЮДИ</div>
+        <h1>Не просто<br/>знакомства.<br/><span>Совпадение вайбов.</span></h1>
+        <p>Меньше случайных свайпов. Больше людей, с которыми есть о чём поговорить. Найди своё общение прямо в Telegram.</p>
+        <a className="register-button" href="https://t.me/iBEDatig_Bot?start=register"><span className="telegram-icon">➤</span> Начать знакомство <ArrowRight size={18}/></a>
+        <div className="landing-trust"><span><Lock size={14}/> Вход через Telegram</span><span><ShieldCheck size={14}/> Контроль приватности</span></div>
+      </div>
+      <div className="landing-visual" aria-label="Пример карточки знакомства">
+        <div className="landing-orbit landing-orbit-one"/><div className="landing-orbit landing-orbit-two"/>
+        <div className="landing-float-chip landing-float-top"><Sparkles size={15}/> По общим интересам</div>
+        <article className="landing-demo-card">
+          <div className="landing-demo-photo"><div className="landing-demo-glow"/><span className="landing-demo-monogram">v.</span><span className="landing-demo-tag"><i/> ТВОЙ ТИП ЛЮДЕЙ</span></div>
+          <div className="landing-demo-info"><div><span className="landing-demo-kicker">ВОЗМОЖНО, ВАШ ВАЙБ</span><h2>Новые люди<span> · настоящие истории</span></h2></div><div className="landing-demo-actions"><span><Heart size={17}/></span><span><MessageCircle size={17}/></span></div></div>
+        </article>
+        <div className="landing-float-chip landing-float-bottom"><Heart size={15} fill="currentColor"/> Взаимная симпатия</div>
+        <div className="landing-orbit-dot dot-a">✦</div><div className="landing-orbit-dot dot-b">♡</div>
+      </div>
     </section>
-    <section className="landing-features" id="about">
-      <article><span className="feature-icon"><Heart/></span><h2>Настоящие люди</h2><p>Показываем анкеты реальных пользователей, без выдуманных профилей.</p></article>
-      <article><span className="feature-icon"><UserRound/></span><h2>Профиль за минуту</h2><p>Имя и username Telegram привяжутся к профилю автоматически.</p></article>
-      <article><span className="feature-icon"><ShieldAlert/></span><h2>Безопасность важна</h2><p>Комфортное пространство для новых знакомств.</p></article>
+    <section className="landing-proof"><div><strong>01</strong><span>Анкеты по интересам</span></div><div><strong>02</strong><span>Симпатии и совпадения</span></div><div><strong>03</strong><span>Общение в одном месте</span></div></section>
+    <section className="landing-about" id="about">
+      <div className="landing-section-heading"><span className="eyebrow"><Sparkles size={13}/> ТВОЙ VIBE</span><h2>Знакомься так,<br/><span>как тебе комфортно.</span></h2><p>Всё важное — просто, красиво и без лишней суеты.</p></div>
+      <div className="landing-features">
+        <article className="landing-feature-card feature-purple"><span className="feature-icon"><Heart/></span><span className="feature-number">01 / CONNECT</span><h3>Встречай своих</h3><p>Открывай анкеты людей, которые могут совпасть с тобой по интересам и целям знакомства.</p><div className="feature-art feature-heart"><Heart size={72}/><Sparkles size={23}/></div></article>
+        <article className="landing-feature-card feature-blue"><span className="feature-icon"><Sparkles/></span><span className="feature-number">02 / DISCOVER</span><h3>Меньше случайности</h3><p>Подборка использует информацию анкеты, чтобы знакомиться было проще и интереснее.</p><div className="feature-art feature-spark"><span>✳</span><span>✦</span><span>✧</span></div></article>
+        <article className="landing-feature-card feature-pink"><span className="feature-icon"><MessageCircle/></span><span className="feature-number">03 / TALK</span><h3>Начинай общение</h3><p>Симпатии, совпадения и чаты собраны в одном приложении внутри Telegram.</p><div className="feature-art feature-chat"><span>Привет! 👋</span><span>Кажется, у нас общий вайб</span></div></article>
+      </div>
     </section>
-    <footer><span>vibe. © 2026</span><span><Lock size={12}/> Безопасность важна</span></footer>
+    <section className="landing-final-cta"><div><span className="eyebrow"><Sparkles size={13}/> ТВОЯ ИСТОРИЯ НАЧИНАЕТСЯ ЗДЕСЬ</span><h2>Готов найти<br/><span>свой вайб?</span></h2><p>Зайди через Telegram и создай свою анкету.</p></div><a className="register-button" href="https://t.me/iBEDatig_Bot?start=register"><span className="telegram-icon">➤</span> Открыть VIBE <ArrowRight size={18}/></a></section>
+    <footer><span>vibe. © 2026</span><span><Lock size={12}/> Твоя приватность важна</span></footer>
   </main>;
 }
 
