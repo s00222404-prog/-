@@ -325,7 +325,7 @@ app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
   if(typeof reporterUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reporterUsername.trim()))return res.status(400).json({error:'Укажи свой Telegram-юзернейм (3–32 символа)'});
   if(typeof reportedUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reportedUsername.trim()))return res.status(400).json({error:'Укажи Telegram-юзернейм пользователя, на которого жалуешься'});
   if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
-  if(typeof evidence!=='string'||evidence.length>3000000||(evidence&&!(evidence.startsWith('data:image/')||evidence.startsWith('data:video/')||evidence.startsWith('data:application/pdf;')))return res.status(400).json({error:'Доказательство должно быть фото, видео или PDF до 2 МБ'});
+  if(typeof evidence!=='string'||evidence.length>3000000||(evidence&&!(evidence.startsWith('data:image/')||evidence.startsWith('data:video/')||evidence.startsWith('data:application/pdf;'))))return res.status(400).json({error:'Доказательство должно быть фото, видео или PDF до 2 МБ'});
   const targetExists=await pool.query("SELECT id,first_name,username FROM users WHERE id=$1 AND account_status='active'",[id]);
   if(!targetExists.rowCount)return res.status(404).json({error:'Профиль не найден или недоступен'});
   const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Преследование или угрозы безопасности','Другое'];
@@ -347,7 +347,7 @@ app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
         try{
           await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText})});
           if(evidence){
-            const match=evidence.match(/^data:([^;]+);base64,([\\s\\S]+)$/);
+            const match=evidence.match(/^data:([^;]+);base64,(.+)$/);
             if(match){
               const mime=match[1], bytes=Buffer.from(match[2],'base64');
               const kind=mime.startsWith('video/')?'video':mime==='application/pdf'?'document':mime.startsWith('image/')?'photo':null;
