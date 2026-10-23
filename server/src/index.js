@@ -141,12 +141,35 @@ app.put('/api/me',auth,wrap(async(req,res)=>{
   const age=d?Math.floor((Date.now()-d.getTime())/31557600000):null;
   res.json({user:q.rows[0],route:age===null?'age_gate':age<18?'youth':'adult_verification',adultAccess:false});
 }));
+
+async function getUserAgeBand(userId) {
+  const q = await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1 AND account_status=\'active\'', [userId]);
+  if (!q.rowCount) return 'restricted';
+  const u = q.rows[0];
+  const today = new Date();
+  const ageOn = value => {
+    if (!value) return null;
+    const d = new Date(String(value).slice(0,10) + 'T00:00:00Z');
+    if (Number.isNaN(d.getTime())) return null;
+    let age = today.getUTCFullYear() - d.getUTCFullYear();
+    if (today.getUTCMonth() < d.getUTCMonth() || (today.getUTCMonth() === d.getUTCMonth() && today.getUTCDate() < d.getUTCDate())) age--;
+    return age;
+  };
+  const selfReportedAge = ageOn(u.birth_date);
+  if (selfReportedAge !== null && selfReportedAge >= 14 && selfReportedAge <= 17) return 'teen';
+  const verifiedAge = ageOn(u.verified_birth_date);
+  if (u.age_verification_status === 'verified' && verifiedAge !== null && verifiedAge >= 18) return 'adult';
+  return 'restricted';
+}
+
 app.get('/api/age-status',auth,wrap(async(req,res)=>{
   const q=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
   const u=q.rows[0]; const d=u.verified_birth_date?new Date(u.verified_birth_date):null;
   const age=d?Math.floor((Date.now()-d.getTime())/31557600000):null;
   const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18;
-  res.json({route:!u.birth_date?'age_gate':new Date(u.birth_date).getTime()>Date.now()-18*31557600000?'youth':adultAccess?'adult':'adult_verification',adultAccess,status:u.age_verification_status});
+  const selfAge=u.birth_date?Math.floor((Date.now()-new Date(u.birth_date).getTime())/31557600000):null;
+  const ageBand=selfAge!==null&&selfAge>=14&&selfAge<18?'teen':adultAccess?'adult':'restricted';
+  res.json({route:!u.birth_date?'age_gate':selfAge!==null&&selfAge<14?'underage':ageBand==='teen'?'teen':adultAccess?'adult':'adult_verification',ageBand,adultAccess,status:u.age_verification_status});
 }));
 
 const bannedProfileTerms=['fuck','shit','bitch','asshole','cunt','dick','pussy','cock','whore','slut','porn','nude','ебать','ебу','ебал','ебан','ёбан','бляд','бля','сука','сучка','хуй','хуя','хуе','пизд','мудил','гандон','залуп','шлюх','секс','порно','дроч','насил','scheisse','scheiß','fick','ficken','arschloch','hure','schlampe','wichser','hurensohn','putain','merde','connard','puta','joder','mierda','cazzo','kurwa','chuj','pizda','blyat','suka','cyka','hui','pizdec','pidor','pidaras','zaeb','nahui','huy','huylo'];
@@ -162,7 +185,10 @@ app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
 app.post('/api/listings',auth,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
  if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя должно содержать от 2 до 60 символов.'});
- if(!Number.isInteger(Number(age))||Number(age)<18||Number(age)>100)return res.status(400).json({error:'Возраст указывается числом от 18 до 100.'});
+ if(!Number.isInteger(Number(age))||Number(age)<14||Number(age)>100)return res.status(400).json({error:'Возраст указывается числом от 14 до 100.'});
+ const authorBand=await getUserAgeBand(req.user.id);
+ if(!['teen','adult'].includes(authorBand))return res.status(403).json({error:'Сначала укажи дату рождения и подтверди возраст от 14 лет.'});
+ if((authorBand==='teen'&&Number(age)>17)||(authorBand==='adult'&&Number(age)<18))return res.status(403).json({error:'Возраст анкеты не соответствует твоей возрастной стороне VIBE.'});
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
  if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
  if(mediaUrl!==null&&(typeof mediaUrl!=='string'||mediaUrl.length>4400000||!(mediaUrl.startsWith('data:image/')||mediaUrl.startsWith('data:video/'))))return res.status(400).json({error:'Медиа должно быть фото или видео размером до 3 МБ.'});
@@ -225,6 +251,8 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
  res.status(201).json({listing});
 }));
 app.get('/api/discover',auth,wrap(async(req,res)=>{
+   const viewerBand=await getUserAgeBand(req.user.id);
+   if(!['teen','adult'].includes(viewerBand))return res.json({people:[]});
    const q=await pool.query(`
      WITH viewer AS (
        SELECT city, verified_birth_date, goal, interests
@@ -260,37 +288,44 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
        WHERE (l.status='published' OR l.user_id=$1)
          AND u.account_status='active'
          AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
-         AND (l.user_id=$1 OR (l.status='published' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
+         AND (l.user_id=$1 OR (l.status='published' AND (
+           ($3='teen' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years')
+           OR ($3='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years')
+         )))
      )
      SELECT * FROM candidates
      ORDER BY CASE WHEN user_id=$1 THEN 0 ELSE 1 END, match_score DESC, RANDOM()
      LIMIT 50
-   `,[req.user.id,DEVELOPER_TELEGRAM_ID]);
+   `,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand]);
    res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
  }));
 app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
-  const q=await pool.query(`SELECT id FROM users WHERE id=$1 AND age_verification_status='verified' AND verified_birth_date<=CURRENT_DATE-INTERVAL '18 years' AND account_status='active'`,[id]);
+  const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(id);
+  if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Симпатии доступны только пользователям твоей возрастной стороны VIBE.'});
+  const q=await pool.query(`SELECT id FROM users WHERE id=$1 AND account_status='active'`,[id]);
   if(!q.rowCount)return res.status(404).json({error:'User unavailable'});
   await pool.query('INSERT INTO likes(from_user,to_user) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,id]);
   const m=await pool.query('SELECT 1 FROM likes WHERE from_user=$1 AND to_user=$2',[id,req.user.id]); res.json({liked:true,matched:!!m.rowCount});
 }));
 app.get('/api/likes',auth,wrap(async(req,res)=>{
+  const viewerBand=await getUserAgeBand(req.user.id);
+  if(!['teen','adult'].includes(viewerBand))return res.json({incoming:[],outgoing:[]});
   const [incoming,outgoing]=await Promise.all([
     pool.query(`SELECT u.id AS id,lst.id AS listing_id,lst.name,lst.age,lst.city,lst.country,lst.hobbies,lst.description,u.photo_url,
       CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
       FROM likes l JOIN users u ON u.id=l.from_user JOIN listings lst ON lst.user_id=u.id
       WHERE l.to_user=$1 AND lst.status='published' AND u.account_status='active'
-      AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'
+      AND (($3='teen' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($3='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
       AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
-      ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID]),
+      ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand]),
     pool.query(`SELECT u.id AS id,lst.id AS listing_id,lst.name,lst.age,lst.city,lst.country,lst.hobbies,lst.description,u.photo_url,
       CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
       FROM likes l JOIN users u ON u.id=l.to_user JOIN listings lst ON lst.user_id=u.id
       WHERE l.from_user=$1 AND lst.status='published' AND u.account_status='active'
       AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'
       AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
-      ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID])
+      ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand])
   ]);
   const normalize = rows => rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}));
   res.json({incoming:normalize(incoming.rows),outgoing:normalize(outgoing.rows)});
