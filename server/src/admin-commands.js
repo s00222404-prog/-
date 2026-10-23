@@ -274,7 +274,7 @@ export async function handleExtraAdminCommand({ command, parts, pool, role, deve
         const users = await rows("SELECT COUNT(*)::int AS count FROM users WHERE telegram_id::text <> $1", [developerId]);
         const listings = await rows("SELECT COUNT(*)::int AS count FROM listings l JOIN users u ON u.id=l.user_id WHERE u.telegram_id::text <> $1", [developerId]);
         const tickets = await rows("SELECT COUNT(*)::int AS count FROM telegram_support_tickets t WHERE t.telegram_id::text <> $1", [developerId]);
-        return '⚠️ МАССОВОЕ УДАЛЕНИЕ VIBE\\n\\nБудет удалено аккаунтов: ' + users[0].count + '\\nАнкет: ' + listings[0].count + '\\nОбращений поддержки: ' + tickets[0].count + '\\n\\nТвой аккаунт разработчика и роли команды сохранятся. Связанное с удаляемыми аккаунтами (лайки, чаты, сообщения, жалобы, блокировки, проверки возраста и сигналы модерации) будет удалено.\\n\\nДля подтверждения отправь отдельной командой: /deleteall CONFIRM';
+        return '⚠️ МАССОВОЕ УДАЛЕНИЕ VIBE\n\nБудет удалено аккаунтов: ' + users[0].count + '\nАнкет: ' + listings[0].count + '\nОбращений поддержки: ' + tickets[0].count + '\n\nТвой аккаунт разработчика и роли команды сохранятся. Связанное с удаляемыми аккаунтами (лайки, чаты, сообщения, жалобы, блокировки, проверки возраста и сигналы модерации) будет удалено.\n\nДля подтверждения отправь отдельной командой: /deleteall CONFIRM';
       }
       const client = await pool.connect();
       try {
@@ -287,7 +287,7 @@ export async function handleExtraAdminCommand({ command, parts, pool, role, deve
         await client.query("DELETE FROM telegram_support_tickets WHERE telegram_id::text <> $1 OR user_id = ANY($2::bigint[])", [developerId, ids]);
         const deleted = await client.query("DELETE FROM users WHERE telegram_id::text <> $1 RETURNING id", [developerId]);
         await client.query('COMMIT');
-        return '✅ Массовое удаление завершено.\\nУдалено аккаунтов: ' + deleted.rowCount + '.\\nСвязанные анкеты, лайки, чаты, сообщения, жалобы, блокировки и проверки удалены каскадно.\\nАккаунт разработчика и настройки ролей команды сохранены.';
+        return '✅ Массовое удаление завершено.\nУдалено аккаунтов: ' + deleted.rowCount + '.\nСвязанные анкеты, лайки, чаты, сообщения, жалобы, блокировки и проверки удалены каскадно.\nАккаунт разработчика и настройки ролей команды сохранены.';
       } catch (e) {
         await client.query('ROLLBACK');
         console.error('VIBE bulk account deletion failed:', e.message);
