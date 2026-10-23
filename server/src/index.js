@@ -727,7 +727,7 @@ app.post('/telegram/webhook', (req,res) => {
       markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'},{text:'✉️ Написать в поддержку',callback_data:'support:new'}],[{text:'🛡 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}],[{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
       reply=ok?'VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'⛔ This command is available to administrators only.';
-      if(ok)markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/adminhelp'}],[{text:'/helpuser'}]],resize_keyboard:true};
+      if(ok)markup={remove_keyboard:true};
     }else if(cmd==='/бан'||cmd==='/ban'){
       if(!ok){
         reply='⛔ Доступ разрешён только администраторам.';
@@ -780,7 +780,7 @@ app.post('/telegram/webhook', (req,res) => {
       else{
         reply='🛡 VIBE — СПРАВКА ДЛЯ АДМИНИСТРАТОРОВ\n\n/admin — панель администратора\n/queue — открытые жалобы и сигналы модерации\n/users — количество аккаунтов\n/bans — список заблокированных аккаунтов\n/user @username или 001234 — карточка пользователя\n/ban 001234 — заблокировать аккаунт с выбором причины\n/unban @username или 001234 — снять блокировку\n/delete @username или 001234 — удалить аккаунт\n/status — статус сервиса\n\nДля пользователей: /helpuser. Не используйте административные команды для личных вопросов.';
         if(isDeveloper)reply+='\n\nКОМАНДЫ РАЗРАБОТЧИКА\n/publicstatus @username helper|moderator|admin|chief_admin — публичный статус профиля\n/clearstatus @username — снять публичный статус\nПубличный статус не выдаёт административные права.';
-        markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/bans'}],[{text:'/helpuser'}]],resize_keyboard:true};
+        markup={remove_keyboard:true};
       }
     }else if(cmd==='/очередь'||cmd==='/queue'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
