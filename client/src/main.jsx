@@ -87,12 +87,10 @@ function App() {
     return () => window.removeEventListener('vibe-language-change', updateLanguage);
   }, [language]);
   const [tab, setTab] = useState('discover');
-  const [displayMode, setDisplayMode] = useState('large');
   const [user, setUser] = useState(null);
   const [people, setPeople] = useState([]);
   const [likesData, setLikesData] = useState({incoming:[],outgoing:[]});
   const [mutualIds, setMutualIds] = useState([]);
-  const [myListing, setMyListing] = useState(null);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [reportingPerson, setReportingPerson] = useState(null);
@@ -103,7 +101,6 @@ function App() {
   const [reportedUsername, setReportedUsername] = useState('');
   const [reportEvidence, setReportEvidence] = useState('');
   const [reportEvidenceName, setReportEvidenceName] = useState('');
-  const [feedIndex, setFeedIndex] = useState(0);
   const [feedSearch, setFeedSearch] = useState('');
   const [feedCity, setFeedCity] = useState('all');
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -116,7 +113,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [maintenance, setMaintenance] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [ageStatus, setAgeStatus] = useState(null);
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -169,12 +165,9 @@ function App() {
         goal: u.goal || 'both',
         interests: Array.isArray(u.interests) ? u.interests.join(', ') : ''
       });
-      const age = await request('/api/age-status');
-      setAgeStatus(age);
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
       const mine = await request('/api/listings/mine').catch(() => ({listing:null}));
-      setMyListing(mine.listing || null);
       if (mine.listing) { setListing({name:mine.listing.name,age:String(mine.listing.age),city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',description:mine.listing.description||''}); setListingMediaUrl(mine.listing.media_url||''); setListingMediaType(mine.listing.media_type||'image'); }
       const chatData = await request('/api/chats');
       setChats(chatData.chats || []);
@@ -248,8 +241,6 @@ function App() {
         })
       });
       setUser(result.user);
-      const age = await request('/api/age-status');
-      setAgeStatus(age);
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
       setNotice('Профиль сохранён.');
@@ -328,7 +319,6 @@ function App() {
       const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:Number(listing.age),mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
       const savedListing={...result.listing,age:String(result.listing.age)};
       setListing(savedListing);
-      setMyListing(savedListing);
       setListingMediaUrl(savedListing.media_url || ''); setListingMediaType(savedListing.media_type || 'image');
       const discovery=await request('/api/discover'); setPeople(discovery.people||[]);
       setNotice('Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.');
@@ -373,7 +363,7 @@ function App() {
       </div>
       {people.length === 0 && <div className="empty"><Sparkles/><h3>Лента пока пуста</h3><p>Публикации появятся, когда пользователи добавят фото или видео и их анкеты будут одобрены.</p><button className="save" onClick={() => setTab('listing')}><PlusCircle size={16}/> Добавить публикацию</button></div>}
       {people.length > 0 && filteredPeople.length === 0 && <div className="empty feed-no-results"><Compass/><h3>Ничего не найдено</h3><p>Попробуй изменить поисковый запрос или выбрать другой город.</p><button className="skip" onClick={()=>{setFeedSearch('');setFeedCity('all');}}>Сбросить фильтры</button></div>}
-      {filteredPeople.length > 0 && <div className="feed-scroll" onScroll={e=>{const el=e.currentTarget;setFeedIndex(Math.round(el.scrollTop/Math.max(el.clientHeight,1)));}}>
+      {filteredPeople.length > 0 && <div className="feed-scroll" >
       {filteredPeople.map((p,i) => <article className="feed-post" key={p.id} data-index={i}>
         <div className="feed-media">
           {(p.media_type === 'video' && p.media_url) ? <video className="feed-media-asset" src={p.media_url} controls playsInline loop muted preload="metadata"/> :
