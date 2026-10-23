@@ -58,7 +58,7 @@ const ROLE_COMMANDS = {
 };
 function roleCanUseCommand(role, command){
   if(role==='developer'||role==='chief_admin') return true;
-  const normalized=String(command||'').replace(/^\\//,'').split('@')[0].toLowerCase();
+  const normalized=String(command||'').replace('/','').split('@')[0].toLowerCase();
   return ROLE_COMMANDS[role]?.has(normalized) || EXTRA_ADMIN_COMMANDS.some(item=>item.command===normalized && (role==='admin' || role==='moderator' && ROLE_COMMANDS.moderator.has(normalized) || role==='helper' && ROLE_COMMANDS.helper.has(normalized)));
 }
 function adminCommandHelp(role){
