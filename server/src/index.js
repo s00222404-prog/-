@@ -12,6 +12,14 @@ const port = Number(process.env.PORT || 3001);
 const DEVELOPER_TELEGRAM_ID = '8745499515';
 const ROLE_LABELS = { developer: 'Разработчик', chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const roleRank = { none: 0, helper: 1, moderator: 2, admin: 3, chief_admin: 4, developer: 5 };
+async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
+  if (!process.env.BOT_TOKEN) return;
+  const text = '🚨 Попытка действия против разработчика @rootkit_sec\nДействие: ' + action + '\nКто: ' + (actorName || 'неизвестно') + (actorUsername ? ' (@' + actorUsername + ')' : '') + '\nTelegram ID: ' + (actorId ?? 'неизвестен') + '\nИсточник: ' + source + '\nЗащита VIBE заблокировала действие.';
+  try {
+    const r = await fetch('https://api.telegram.org/bot' + process.env.BOT_TOKEN + '/sendMessage', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({chat_id:DEVELOPER_TELEGRAM_ID,text}) });
+    if (!r.ok) console.error('Developer protection notification failed:', await r.text());
+  } catch (e) { console.error('Developer protection notification failed:', e.message); }
+}
 async function getRole(telegramId) {
   if (String(telegramId) === DEVELOPER_TELEGRAM_ID) return 'developer';
   const q = await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1', [String(telegramId)]);
@@ -176,7 +184,10 @@ app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
   const target=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lpad(id::text,6,'0')=$1",[code]);
   if(!target.rowCount) return res.status(404).json({error:'Профиль с таким кодом не найден'});
   const targetUser=target.rows[0];
-  if(String(targetUser.telegram_id)===DEVELOPER_TELEGRAM_ID) return res.status(403).json({error:'Разработчика нельзя забанить'});
+  if(String(targetUser.telegram_id)===DEVELOPER_TELEGRAM_ID) {
+    await notifyDeveloperAttempt({actorId:req.user.telegram_id,actorName:req.user.first_name,actorUsername:req.user.username,action:'Бан разработчика',source:'Веб-панель модерации'});
+    return res.status(403).json({error:'Разработчика нельзя забанить'});
+  }
   const actorRole=await getRole(req.user.telegram_id);
   const targetRole=await getRole(targetUser.telegram_id);
   if(roleRank[targetRole]>=roleRank[actorRole]) return res.status(403).json({error:'Нельзя банить пользователя с равным или более высоким рангом'});
