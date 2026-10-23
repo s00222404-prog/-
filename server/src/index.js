@@ -34,7 +34,8 @@ function telegramCommandsForRole(role) {
   const publicCommands = [
     { command: 'start', description: 'Открыть приложение VIBE' },
     { command: 'help', description: 'Справка и доступные команды' },
-    { command: 'status', description: 'Проверить состояние сервиса' }
+    { command: 'status', description: 'Проверить состояние сервиса' },
+    { command: 'support', description: 'Помощь и сообщить о проблеме' }
   ];
   const adminCommands = [...publicCommands,
     { command: 'admin', description: 'Открыть панель администратора' },
@@ -536,6 +537,12 @@ app.post('/telegram/webhook', (req,res) => {
     };
     if(cb){
       const [prefix,act,idRaw]=(cb.data||'').split(':'), id=Number(idRaw);
+      if(prefix==='help') {
+        await answer();
+        const helpText='💜 ПОМОЩНИК VIBE\n\nЯ могу подсказать, как создать или заполнить анкету, объяснить работу лайков и чатов, помочь с правилами и направить жалобу модераторам.\n\nПросто напиши вопрос обычным сообщением — например: «не могу войти», «как удалить анкету» или «хочу сообщить о нарушении».\n\nВозрастные стороны: 14–17 и 18+ разделены.';
+        await send(helpText,{inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'📜 Правила',url:'https://vibe-client-sroc.onrender.com/rules'},{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]});
+        return;
+      }
       if(prefix==='l') {
         if(!ok){await answer('Доступ разрешён только администраторам.');return;}
         if(!Number.isSafeInteger(id)||id<=0||!['approve','reject'].includes(act)){await answer('Некорректное действие');return;}
@@ -648,11 +655,11 @@ app.post('/telegram/webhook', (req,res) => {
         }
       }
       if (firstVisit) {
-        reply='✨ Привет'+(firstName ? ', '+firstName : '')+'! Добро пожаловать в VIBE 💜\n\nРады, что ты с нами! Здесь можно знакомиться, находить людей со схожими интересами и начинать общение без лишнего напряжения.\n\n🌟 С чего начать:\n1. Открой VIBE кнопкой ниже.\n2. Создай свою анкету и добавь немного о себе.\n3. Укажи интересы и цель знакомства — так другим будет проще найти с тобой общий вайб.\n\n💡 Маленький совет: будь собой — именно так начинаются самые интересные знакомства.\n\nГотов(а) начать? Жми «Открыть VIBE» 👇';
+        reply='✨ Привет'+(firstName ? ', '+firstName : '')+'! Добро пожаловать в VIBE 💜\n\nЯ — помощник VIBE. Можешь не только нажимать кнопки, но и писать мне обычными словами: например, «как создать анкету», «не работает чат» или «хочу пожаловаться». Я подскажу, что делать, а вопросы безопасности помогу передать модерации.\n\n🌟 Для начала открой VIBE, создай анкету и добавь интересы. Возрастные стороны разделены: 14–17 лет и 18+.\n\nЧто тебе нужно? Напиши вопрос или выбери действие ниже 👇';
       } else {
-        reply='С возвращением'+(firstName ? ', '+firstName : '')+'! 💜\n\nПродолжим искать твой вайб? Открывай VIBE кнопкой ниже 👇';
+        reply='С возвращением'+(firstName ? ', '+firstName : '')+'! 💜\n\nЯ могу помочь с анкетой, чатами, правилами или жалобой. Напиши вопрос обычным сообщением или выбери действие ниже.';
       }
-      markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+      markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'},{text:'🛡 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}],[{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
       reply=ok?'VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'⛔ This command is available to administrators only.';
       if(ok)markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/help'}]],resize_keyboard:true};
@@ -677,8 +684,9 @@ app.post('/telegram/webhook', (req,res) => {
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else if(!arg)reply='Формат: /юзер @username, /юзер 001234 или /юзер Telegram_ID';
       else{const q=await pool.query(`SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')`,[arg]);if(!q.rowCount)reply='Пользователь не найден. Он должен хотя бы один раз открыть бота или приложение VIBE.';else{await card(q.rows[0].id);return;}}
-    }else if(cmd==='/помощь'||cmd==='/help'){
-      reply=ok?'VIBE | COMMAND HELP\n\n/admin — open the admin panel\n/queue — moderation queue summary\n/users — total registered accounts\n/bans — list banned accounts\n/user @username or 001234 — view a user card\n/ban 001234 — choose a ban reason from the list\n/unban @username or 001234 — unban an account\n/delete @username or 001234 — delete an account\n/status — check service status\n'+(isDeveloper?'\nDEVELOPER COMMANDS\n/publicstatus @username helper|moderator|admin|chief_admin — set a public profile badge\n/clearstatus @username — remove a public profile badge\n\nPublic badges do not grant admin permissions. Administrative roles are managed separately in the user card.':''):'Welcome to VIBE. Send /start to open the app.';
+    }else if(cmd==='/помощь'||cmd==='/help'||cmd==='/support'){
+      reply=ok?'VIBE | COMMAND HELP\n\n/admin — open the admin panel\n/queue — moderation queue summary\n/users — total registered accounts\n/bans — list banned accounts\n/user @username or 001234 — view a user card\n/ban 001234 — choose a ban reason from the list\n/unban @username or 001234 — unban an account\n/delete @username or 001234 — delete an account\n/status — check service status\n'+(isDeveloper?'\nDEVELOPER COMMANDS\n/publicstatus @username helper|moderator|admin|chief_admin — set a public profile badge\n/clearstatus @username — remove a public profile badge\n\nPublic badges do not grant admin permissions. Administrative roles are managed separately in the user card.':''):'💜 ПОМОЩНИК VIBE\n\nНапиши вопрос обычным сообщением. Я могу подсказать, как заполнить анкету, что делать с проблемами входа, лайками и чатами, где прочитать правила и как сообщить о нарушении.\n\nДля обращения по безопасности напиши «жалоба» и кратко опиши ситуацию. В серьёзных случаях не отправляй личные данные в общий чат — сообщи только необходимое.';
+      markup=ok?undefined:{inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'📜 Правила',url:'https://vibe-client-sroc.onrender.com/rules'},{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
     }else if(cmd==='/очередь'||cmd==='/queue'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='VIBE | СВОДКА МОДЕРАЦИИ\nОткрытые жалобы: '+r.rows[0].count+'\nОткрытые сигналы модерации: '+f.rows[0].count;}
@@ -690,7 +698,27 @@ app.post('/telegram/webhook', (req,res) => {
     }else if(EXTRA_ADMIN_COMMANDS.some(item=>cmd==='/'+item.command)){
       if(!ok)reply='⛔ This command is available to administrators only.';
       else reply=await handleExtraAdminCommand({command:cmd.slice(1),parts,pool,role,developerId:DEVELOPER_TELEGRAM_ID,apiUrl:'https://znakomstva-824i.onrender.com',clientUrl:'https://vibe-client-sroc.onrender.com'});
-    }else{reply='Send /start to open the VIBE app.';markup={inline_keyboard:[[{text:'Open VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};}
+    }else{
+      const lower=txt.toLocaleLowerCase('ru');
+      if(/^(привет|здравствуй|здравствуйте|хай|hello|hi|добрый день|добрый вечер)\b/.test(lower)) {
+        reply='Привет! 💜 Я помощник VIBE. Могу помочь с анкетой, доступом, чатами, правилами или жалобой. Что случилось? Напиши своими словами.';
+      } else if(/жалоб|пожалова|нарушен|оскорб|угрожа|шантаж|преслед|фейк|мошенн|обман/.test(lower)) {
+        reply='🛡 Я помогу с обращением по безопасности. Опиши, что произошло, и укажи код профиля нарушителя, если он известен. Не присылай пароли, документы, адрес или другие лишние личные данные.\n\nВажно: это сообщение пока не создаёт официальную жалобу в системе. Чтобы отправить жалобу, открой VIBE и воспользуйся функцией жалобы в профиле или публикации.';
+        markup={inline_keyboard:[[{text:'🛡 Открыть VIBE для жалобы',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'📜 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}]]};
+      } else if(/анкета|профил|фото|описан|интерес/.test(lower)) {
+        reply='👤 Чтобы создать или изменить анкету, открой VIBE и перейди в свой профиль. Добавь актуальную фотографию, короткое описание и интересы. Не публикуй телефон, адрес и другие чувствительные данные в открытом профиле.';
+        markup={inline_keyboard:[[{text:'👤 Открыть профиль VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+      } else if(/чат|сообщен|лайк|симпат|не вижу|не работает|ошибк|войти|вход|заблокир|бан/.test(lower)) {
+        reply='🔧 Давай разберёмся. Проверь, что приложение открывается и анкета заполнена. Доступ к чатам и рекомендациям может зависеть от статуса аккаунта и возрастной стороны (14–17 или 18+). Если проблема осталась, напиши, что именно происходит и какой текст ошибки видишь — не отправляй пароль или коды входа.';
+        markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'}]]};
+      } else if(/правил|конфиденциал|данн|удалить аккаунт|удалить анкету/.test(lower)) {
+        reply='📚 Здесь можно прочитать правила VIBE и политику конфиденциальности. Если хочешь удалить аккаунт или запросить удаление данных, напиши подробнее — подскажу следующий шаг.';
+        markup={inline_keyboard:[[{text:'📜 Правила',url:'https://vibe-client-sroc.onrender.com/rules'},{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}],[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+      } else {
+        reply='Я пока не понял вопрос, но могу помочь 💜\n\nНапиши, что именно нужно: «анкета», «чаты», «вход», «жалоба», «правила» или опиши проблему обычными словами. Команда /help показывает возможности помощника.';
+        markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'}],[{text:'📜 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}]]};
+      }
+    }
     await send(reply,markup);
   })().catch(e=>console.error('Telegram webhook processing failed:',e.message));
 });
