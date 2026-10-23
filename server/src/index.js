@@ -40,13 +40,22 @@ function telegramCommandsForRole(role) {
 
 async function refreshTelegramCommands(chatId, role, token) {
   const commands = telegramCommandsForRole(role);
-  const result = await fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ commands, scope: { type: 'chat', chat_id: Number(chatId) } })
-  }).then(r => r.json());
-  if (!result.ok) console.error('Telegram chat command menu refresh failed:', result.description);
-  else console.log('Telegram chat command menu refreshed:', String(chatId), role, commands.length);
+  const scope = { type: 'chat', chat_id: Number(chatId) };
+  const results = await Promise.all([
+    fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ commands, scope })
+    }).then(r => r.json()),
+    fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ commands, scope, language_code: 'ru' })
+    }).then(r => r.json())
+  ]);
+  const failed = results.filter(result => !result.ok);
+  if (failed.length) console.error('Telegram chat command menu refresh failed:', String(chatId), role, failed.map(result => result.description).join('; '));
+  else console.log('Telegram chat command menu refreshed:', String(chatId), role, commands.length, 'commands; default and ru scopes');
 }
 // Public profile badges are independent from admin_roles permissions.
 const roleRank = { none: 0, helper: 1, moderator: 2, admin: 3, chief_admin: 4, developer: 5 };
