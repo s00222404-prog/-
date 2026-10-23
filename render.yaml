@@ -34,6 +34,12 @@ services:
       - type: rewrite
         source: /admin
         destination: /index.html
+      - type: rewrite
+        source: /rules
+        destination: /index.html
+      - type: rewrite
+        source: /privacy
+        destination: /index.html
     envVars:
       - key: VITE_API_URL
         sync: false
