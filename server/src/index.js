@@ -134,7 +134,6 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
        '🪪 <b>Аккаунт</b>',
        '• <b>Код VIBE:</b> <code>' + escapeHtml(code) + '</code>',
        '• <b>Пользователь:</b> ' + escapeHtml(displayName) + (displayUsername ? ' (@' + escapeHtml(displayUsername) + ')' : ''),
-       '• <b>Telegram ID:</b> <code>' + escapeHtml(u?.telegram_id || 'не указан') + '</code>',
        '• <b>Создано:</b> ' + escapeHtml(created),
        '• <b>Фото профиля:</b> ' + (u?.photo_url ? 'есть' : 'нет'),
        '',
