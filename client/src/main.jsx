@@ -62,6 +62,7 @@ function App() {
       const error = new Error(data.error || 'Ошибка сервера (' + response.status + ')');
       error.banned = Boolean(data.banned);
       error.banReason = data.reason || data.moderation_note || data.user?.moderation_note || '';
+      error.banIssuer = data.ban_issuer_label || ((data.ban_issuer || data.user?.ban_issuer) === 'developer' ? 'разработчиком' : 'модератором');
       error.status = response.status;
       throw error;
     }
@@ -103,7 +104,7 @@ function App() {
       setLikesData({incoming:likes.incoming||[],outgoing:likes.outgoing||[]});
     } catch (e) {
       if (e.banned) {
-        setUser({ account_status: 'banned', moderation_note: e.banReason });
+        setUser({ account_status: 'banned', moderation_note: e.banReason, ban_issuer_label: e.banIssuer });
         setError('');
       } else setError(e.message || 'Не удалось подключиться к VIBE API.');
     } finally {
@@ -249,7 +250,7 @@ function App() {
     setPeople(current => current.filter(p => p.id !== person.id));
   }
 
-  if (user?.account_status === 'banned') return <main className={tab === 'discover' ? 'app-shell feed-mode' : 'app-shell'}><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш профиль забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Причина:</b> {user.moderation_note || user.reason || 'Причина не указана'}</p></section></main>;
+  if (user?.account_status === 'banned') return <main className={tab === 'discover' ? 'app-shell feed-mode' : 'app-shell'}><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш аккаунт забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Кем заблокирован:</b> {user.ban_issuer_label || (user.ban_issuer === 'developer' ? 'разработчиком' : 'модератором')}</p><p><b>Причина:</b> {user.moderation_note || user.reason || 'Причина не указана'}</p></section></main>;
   if (!initData) return <Landing />;
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" aria-label="Открыть мой профиль" onClick={() => setProfileOpen(true)}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
