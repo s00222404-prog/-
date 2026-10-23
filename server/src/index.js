@@ -193,10 +193,18 @@ app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
 }));
 app.post('/api/listings',auth,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
- const profileCheck=await pool.query('SELECT birth_date FROM users WHERE id=$1',[req.user.id]);
+ const profileCheck=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
  if(!profileCheck.rows[0]?.birth_date)return res.status(400).json({error:'Сначала заполни профиль и укажи дату рождения.'});
- if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя должно содержать от 2 до 60 символов.'});
- if(!Number.isInteger(Number(age))||Number(age)<1||Number(age)>120)return res.status(400).json({error:'Укажи возраст числом от 1 до 120.'});
+ const ageSource=profileCheck.rows[0].age_verification_status==='verified'&&profileCheck.rows[0].verified_birth_date
+   ? profileCheck.rows[0].verified_birth_date : profileCheck.rows[0].birth_date;
+ const ageDate=new Date(String(ageSource).slice(0,10)+'T00:00:00Z');
+ const today=new Date();
+ let actualAge=today.getUTCFullYear()-ageDate.getUTCFullYear();
+ if(today.getUTCMonth()<ageDate.getUTCMonth()||(today.getUTCMonth()===ageDate.getUTCMonth()&&today.getUTCDate()<ageDate.getUTCDate()))actualAge--;
+ if(!Number.isFinite(actualAge)||actualAge<14||actualAge>100)return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
+ if(actualAge>=18&&profileCheck.rows[0].age_verification_status!=='verified')return res.status(403).json({error:'Для взрослой возрастной группы сначала требуется подтверждение возраста.'});
+ if(!Number.isInteger(Number(age))||Number(age)!==actualAge)return res.status(400).json({error:'Возраст анкеты должен совпадать с датой рождения: '+actualAge+'.'});
+
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
  if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
  if(mediaUrl!==null&&(typeof mediaUrl!=='string'||mediaUrl.length>4400000||!(mediaUrl.startsWith('data:image/')||mediaUrl.startsWith('data:video/'))))return res.status(400).json({error:'Медиа должно быть фото или видео размером до 3 МБ.'});
@@ -834,6 +842,9 @@ async function start() {
     await pool.query(schema);
     await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_status_check");
     await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
+    // Existing databases retain old CREATE TABLE constraints; migrate listing ages for the teen band.
+    await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_age_check");
+    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_age_check CHECK (age BETWEEN 14 AND 100)");
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_roles (telegram_id TEXT PRIMARY KEY, username TEXT, role TEXT NOT NULL CHECK (role IN ('chief_admin','admin','moderator','helper')), assigned_by TEXT NOT NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
       await pool.query('ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE');
       await pool.query('ALTER TABLE listings ADD COLUMN IF NOT EXISTS media_url TEXT');
