@@ -82,6 +82,7 @@ function App() {
       const me = await request('/api/me');
       setUser(me.user);
       const u = me.user;
+      if (!u.birth_date) setProfileOpen(true);
       setProfile({
         birthDate: u.birth_date ? String(u.birth_date).slice(0, 10) : '',
         gender: u.gender || '',
@@ -153,6 +154,7 @@ function App() {
     setError('');
     setNotice('');
     try {
+      if (!profile.birthDate) { setError('Укажи дату рождения, чтобы создать профиль и пользоваться VIBE.'); setSaving(false); return; }
       const result = await request('/api/me', {
         method: 'PUT',
         body: JSON.stringify({
@@ -171,6 +173,7 @@ function App() {
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
       setNotice('Профиль сохранён.');
+      setProfileOpen(false);
     } catch (e) {
       setError(e.message || 'Не удалось сохранить профиль.');
     } finally {
@@ -233,6 +236,7 @@ function App() {
     e.preventDefault();
     setPublishing(true); setError(''); setNotice('');
     try {
+      if (!user?.birth_date) { setProfileOpen(true); throw new Error('Сначала заполни профиль и укажи дату рождения.'); }
       const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:Number(listing.age),mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
       const savedListing={...result.listing,age:String(result.listing.age)};
       setListing(savedListing);
@@ -311,7 +315,7 @@ function App() {
       <p className="field-hint">Перед публикацией проверяем текст на ругательства и пошлые выражения. Проверки возрастных групп временно отключены на этапе разработки. Перед запуском платформы их нужно будет вернуть.</p>
       <button className="save" type="submit" disabled={publishing}><PlusCircle size={16}/>{publishing?'Публикуем…':'Опубликовать анкету'}<ArrowRight size={16}/></button>
     </form></section>}
-    {profileOpen && <div className="report-overlay" onClick={e => { if (e.target === e.currentTarget) setProfileOpen(false); }}><section className="panel report-dialog profile-modal account-profile-modal"><button className="back-chat" type="button" onClick={() => setProfileOpen(false)}>← Закрыть профиль</button><div className="account-avatar">{user?.photo_url ? <img src={user.photo_url} alt="Аватар" /> : <UserRound size={42}/>}</div><h2>{user?.username ? '@' + user.username : (user?.first_name || 'Пользователь')}</h2><RoleBadge role={user?.public_role} label={user?.role_label}/><div className="account-profile-stats"><div><span>Код аккаунта</span><strong>{user?.account_code || String(user?.id || '').padStart(6,'0')}</strong></div><div><span>Симпатии</span><strong><Heart size={17} fill="currentColor"/> {user?.likes_received || 0}</strong></div></div>
+    {profileOpen && <div className="report-overlay" onClick={e => { if (e.target === e.currentTarget && user?.birth_date) setProfileOpen(false); }}><section className="panel report-dialog profile-modal account-profile-modal">{user?.birth_date && <button className="back-chat" type="button" onClick={() => setProfileOpen(false)}>← Закрыть профиль</button>}{!user?.birth_date && <p className="field-hint">Сначала заполни обязательные данные профиля. Без даты рождения продолжить нельзя.</p>}<div className="account-avatar">{user?.photo_url ? <img src={user.photo_url} alt="Аватар" /> : <UserRound size={42}/>}</div><h2>{user?.username ? '@' + user.username : (user?.first_name || 'Пользователь')}</h2><RoleBadge role={user?.public_role} label={user?.role_label}/><div className="account-profile-stats"><div><span>Код аккаунта</span><strong>{user?.account_code || String(user?.id || '').padStart(6,'0')}</strong></div><div><span>Симпатии</span><strong><Heart size={17} fill="currentColor"/> {user?.likes_received || 0}</strong></div></div>
       <form className="profile-panel profile-editor-form" onSubmit={saveProfile}>
         <h3>Настроить анкету</h3>
         <p className="field-hint">Эти данные помогают VIBE подбирать совместимые знакомства. Не указывай точный адрес.</p>
@@ -319,15 +323,15 @@ function App() {
           {profile.photoUrl && <img className="profile-editor-photo" src={profile.photoUrl} alt="Предпросмотр фото профиля"/>}
           <span className="media-picker"><ImagePlus size={17}/>{uploadingMedia ? 'Обрабатываем фото…' : 'Выбрать фото'}<input type="file" accept="image/*" onChange={chooseMedia} disabled={uploadingMedia}/></span>
         </label>
-        <label>Дата рождения<input type="date" value={profile.birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setProfile({...profile,birthDate:e.target.value})}/><span className="field-hint">Дата рождения определяет возрастную сторону: 14–17 лет или 18+. Не указывай ложную дату.</span></label>
+        <label>Дата рождения <span aria-hidden="true">*</span><input type="date" required value={profile.birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setProfile({...profile,birthDate:e.target.value})}/><span className="field-hint">Дата рождения определяет возрастную сторону: 14–17 лет или 18+. Не указывай ложную дату.</span></label>
         <label>Пол<select value={profile.gender} onChange={e=>setProfile({...profile,gender:e.target.value})}><option value="">Не указан</option><option value="woman">Женский</option><option value="man">Мужской</option><option value="nonbinary">Небинарный</option><option value="prefer_not_to_say">Не хочу указывать</option></select></label>
         <label>Город<input value={profile.city} maxLength={80} onChange={e=>setProfile({...profile,city:e.target.value})} placeholder="Например, Берлин"/></label>
         <label>О себе<textarea value={profile.bio} maxLength={500} onChange={e=>setProfile({...profile,bio:e.target.value})} placeholder="Расскажи немного о себе…"/></label>
         <label>Цель знакомства<select value={profile.goal} onChange={e=>setProfile({...profile,goal:e.target.value})}><option value="both">Общение и отношения</option><option value="friendship">Дружба</option><option value="chat">Общение</option><option value="relationship">Отношения</option></select></label>
         <label>Интересы через запятую<input value={profile.interests} maxLength={500} onChange={e=>setProfile({...profile,interests:e.target.value})} placeholder="Музыка, игры, кино, спорт"/></label>
         {ageStatus && !ageStatus.adultAccess && <p className="field-hint">VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Взрослая сторона доступна после предусмотренной сервисом проверки возраста.</p>}
-        <button className="save" type="submit" disabled={saving || uploadingMedia}><Lock size={15}/>{saving ? 'Сохраняем…' : 'Сохранить анкету'}</button>
-        <button className="skip profile-public-listing-link" type="button" onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={15}/> Управлять публичной анкетой</button>
+        <button className="save" type="submit" disabled={saving || uploadingMedia || !profile.birthDate}><Lock size={15}/>{saving ? 'Сохраняем…' : 'Сохранить профиль'}</button>
+        <button className="skip profile-public-listing-link" type="button" disabled={!user?.birth_date} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={15}/> Управлять публичной анкетой</button>
       </form>
       </section></div>}
     {reportingPerson && <div className="report-overlay" onClick={e=>{if(e.target===e.currentTarget){setReportingPerson(null);setError('');}}}><section className="panel report-dialog"><button className="back-chat" type="button" onClick={()=>{setReportingPerson(null);setError('');}}>← Назад</button><h2>Пожаловаться на {reportType === 'post' ? 'публикацию' : 'профиль'}</h2><p>Жалоба отправится модерации VIBE. Причина обязательна; доказательства можно приложить, если они есть.</p><form onSubmit={submitReport}><label>Твой Telegram-юзернейм<input value={reporterUsername} onChange={e=>setReporterUsername(e.target.value)} placeholder="@твой_username" maxLength={64} required/></label><label>Telegram-юзернейм пользователя<input value={reportedUsername} onChange={e=>setReportedUsername(e.target.value)} placeholder="@username_на_кого_жалоба" maxLength={64} required/></label><label>Обязательная причина<select value={reportReason} onChange={e=>setReportReason(e.target.value)} required><option value="" disabled>Выбери причину</option><option>Спам</option><option>Оскорбления или угрозы</option><option>Фейковая анкета</option><option>Неприемлемый контент</option><option>Подозрение на мошенничество</option><option>Преследование или угрозы безопасности</option><option>Другое</option></select></label><label>Подробности<textarea value={reportDetails} onChange={e=>setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло (необязательно)"/></label><label>Доказательства (необязательно)<span className="media-picker"><ImagePlus size={17}/>{reportEvidenceName || 'Прикрепить фото, видео или PDF'}<input type="file" accept="image/*,video/*,application/pdf" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>2*1024*1024){setError('Доказательство должно быть не больше 2 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать файл'));reader.readAsDataURL(file);});setReportEvidence(data);setReportEvidenceName(file.name);setError('');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>{reportEvidence && <button className="skip" type="button" onClick={()=>{setReportEvidence('');setReportEvidenceName('');}}>Убрать доказательство</button>}<button className="save" type="submit" disabled={reportSubmitting}>{reportSubmitting?'Отправляем…':'Отправить жалобу'}</button></form></section></div>}
