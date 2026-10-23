@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import pg from 'pg';
 import { validateTelegramInitData } from './telegram.js';
 import { EXTRA_ADMIN_COMMANDS, handleExtraAdminCommand } from './admin-commands.js';
@@ -111,6 +112,36 @@ app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').sp
 app.use(express.json({ limit: '5mb' }));
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);
 
+// Protect expensive and abuse-prone endpoints. User-scoped limits run after auth;
+// the authentication endpoint is IP-limited because no trusted identity exists yet.
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток входа. Попробуй позже.' },
+});
+const userActionRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.telegram_id
+    ? `telegram:${req.user.telegram_id}`
+    : ipKeyGenerator(req.ip),
+  message: { error: 'Слишком много запросов. Попробуй позже.' },
+});
+const reportRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.telegram_id
+    ? `telegram:${req.user.telegram_id}`
+    : ipKeyGenerator(req.ip),
+  message: { error: 'Слишком много жалоб. Попробуй позже.' },
+});
+
 async function auth(req,res,next) {
   try {
     const maintenance=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");
@@ -135,7 +166,7 @@ const adminOnly = canManage;
 app.get('/api/service-status',wrap(async(_req,res)=>{const q=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");const m=q.rows[0];res.json({maintenance:Boolean(m?.enabled),reason:m?.reason||''});}));
 app.get('/health',wrap(async(_req,res)=>{const q=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");const m=q.rows[0];const maintenance=Boolean(m?.enabled)||String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';res.status(maintenance?503:200).json({ok:!maintenance,status:maintenance?'maintenance':'online',app:'vibe-api',message:maintenance?(m?.reason||process.env.MAINTENANCE_MESSAGE||'Проводятся технические работы. Попробуйте позже.'): 'Сервер работает нормально'});}));
 
-app.post('/api/auth/telegram',wrap(async(req,res)=>{
+app.post('/api/auth/telegram',authRateLimit,wrap(async(req,res)=>{
   const maintenance=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");
   if(maintenance.rows[0]?.enabled){const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);if(String(i.id)!==DEVELOPER_TELEGRAM_ID)return res.status(503).json({error:'VIBE временно закрыт',maintenance:true,reason:maintenance.rows[0].reason});}
   const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);
@@ -209,7 +240,7 @@ app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
  const q=await pool.query(`SELECT l.user_id AS id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,l.updated_at,l.id AS listing_id FROM listings l WHERE l.user_id=$1`,[req.user.id]);
  res.json({listing:q.rows[0]||null});
 }));
-app.post('/api/listings',auth,wrap(async(req,res)=>{
+app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
  const profileCheck=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
  if(!profileCheck.rows[0]?.birth_date)return res.status(400).json({error:'Сначала заполни профиль и укажи дату рождения.'});
@@ -349,7 +380,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
    `,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand]);
    res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
  }));
-app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
+app.post('/api/likes/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(id);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Симпатии доступны только пользователям твоей возрастной стороны VIBE.'});
@@ -409,7 +440,7 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   const q=await pool.query(`SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at ASC LIMIT 200`,[req.user.id,other]);
   res.json({messages:q.rows});
 }));
-app.post('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
+app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,res)=>{
   const other=Number(req.params.userId); const body=req.body?.body;
   if(!Number.isSafeInteger(other)||other===Number(req.user.id)||typeof body!=='string'||!body.trim()||body.trim().length>4000)return res.status(400).json({error:'Некорректное сообщение'});
   if(profileTextProblem([body]))return res.status(400).json({error:'Сообщение содержит запрещённые ругательства, оскорбления или пошлые выражения. Измени текст и попробуй снова.'});
@@ -424,12 +455,12 @@ app.post('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   const q=await pool.query(`INSERT INTO messages(match_low,match_high,sender_id,body) VALUES(LEAST($1,$2),GREATEST($1,$2),$1,$3) RETURNING id,sender_id,body,created_at`,[req.user.id,other,body.trim()]);
   res.status(201).json({message:q.rows[0]});
 }));
-app.post('/api/blocks/:userId',auth,wrap(async(req,res)=>{
+app.post('/api/blocks/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
   await pool.query('INSERT INTO blocks(blocker_id,blocked_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,id]);
   await pool.query('DELETE FROM likes WHERE (from_user=$1 AND to_user=$2) OR (from_user=$2 AND to_user=$1)',[req.user.id,id]);res.json({blocked:true});
 }));
-app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
+app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
   const {reason,details='',reporterUsername,reportedUsername,evidence='',reportType='profile',listingId=null}=req.body||{};
   if(!Number.isSafeInteger(id)||id===Number(req.user.id))return res.status(400).json({error:'Некорректный пользователь для жалобы'});
