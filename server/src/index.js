@@ -7,6 +7,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import pg from 'pg';
 import { validateTelegramInitData } from './telegram.js';
 import { EXTRA_ADMIN_COMMANDS, handleExtraAdminCommand } from './admin-commands.js';
+import { profileTextProblem } from './moderation/text-policy.js';
 
 const app = express();
 const { Pool } = pg;
@@ -306,20 +307,6 @@ app.get('/api/age-status',auth,wrap(async(req,res)=>{
   res.json({route:!u.birth_date?'age_gate':selfAge!==null&&selfAge<14?'underage':ageBand==='teen'?'teen':adultAccess?'adult':'adult_verification',ageBand,adultAccess,status:u.age_verification_status});
 }));
 
-const bannedProfileTerms=[
- 'fuck','fucking','motherfucker','shit','bullshit','bitch','bastard','asshole','arsehole','cunt','dick','dickhead','pussy','cock','whore','slut','twat','wanker','jerkoff','retard','fag','faggot','nigger','nigga','kys','rape','rapist','porn','nudes','nude','sex','sexting',
- 'ебать','ебу','ебал','ебан','ёбан','бляд','бля','сука','сучка','хуй','хуя','хуе','пизд','мудил','гандон','залуп','шлюх','секс','порно','дроч','насил','уёб','уеб','мудак','мраз','урод','дебил','идиот','твар','чмо','лох','сдохни','убейся','соси','заеб','нахуй','пошёл нах','пошел нах',
- 'scheisse','scheiß','fick','ficken','ficker','arschloch','hure','schlampe','wichser','hurensohn','fotze','schwanz','muschi','vergewaltig','bastard','idiot','miststück',
- 'putain','merde','connard','connasse','salope','enculé','encule','nique','pute','foutre',
- 'puta','puto','joder','mierda','coño','cono','gilipollas','cabron','cabrón','pendejo','chingar','verga','maricon','maricón',
- 'cazzo','stronzo','vaffanculo','figa','troia','bastardo',
- 'kurwa','chuj','pizda','blyat','suka','cyka','hui','pizdec','pidor','pidaras','zaeb','nahui','huy','huylo','jebac','kurw','dziwka',
-];
-function profileTextProblem(values){
- const text=values.filter(v=>typeof v==='string').join(' ').normalize('NFKC').toLocaleLowerCase();
- const compact=text.replace(/[\s._*\-+!@#$%^&()\[\]{}:;'"~`/\\|]+/g,'');
- return bannedProfileTerms.some(term=>text.includes(term)||compact.includes(term.replace(/[^a-zа-яё]/gi,'')));
-}
 app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
  const q=await pool.query(`SELECT l.user_id AS id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,l.updated_at,l.id AS listing_id FROM listings l WHERE l.user_id=$1`,[req.user.id]);
  res.json({listing:q.rows[0]||null});
