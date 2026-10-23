@@ -525,6 +525,23 @@ app.post('/telegram/webhook', (req,res) => {
       await send('🔐 Новый пароль для '+(q.rows[0].username?'@'+q.rows[0].username:'Telegram ID '+id)+' ('+q.rows[0].role+'):\n\n'+password+'\n\nПередай его лично. Повторно показать нельзя — только выпустить новый.');
       await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:id,text:'Для доступа к админ-командам VIBE введи: /вход ВАШ_ПАРОЛЬ. Не пересылай пароль другим.'})});return;
     }
+    if(m && roleRank[role]>=roleRank.admin && cmd==='/часовойпояс'){
+      const zone=parts[1]||'';
+      try { new Intl.DateTimeFormat('en-US',{timeZone:zone}).format(new Date()); }
+      catch { await send('Укажи регион IANA, например: /часовойпояс Europe/Moscow или Europe/Berlin.'); return; }
+      await pool.query('INSERT INTO admin_access_timezones(telegram_id,time_zone) VALUES($1,$2) ON CONFLICT(telegram_id) DO UPDATE SET time_zone=EXCLUDED.time_zone',[String(from.id),zone]);
+      await send('Часовой пояс сохранён: '+zone+'. Теперь задай пароль командой /пароль ТВОЙ_ПАРОЛЬ.'); return;
+    }
+    if(m && roleRank[role]>=roleRank.admin && cmd==='/пароль'){
+      const password=parts[1]||'';
+      if(password.length<8||password.length>128){await send('Пароль должен быть длиной от 8 до 128 символов. Формат: /пароль ТВОЙ_ПАРОЛЬ');return;}
+      const tz=await pool.query('SELECT time_zone FROM admin_access_timezones WHERE telegram_id=$1',[String(from.id)]);
+      if(!tz.rowCount){await send('Сначала укажи часовой пояс: /часовойпояс Europe/Moscow (или другой регион IANA).');return;}
+      const salt=randomBytes(16).toString('hex');
+      await pool.query('INSERT INTO admin_access_passwords(telegram_id,salt,password_hash,updated_at) VALUES($1,$2,$3,NOW()) ON CONFLICT(telegram_id) DO UPDATE SET salt=EXCLUDED.salt,password_hash=EXCLUDED.password_hash,updated_at=NOW()',[String(from.id),salt,hashAdminPassword(password,salt)]);
+      await pool.query('DELETE FROM admin_access_sessions WHERE telegram_id=$1',[String(from.id)]);
+      await send('Пароль сохранён. В дальнейшем отправляй только сам пароль обычным сообщением.'); return;
+    }
     // Plain-text password login: no slash or command prefix. Non-staff messages are ignored.
     if(m && txt && !txt.startsWith('/') && roleRank[role]>=roleRank.admin){
       const q=await pool.query('SELECT salt,password_hash FROM admin_access_passwords WHERE telegram_id=$1',[String(from.id)]);
@@ -853,6 +870,7 @@ async function start() {
     await pool.query(schema);
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_passwords (telegram_id TEXT PRIMARY KEY, salt TEXT NOT NULL, password_hash TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_sessions (telegram_id TEXT PRIMARY KEY, unlocked_until TIMESTAMPTZ NOT NULL)');
+    await pool.query('CREATE TABLE IF NOT EXISTS admin_access_timezones (telegram_id TEXT PRIMARY KEY, time_zone TEXT NOT NULL)');
     await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_status_check");
     await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
     // Existing databases retain old CREATE TABLE constraints; migrate listing ages for the teen band.
