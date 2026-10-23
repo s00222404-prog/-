@@ -417,3 +417,25 @@ input:focus,textarea:focus,select:focus{border-color:#bd8cff!important;box-shado
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+
+/* VIBE 2.0 profile editing and mobile-first navigation polish */
+.profile-editor-form{
+  display:grid;gap:10px;margin:24px 0 0;padding:18px;
+  border:1px solid rgba(204,169,255,.14);border-radius:18px;
+  background:linear-gradient(145deg,rgba(32,24,45,.82),rgba(20,16,29,.82))
+}
+.profile-editor-form h3{margin:0;font-size:17px;letter-spacing:-.3px}
+.profile-editor-form>p{margin:0 0 4px}
+.profile-editor-form label{margin:5px 0;gap:8px}
+.profile-editor-form input,.profile-editor-form textarea,.profile-editor-form select{background:#100c18;border-color:rgba(211,181,255,.19)}
+.profile-editor-form textarea{min-height:90px}
+.profile-editor-photo{width:100%;max-height:240px;object-fit:cover;border-radius:15px;border:1px solid var(--vibe-line)}
+.profile-editor-form .media-picker{position:relative;margin-top:2px}
+.account-profile-modal{max-height:90vh;overflow:auto}
+@media(max-width:680px){
+  .tabs{display:none}
+  .account-profile-modal{padding:18px}
+  .profile-editor-form{padding:14px;margin-top:20px}
+  .profile-editor-form .save{position:sticky;bottom:0;z-index:2}
+}
