@@ -41,7 +41,7 @@ async function auth(req,res,next) {
     const identity = validateTelegramInitData(req.get('X-Telegram-Init-Data'), process.env.BOT_TOKEN);
     const q = await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
       ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
-      RETURNING id,telegram_id,username,first_name,birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note`,
+      RETURNING id,telegram_id,username,first_name,birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status`,
       [identity.id,identity.username,identity.firstName,identity.photoUrl]);
     req.user=q.rows[0];
     if (req.user.account_status === 'banned') {
@@ -307,7 +307,7 @@ app.post('/telegram/webhook', (req,res) => {
       return;
     }
     const card=async(id,editMode=false)=>{
-      const q=await pool.query('SELECT id,telegram_id,username,first_name,account_status,profile_review_status,moderation_note,bio,city,photo_url,goal,interests,created_at FROM users WHERE id=$1',[id]);
+      const q=await pool.query('SELECT id,telegram_id,username,first_name,account_status,profile_review_status,moderation_note,bio,city,photo_url,goal,interests,created_at,public_status FROM users WHERE id=$1',[id]);
       if(!q.rowCount){if(editMode)await edit('Пользователь не найден или аккаунт удалён.');else await send('Пользователь не найден.');return;}
       const u=q.rows[0];
       const roleRow = await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1', [String(u.telegram_id)]);
@@ -379,7 +379,113 @@ app.post('/telegram/webhook', (req,res) => {
     }
     if(!m)return;
     let reply,markup;
-    if(cmd==='/статус'||cmd==='/status'){
+    if(cmd==='/паливные'||cmd==='/паливный'||cmd==='/безпаливные'||cmd==='/безпаливный'){
+      if(!isDeveloper){await send('⛔ Публичные статусы может выдавать и снимать только Разработчик.');return;}
+      const parts=txt.split(/\\s+/);
+      const key=(parts[1]||'').replace(/^@/,'');
+      if(!key){await send(cmd.startsWith('/без')?'Использование: /безпаливные @username или 001234':'Использование: /паливные @username или 001234 помощник|модератор|администратор|главный_администратор');return;}
+      const target=await pool.query("SELECT id,telegram_id,username,first_name FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}
+      const maintenance=String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';
+      reply=maintenance?'🟡 VIBE: технические работы\\n'+(process.env.MAINTENANCE_MESSAGE||'Временно проводятся технические работы. Попробуй позже.'):'🟢 VIBE: сервер работает нормально.\\nСайт доступен.';
+    }else if(cmd==='/start'){
+      if(from?.id&&from?.first_name) {
+        const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
+        if (u.rows[0]?.account_status === 'banned') {
+          reply='⛔ Ваш аккаунт VIBE забанен.\\nПричина: '+(u.rows[0].moderation_note||'Причина не указана')+'\\nДоступ к сайту и функциям аккаунта закрыт.';
+          await send(reply); return;
+        }
+        if (['suspended','restricted'].includes(u.rows[0]?.account_status)) {
+          reply='⚠️ Доступ к вашему аккаунту VIBE ограничен.\\nПричина: '+(u.rows[0].moderation_note||'Причина не указана');
+          await send(reply); return;
+        }
+      }
+      reply='Привет! Открой VIBE кнопкой ниже ✨';markup={inline_keyboard:[[{text:'Перейти на сайт VIBE ✨',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+    }else if(cmd==='/адм'||cmd==='/admin'){
+      reply=ok?'🛠 Меню администратора VIBE\nТвоя роль: '+(role==='developer'?'Разработчик':ROLE_LABELS[role])+'\nВыбери команду:':'⛔ Команда доступна только администраторам.';
+      if(ok)markup={keyboard:[[{text:'/очередь'},{text:'/пользователи'}],[{text:'/юзер'},{text:'/помощь'}]],resize_keyboard:true};
+    }else if(cmd==='/бан'||cmd==='/ban'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else{const bm=txt.match(/^\/(?:бан|ban)(?:@\\S+)?\\s+(@?[A-Za-z0-9_]{5,32}|\\d{6})\\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажи username или 6-значный код профиля и причину: /бан 001234 спам';else if(bm[2].trim().length>500)reply='Причина слишком длинная (максимум 500 символов).';else{const key=bm[1].replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Бан разработчика (команда /бан)',source:'Telegram-команда'});reply='⛔ Разработчика нельзя забанить.';}else if(!found.rowCount)reply='Пользователь не найден.';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING id,first_name,username",[bm[2].trim(),found.rows[0].id]);reply='⛔ Забанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').\\nПричина: '+bm[2].trim();}}}
+    }else if(cmd==='/разбан'||cmd==='/unban'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else if(!/^(@?[A-Za-z0-9_]{5,32}|\d{6})$/.test(arg))reply='Использование: /разбан @username или /разбан 001234';
+      else{
+        const targetKey=arg.replace(/^@/,'');
+        const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[targetKey]);
+        if(!found.rowCount)reply='Пользователь не найден. Проверь username или 6-значный код.';
+        else if(String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение статуса разработчика командой /разбан',source:'Telegram-команда'});reply='⛔ Нельзя менять статус разработчика.';}
+        else{const target=await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1 RETURNING id,first_name,username",[found.rows[0].id]);reply='✅ Разбанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').'}
+      }
+    }else if(cmd==='/удалить'||cmd==='/delete'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else if(!/^(@?[A-Za-z0-9_]{5,32}|\d{6})$/.test(arg))reply='Использование: /удалить @username или /удалить 001234';
+      else{const key=arg.replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Удаление аккаунта разработчика (команда /удалить)',source:'Telegram-команда'});reply='⛔ Разработчика нельзя удалить.';}else if(!found.rowCount)reply='Пользователь не найден. Проверь username или 6-значный код.';else{const target=await pool.query('DELETE FROM users WHERE id=$1 RETURNING id,first_name,username',[found.rows[0].id]);reply='🗑 Аккаунт '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+') удалён.';}}
+    }else if(cmd==='/юзер'||cmd==='/user'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else if(!arg)reply='Использование: /юзер @username, /юзер 6-значный_код или Telegram_ID';
+      else{const q=await pool.query(`SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')`,[arg]);if(!q.rowCount)reply='Не найден. Пользователь должен хотя бы раз открыть бота/VIBE.';else{await card(q.rows[0].id);return;}}
+    }else if(cmd==='/помощь'||cmd==='/help'){
+      reply=ok?'Команды VIBE:\n/адм — меню\n/очередь — жалобы и флаги\n/пользователи — число аккаунтов\n/баны — список забаненных пользователей\n/удалить @username или 001234 — удалить аккаунт\n/юзер @username или 001234 — карточка пользователя\n/разбан @username или 001234 — снять бан\n/бан 001234 причина — забанить по коду профиля\n'+(isDeveloper?'Только Разработчик может назначать роли в карточке пользователя.':''):'Нажми /start, чтобы открыть VIBE.';
+    }else if(cmd==='/очередь'||cmd==='/queue'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='📋 Очередь модерации\nЖалобы: '+r.rows[0].count+'\nФлаги: '+f.rows[0].count;}
+    }else if(cmd==='/баны'||cmd==='/bans'){
+      if(!ok)reply='⛔ Только для администраторов.';
+      else{const q=await pool.query("SELECT id,first_name,username,telegram_id,moderation_note FROM users WHERE account_status='banned' ORDER BY updated_at DESC LIMIT 50");reply=q.rowCount?'⛔ Забаненные пользователи ('+q.rowCount+')\\n\\n'+q.rows.map(u=>'ID анкеты: '+u.id+' — '+u.first_name+(u.username?' (@'+u.username+')':'')+'\\nTelegram ID: '+u.telegram_id+'\\nПричина: '+(u.moderation_note||'—')+'\\nРазбан: '+(u.username?'/разбан @'+u.username:'нет username — используй кнопку в карточке пользователя')).join('\\n\\n'):'✅ Забаненных пользователей нет.';}
+    }else if(cmd==='/пользователи'||cmd==='/users'){
+      if(!ok)reply='⛔ Только для администраторов.';else{const q=await pool.query('SELECT COUNT(*)::int count FROM users');reply='👥 Всего аккаунтов: '+q.rows[0].count;}
+    }else{reply='Нажми /start, чтобы открыть VIBE ✨';markup={inline_keyboard:[[{text:'Перейти на сайт VIBE ✨',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};}
+    await send(reply,markup);
+  })().catch(e=>console.error('Telegram webhook processing failed:',e.message));
+});
+app.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
+async function start() {
+  try {
+    // Create VIBE tables in the configured VIBE database; CREATE IF NOT EXISTS preserves existing rows.
+    const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
+    await pool.query(schema);
+    await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_status_check");
+    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
+    await pool.query(`CREATE TABLE IF NOT EXISTS admin_roles (telegram_id TEXT PRIMARY KEY, username TEXT, role TEXT NOT NULL CHECK (role IN ('chief_admin','admin','moderator','helper')), assigned_by TEXT NOT NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+      await pool.query('ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE');
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS public_status TEXT NOT NULL DEFAULT ''");
+    console.log('VIBE database schema ready');
+  } catch (err) {
+    console.error('VIBE database schema initialization failed:', err.message);
+  }
+  app.listen(port, () => {
+    console.log('VIBE API listening on ' + port);
+    const token = process.env.BOT_TOKEN;
+    if (token) {
+      fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: 'https://znakomstva-824i.onrender.com/telegram/webhook' })
+      }).then(r => r.json()).then(result => console.log('Telegram webhook setup:', result.ok ? 'ok' : result.description))
+        .catch(err => console.error('Telegram webhook setup failed:', err.message));
+    } else {
+      console.error('BOT_TOKEN is missing; Telegram bot is disabled');
+    }
+  });
+}
+start();
+)",[key]);
+      if(!target.rowCount){await send('Пользователь не найден. Проверь username или 6-значный код профиля.');return;}
+      const u=target.rows[0];
+      if(String(u.telegram_id)===DEVELOPER_TELEGRAM_ID){await send('Статус разработчика закреплён и не изменяется.');return;}
+      if(cmd.startsWith('/без')){
+        await pool.query("UPDATE users SET public_status='',updated_at=NOW() WHERE id=$1",[u.id]);
+        await send('🕶 Публичный статус снят: '+u.first_name+' (код '+String(u.id).padStart(6,'0')+'). Права аккаунта не изменены.');
+        return;
+      }
+      const statusKey=(parts[2]||'').toLowerCase().replace(/ё/g,'е');
+      const statusMap={'помощник':'helper','helper':'helper','модератор':'moderator','moderator':'moderator','администратор':'admin','админ':'admin','admin':'admin','главный_администратор':'chief_admin','главный-администратор':'chief_admin','chief_admin':'chief_admin'};
+      const publicStatus=statusMap[statusKey];
+      if(!publicStatus){await send('Укажи публичный статус: помощник, модератор, администратор или главный_администратор. Пример: /паливные @username помощник');return;}
+      await pool.query('UPDATE users SET public_status=$1,updated_at=NOW() WHERE id=$2',[publicStatus,u.id]);
+      await send('🏷 Публичный статус выдан: '+u.first_name+' — '+PUBLIC_STATUS_LABELS[publicStatus]+'. Права аккаунта не изменены.');
+      return;
+    }else if(cmd==='/статус'||cmd==='/status'){
       const maintenance=String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';
       reply=maintenance?'🟡 VIBE: технические работы\\n'+(process.env.MAINTENANCE_MESSAGE||'Временно проводятся технические работы. Попробуй позже.'):'🟢 VIBE: сервер работает нормально.\\nСайт доступен.';
     }else if(cmd==='/start'){
