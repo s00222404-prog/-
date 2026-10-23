@@ -45,7 +45,7 @@ function App() {
     if (!response.ok) {
       const error = new Error(data.error || 'Ошибка сервера (' + response.status + ')');
       error.banned = Boolean(data.banned);
-      error.banReason = data.reason || '';
+      error.banReason = data.reason || data.moderation_note || data.user?.moderation_note || '';
       error.status = response.status;
       throw error;
     }
@@ -241,7 +241,7 @@ function App() {
     setPeople(current => current.filter(p => p.id !== person.id));
   }
 
-  if (user?.account_status === 'banned') return <main className="app-shell"><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш профиль забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Причина:</b> {user.moderation_note || 'Причина не указана'}</p></section></main>;
+  if (user?.account_status === 'banned') return <main className="app-shell"><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш профиль забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Причина:</b> {user.moderation_note || user.reason || 'Причина не указана'}</p></section></main>;
   if (!initData) return <Landing />;
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" onClick={() => setTab('profile')}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
