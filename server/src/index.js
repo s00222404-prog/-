@@ -293,6 +293,364 @@ app.post('/telegram/webhook', (req,res) => {
     const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,...(markup?{reply_markup:markup}:{})})});
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
+    const moderationCommands = new Set(['/warn','/warnings','/clearwarnings','/mute','/unmute','/tempmute','/restrict','/unrestrict','/kick','/tempban','/banreason','/banhistory','/report','/reports','/reportclose','/usernotes','/addnote','/delnote','/modhistory','/userinfo','/antispam','/spamcheck','/floodlimit','/linkfilter','/wordfilter','/addword','/delword','/duplicatecheck','/newaccounts','/suspicious','/fakecheck','/massreport','/reportstats','/modqueue','/priorityqueue','/contentreview','/profilecheck','/appeals','/appealreview','/securitylog','/modstats','/adminlog','/modlog','/rollback','/masswarn','/massban','/massunban','/slowmode','/maintenance','/readonly','/modmode','/modconfig','/permissions','/setpermission','/revokepermission','/stafflist','/staffactivity','/audituser','/backupconfig','/restoreconfig']);
+    if (m && moderationCommands.has(cmd)) {
+      if (!ok) { await send('⛔ Эта команда доступна только администраторам.'); return; }
+      const p=txt.split(/\s+/), key=(p[1]||'').replace(/^@/,''), rest=p.slice(2).join(' ').trim();
+      const targetQ = async value => pool.query("SELECT id,telegram_id,username,first_name,account_status,moderation_note FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}
+      if(!isDeveloper){await send('⛔ Недостаточно прав. Команда /бан все доступна только разработчику.');return;}
+      const reason=txt.split(/\s+/).slice(2).join(' ').trim();
+      if(!reason || reason.length>500){await send('Укажите причину массовой блокировки (до 500 символов).\nФормат: /бан все причина');return;}
+      const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE telegram_id<>$2 AND account_status IS DISTINCT FROM 'banned' RETURNING id",[reason,DEVELOPER_TELEGRAM_ID]);
+      await send('⛔ Массовая блокировка завершена.\nЗаблокировано аккаунтов: '+q.rowCount+'\nПричина: '+reason);
+      return;
+    }
+    if(m && (cmd==='/разбан' || cmd==='/unban') && /^все$/i.test(arg)){
+      if(!isDeveloper){await send('⛔ Недостаточно прав. Команда /разбан все доступна только разработчику.');return;}
+      const q=await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE telegram_id<>$1 AND account_status='banned' RETURNING id",[DEVELOPER_TELEGRAM_ID]);
+      await send('✅ Массовое снятие блокировок завершено.\nВосстановлено аккаунтов: '+q.rowCount);
+      return;
+    }
+    const card=async(id,editMode=false)=>{
+      const q=await pool.query('SELECT id,telegram_id,username,first_name,account_status,profile_review_status,moderation_note,bio,city,photo_url,goal,interests,created_at,public_status FROM users WHERE id=$1',[id]);
+      if(!q.rowCount){if(editMode)await edit('Пользователь не найден. Возможно, аккаунт был удалён.');else await send('Пользователь не найден.');return;}
+      const u=q.rows[0];
+      const roleRow = await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1', [String(u.telegram_id)]);
+      const userRole = String(u.telegram_id)===DEVELOPER_TELEGRAM_ID ? 'developer' : (roleRow.rows[0]?.role || 'none');
+      const publicStatus = String(u.telegram_id)===DEVELOPER_TELEGRAM_ID ? 'developer' : (u.public_status || 'none');
+      const kb={inline_keyboard:[[{text:'🔎 Проверить',callback_data:'u:check:'+id}],[{text:u.account_status==='banned'?'✅ Разбанить':'⛔ Забанить Telegram',callback_data:'u:'+(u.account_status==='banned'?'unban':'ban')+':'+id}],[{text:'🧹 Удалить анкету',callback_data:'u:profile:'+id}],[{text:'🗑 Удалить аккаунт',callback_data:'u:account:'+id}]]};
+      if (String(u.telegram_id)!==DEVELOPER_TELEGRAM_ID && isDeveloper) {
+        kb.inline_keyboard.push([{text:'👑 Права: главный админ',callback_data:'role:chief_admin:'+id},{text:'🛡 Права: админ',callback_data:'role:admin:'+id}],[{text:'🔨 Права: модератор',callback_data:'role:moderator:'+id},{text:'🧰 Права: помощник',callback_data:'role:helper:'+id}],[{text:'❌ Снять админ-права',callback_data:'role:none:'+id}]);
+        kb.inline_keyboard.push([{text:'🏷 Статус: помощник',callback_data:'pubstatus:helper:'+id},{text:'🏷 Статус: модератор',callback_data:'pubstatus:moderator:'+id}],[{text:'🏷 Статус: администратор',callback_data:'pubstatus:admin:'+id},{text:'🏷 Статус: главный админ',callback_data:'pubstatus:chief_admin:'+id}],[{text:'🚫 Убрать публичный статус',callback_data:'pubstatus:none:'+id}]);
+      }
+      const profileCode=String(u.id).padStart(6,'0');
+       const details='VIBE | КАРТОЧКА ПОЛЬЗОВАТЕЛЯ\n━━━━━━━━━━━━━━━━\nИмя: '+u.first_name+'\nКод профиля: '+profileCode+'\nUsername: '+(u.username?'@'+u.username:'не указан')+'\nTelegram ID: '+u.telegram_id+'\nID записи: '+u.id+'\n\nПРАВА И СТАТУСЫ\nАдминистративные права: '+(ROLE_LABELS[userRole]||'Пользователь')+'\nПубличный статус профиля: '+(publicStatus==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[publicStatus]||'не назначен'))+'\n\nСОСТОЯНИЕ АККАУНТА\nСтатус аккаунта: '+u.account_status+'\nСтатус анкеты: '+u.profile_review_status+'\nПричина ограничения: '+(u.moderation_note||'не указана')+'\n\nДАННЫЕ ПРОФИЛЯ\nГород: '+(u.city||'не указан')+'\nЦель: '+(u.goal||'не указана')+'\nИнтересы: '+((u.interests||[]).join(', ')||'не указаны')+'\nФото профиля: '+(u.photo_url?'добавлено':'не добавлено')+'\nОписание: '+(u.bio||'не указано')+'\nДата регистрации: '+new Date(u.created_at).toLocaleString('ru-RU');
+      if(editMode)await edit(details,kb);else await send(details+'\nВыбери действие:',kb);
+    };
+    if(cb){
+      const [prefix,act,idRaw]=(cb.data||'').split(':'), id=Number(idRaw);
+      if(prefix==='l') {
+        if(!ok){await answer('Доступ разрешён только администраторам.');return;}
+        if(!Number.isSafeInteger(id)||id<=0||!['approve','reject'].includes(act)){await answer('Некорректное действие');return;}
+        const found=await pool.query('SELECT l.id,l.user_id,l.name,u.telegram_id FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=$1',[id]);
+        if(!found.rowCount){await answer('Анкета не найдена');await edit('Анкета уже удалена или не найдена.');return;}
+        const status=act==='approve'?'published':'rejected';
+        await pool.query('UPDATE listings SET status=$1,updated_at=NOW() WHERE id=$2',[status,id]);
+        const message=act==='approve'?'✅ Твоя анкета VIBE «'+found.rows[0].name+'» прошла проверку и теперь доступна в рекомендациях.':'⚠️ Анкета VIBE «'+found.rows[0].name+'» не прошла проверку. Пожалуйста, исправьте данные и отправьте анкету повторно.';
+        await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:found.rows[0].telegram_id,text:message})}).catch(e=>console.error('Listing decision notification failed:',e.message));
+        await answer(act==='approve'?'Анкета одобрена и опубликована.':'Анкета отклонена.');
+        await edit((act==='approve'?'✅ ОДОБРЕНО':'❌ ОТКЛОНЕНО')+' — анкета #'+id+' («'+found.rows[0].name+'»)'+ '\nРешение: '+new Date().toLocaleString('ru-RU'));
+        return;
+      }
+      if(prefix==='pubstatus') {
+        if(!isDeveloper){await answer('Публичные статусы выдаёт только Разработчик');return;}
+        if(!Number.isSafeInteger(id)||id<=0||!['none','helper','moderator','admin','chief_admin'].includes(act)){await answer('Недопустимое значение публичного статуса.');return;}
+        const target=await pool.query('SELECT telegram_id FROM users WHERE id=$1',[id]);
+        if(!target.rowCount){await answer('Учётная запись не найдена.');return;}
+        if(String(target.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение публичного статуса разработчика',source:'Telegram-кнопка статуса'});await answer('Статус Разработчика закреплён');return;}
+        await pool.query('UPDATE users SET public_status=$1,updated_at=NOW() WHERE id=$2',[act==='none'?'':act,id]);
+        await answer(act==='none'?'Публичный статус снят':'Выдан публичный статус: '+PUBLIC_STATUS_LABELS[act]);
+        await card(id,true);return;
+      }
+      if(prefix==='role') {
+        if(!isDeveloper){await answer('Админ-права может назначать и снимать только Разработчик');return;}
+        if(!Number.isSafeInteger(id)||id<=0||!['chief_admin','admin','moderator','helper','none'].includes(act)){await answer('Недопустимое значение административной роли.');return;}
+        const target=await pool.query('SELECT telegram_id,username FROM users WHERE id=$1',[id]);
+        if(!target.rowCount){await answer('Учётная запись не найдена.');return;}
+        const targetId=String(target.rows[0].telegram_id);
+        if(targetId===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение роли разработчика',source:'Telegram-кнопка ролей'});await answer('Нельзя изменить роль Разработчика');return;}
+        if(act==='none') await pool.query('DELETE FROM admin_roles WHERE telegram_id=$1',[targetId]);
+        else await pool.query(`INSERT INTO admin_roles(telegram_id,username,role,assigned_by) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,role=EXCLUDED.role,assigned_by=EXCLUDED.assigned_by,updated_at=NOW()`,[targetId,target.rows[0].username,act,String(from.id)]);
+        await answer(act==='none'?'Админ-права сняты':'Назначены админ-права: '+(ROLE_LABELS[act]||act));
+        await card(id,true);
+        return;
+      }
+      if(!ok){await answer('Доступ разрешён только администраторам.');return;}
+      if(prefix!=='u'||!Number.isSafeInteger(id)||id<=0||!['check','ban','unban','profile','account'].includes(act)){await answer('Некорректное действие');return;}
+      const q=await pool.query('SELECT first_name,username,telegram_id FROM users WHERE id=$1',[id]);
+      if(!q.rowCount){await answer('Пользователь не найден');await edit('Пользователь не найден или удалён.');return;}
+      if(act==='check'){await answer();await card(id,true);return;}
+      if(String(q.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID&&['ban','unban','profile','account'].includes(act)){
+        const actionLabel={ban:'Бан разработчика',unban:'Изменение статуса разработчика',profile:'Удаление анкеты разработчика',account:'Удаление аккаунта разработчика'}[act];
+        await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:actionLabel,source:'Telegram-кнопка модерации'});
+        await answer('Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.');
+        await send('⛔ Разработчика нельзя банить, ограничивать или удалять.');
+        return;
+      }
+      if(act==='ban'){await answer('Укажите причину блокировки.');await send('Чтобы забанить '+q.rows[0].first_name+', отправь:\n/бан @'+(q.rows[0].username||'username')+' причина бана\nПричина обязательна (до 500 символов).');return;}
+      if(act==='unban'){await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1",[id]);await answer('Блокировка снята.');await edit('✅ Бан снят.');return;}
+      if(act==='profile'){await pool.query("UPDATE users SET bio='',city=NULL,photo_url=NULL,gender=NULL,goal='friendship',interests='{}',discoverable=FALSE,profile_review_status='restricted',moderation_note='Profile deleted by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await answer('Анкета удалена');await edit('🧹 Анкета удалена. Аккаунт сохранён.');return;}
+      if(act==='account'){await pool.query('DELETE FROM users WHERE id=$1',[id]);await answer('Учётная запись удалена.');await edit('🗑 Аккаунт удалён вместе с анкетой, лайками, чатами и жалобами. Пользователь сможет зарегистрироваться снова с тем же Telegram-аккаунтом.');return;}
+    }
+    if(!m)return;
+    let reply,markup;
+    if(cmd==='/паливные'||cmd==='/паливный'||cmd==='/безпаливные'||cmd==='/безпаливный'||cmd==='/publicstatus'||cmd==='/clearstatus'){
+      if(!isDeveloper){await send('⛔ Публичные статусы может выдавать и снимать только Разработчик.');return;}
+      const parts=txt.split(/\s+/);
+      const key=(parts[1]||'').replace(/^@/,'');
+      if(!key){await send((cmd.startsWith('/без')||cmd==='/clearstatus')?'Формат: /безпаливные @username или /clearstatus @username':'Формат: /паливные @username помощник|модератор|администратор|главный_администратор\nИли: /publicstatus @username helper|moderator|admin|chief_admin');return;}
+      const target=await pool.query("SELECT id,telegram_id,username,first_name FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);
+      if(!target.rowCount){await send('Пользователь не найден. Проверьте @username или шестизначный код профиля.');return;}
+      const u=target.rows[0];
+      if(String(u.telegram_id)===DEVELOPER_TELEGRAM_ID){await send('Публичный статус разработчика защищён и не может быть изменён.');return;}
+      if(cmd.startsWith('/без')||cmd==='/clearstatus'){
+        await pool.query("UPDATE users SET public_status='',updated_at=NOW() WHERE id=$1",[u.id]);
+        await send('✅ Публичный статус снят.\nПользователь: '+u.first_name+' (код '+String(u.id).padStart(6,'0')+'). Права аккаунта не изменены.');
+        return;
+      }
+      const statusKey=(parts[2]||'').toLowerCase().replace(/ё/g,'е');
+      const statusMap={'помощник':'helper','helper':'helper','модератор':'moderator','moderator':'moderator','администратор':'admin','админ':'admin','admin':'admin','главный_администратор':'chief_admin','главный-администратор':'chief_admin','chief_admin':'chief_admin'};
+      const publicStatus=statusMap[statusKey];
+      if(!publicStatus){await send('Укажите статус: помощник, модератор, администратор или главный_администратор.\nПример: /паливные @username помощник');return;}
+      await pool.query('UPDATE users SET public_status=$1,updated_at=NOW() WHERE id=$2',[publicStatus,u.id]);
+      await send('✅ Публичный статус назначен.\nПользователь: '+u.first_name+' — '+PUBLIC_STATUS_LABELS[publicStatus]+'. Права аккаунта не изменены.');
+      return;
+    }else if(cmd==='/статус'||cmd==='/status'){
+      const maintenance=String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';
+      reply=maintenance?'VIBE | СТАТУС СЕРВИСА\nСтатус: техническое обслуживание\n'+(process.env.MAINTENANCE_MESSAGE||'В данный момент проводятся технические работы. Пожалуйста, повторите попытку позже.'):'VIBE | СТАТУС СЕРВИСА\nСтатус: работает штатно\nПриложение доступно.';
+    }else if(cmd==='/start'){
+      if(from?.id&&from?.first_name) {
+        const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
+        if (u.rows[0]?.account_status === 'banned') {
+          reply='⛔ Ваша учётная запись VIBE заблокирована.\nПричина: '+(u.rows[0].moderation_note||'Причина не указана')+'\nДоступ к сайту и функциям аккаунта закрыт.';
+          await send(reply); return;
+        }
+        if (['suspended','restricted'].includes(u.rows[0]?.account_status)) {
+          reply='⚠️ Доступ к вашей учётной записи VIBE ограничен.\nПричина: '+(u.rows[0].moderation_note||'Причина не указана');
+          await send(reply); return;
+        }
+      }
+      reply='Добро пожаловать в VIBE.\nДля продолжения откройте приложение с помощью кнопки ниже.';markup={inline_keyboard:[[{text:'Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+    }else if(cmd==='/адм'||cmd==='/admin'){
+      reply=ok?'VIBE | ПАНЕЛЬ УПРАВЛЕНИЯ\nВаша роль: '+(role==='developer'?'Разработчик':ROLE_LABELS[role])+'\nВыберите действие из меню ниже:':'⛔ Команда доступна только администраторам.';
+      if(ok)markup={keyboard:[[{text:'/очередь'},{text:'/пользователи'}],[{text:'/юзер'},{text:'/помощь'}]],resize_keyboard:true};
+    }else if(cmd==='/бан'||cmd==='/ban'){
+      if(!ok)reply='⛔ Доступ разрешён только администраторам.';
+      else{const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(@?[A-Za-z0-9_]{5,32}|\d{6})\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажите @username или шестизначный код профиля и причину блокировки.\nПример: /бан 001234 спам';else if(bm[2].trim().length>500)reply='Причина блокировки не должна превышать 500 символов.';else{const key=bm[1].replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Бан разработчика (команда /бан)',source:'Telegram-команда'});reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';}else if(!found.rowCount)reply='Пользователь не найден.';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING id,first_name,username",[bm[2].trim(),found.rows[0].id]);reply='⛔ Забанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').\nПричина: '+bm[2].trim();}}}
+    }else if(cmd==='/разбан'||cmd==='/unban'){
+      if(!ok)reply='⛔ Доступ разрешён только администраторам.';
+      else if(!/^(@?[A-Za-z0-9_]{5,32}|\d{6})$/.test(arg))reply='Формат: /разбан @username или /разбан 001234';
+      else{
+        const targetKey=arg.replace(/^@/,'');
+        const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[targetKey]);
+        if(!found.rowCount)reply='Пользователь не найден. Проверь username или 6-значный код.';
+        else if(String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение статуса разработчика командой /разбан',source:'Telegram-команда'});reply='⛔ Статус аккаунта разработчика защищён от изменений.';}
+        else{const target=await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1 RETURNING id,first_name,username",[found.rows[0].id]);reply='✅ Разбанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').'}
+      }
+    }else if(cmd==='/удалить'||cmd==='/delete'){
+      if(!ok)reply='⛔ Доступ разрешён только администраторам.';
+      else if(!/^(@?[A-Za-z0-9_]{5,32}|\d{6})$/.test(arg))reply='Формат: /удалить @username или /удалить 001234';
+      else{const key=arg.replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Удаление аккаунта разработчика (команда /удалить)',source:'Telegram-команда'});reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';}else if(!found.rowCount)reply='Пользователь не найден. Проверь username или 6-значный код.';else{const target=await pool.query('DELETE FROM users WHERE id=$1 RETURNING id,first_name,username',[found.rows[0].id]);reply='🗑 Аккаунт '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+') удалён.';}}
+    }else if(cmd==='/юзер'||cmd==='/user'){
+      if(!ok)reply='⛔ Доступ разрешён только администраторам.';
+      else if(!arg)reply='Формат: /юзер @username, /юзер 001234 или /юзер Telegram_ID';
+      else{const q=await pool.query(`SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')`,[arg]);if(!q.rowCount)reply='Пользователь не найден. Он должен хотя бы один раз открыть бота или приложение VIBE.';else{await card(q.rows[0].id);return;}}
+    }else if(cmd==='/помощь'||cmd==='/help'){
+      reply=ok?'VIBE | СПРАВКА ПО КОМАНДАМ\n\n/адм — открыть панель управления\n/очередь — сводка модерации\n/пользователи — общее число аккаунтов\n/баны — список заблокированных аккаунтов\n/юзер @username или 001234 — карточка пользователя\n/бан 001234 причина — заблокировать аккаунт\n/разбан @username или 001234 — снять блокировку\n/удалить @username или 001234 — удалить аккаунт\n/статус — состояние сервиса\n'+(isDeveloper?'\nКОМАНДЫ РАЗРАБОТЧИКА\n/паливные @username помощник|модератор|администратор|главный_администратор — назначить публичный статус\n/безпаливные @username — снять публичный статус\n/publicstatus @username helper|moderator|admin|chief_admin — назначить статус\n/clearstatus @username — снять публичный статус\n\nПубличный статус не предоставляет административных прав. Административные права назначаются отдельно в карточке пользователя.':''):'Добро пожаловать в VIBE. Отправьте /start, чтобы открыть приложение.';
+    }else if(cmd==='/очередь'||cmd==='/queue'){
+      if(!ok)reply='⛔ Доступ разрешён только администраторам.';
+      else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='VIBE | СВОДКА МОДЕРАЦИИ\nОткрытые жалобы: '+r.rows[0].count+'\nОткрытые сигналы модерации: '+f.rows[0].count;}
+    }else if(cmd==='/баны'||cmd==='/bans'){
+      if(!ok)reply='⛔ Доступ разрешён только администраторам.';
+      else{const q=await pool.query("SELECT id,first_name,username,telegram_id,moderation_note FROM users WHERE account_status='banned' ORDER BY updated_at DESC LIMIT 50");reply=q.rowCount?'VIBE | ЗАБЛОКИРОВАННЫЕ АККАУНТЫ ('+q.rowCount+')\n\n'+q.rows.map(u=>'ID анкеты: '+u.id+' — '+u.first_name+(u.username?' (@'+u.username+')':'')+'\nTelegram ID: '+u.telegram_id+'\nПричина: '+(u.moderation_note||'—')+'\nРазбан: '+(u.username?'/разбан @'+u.username:'нет username — используй кнопку в карточке пользователя')).join('\n\n'):'✅ Аккаунтов с активной блокировкой не найдено.';}
+    }else if(cmd==='/пользователи'||cmd==='/users'){
+      if(!ok)reply='⛔ Доступ разрешён только администраторам.';else{const q=await pool.query('SELECT COUNT(*)::int count FROM users');reply='VIBE | СТАТИСТИКА\nВсего аккаунтов: '+q.rows[0].count;}
+    }else{reply='Отправьте /start, чтобы открыть приложение VIBE.';markup={inline_keyboard:[[{text:'Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};}
+    await send(reply,markup);
+  })().catch(e=>console.error('Telegram webhook processing failed:',e.message));
+});
+app.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
+async function start() {
+  try {
+    // Create VIBE tables in the configured VIBE database; CREATE IF NOT EXISTS preserves existing rows.
+    const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
+    await pool.query(schema);
+    await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_status_check");
+    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
+    await pool.query(`CREATE TABLE IF NOT EXISTS admin_roles (telegram_id TEXT PRIMARY KEY, username TEXT, role TEXT NOT NULL CHECK (role IN ('chief_admin','admin','moderator','helper')), assigned_by TEXT NOT NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+      await pool.query('ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE');
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS public_status TEXT NOT NULL DEFAULT ''");
+    await pool.query(`CREATE TABLE IF NOT EXISTS moderation_warnings (id BIGSERIAL PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,actor_telegram_id TEXT NOT NULL,reason TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS moderation_notes (id BIGSERIAL PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,actor_telegram_id TEXT NOT NULL,note TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS moderation_sanctions (id BIGSERIAL PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,actor_telegram_id TEXT NOT NULL,kind TEXT NOT NULL,reason TEXT NOT NULL,expires_at TIMESTAMPTZ,active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS moderation_audit (id BIGSERIAL PRIMARY KEY,actor_telegram_id TEXT NOT NULL,action TEXT NOT NULL,target_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,details TEXT NOT NULL DEFAULT '',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS moderation_settings (name TEXT PRIMARY KEY,value TEXT NOT NULL,updated_by TEXT NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS moderation_word_filter (word TEXT PRIMARY KEY,added_by TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+        console.log('VIBE database schema ready');
+  } catch (err) {
+    console.error('VIBE database schema initialization failed:', err.message);
+  }
+  app.listen(port, () => {
+    console.log('VIBE API listening on ' + port);
+    const token = process.env.BOT_TOKEN;
+    if (token) {
+      const publicCommands = [
+        { command: 'start', description: 'Открыть приложение VIBE' },
+        { command: 'help', description: 'Справка и доступные команды' },
+        { command: 'status', description: 'Проверить состояние сервиса' }
+      ];
+      const adminCommands = [...publicCommands,
+        { command: 'admin', description: 'Панель управления' },
+        { command: 'queue', description: 'Сводка модерации' },
+        { command: 'users', description: 'Статистика аккаунтов' },
+        { command: 'bans', description: 'Список заблокированных аккаунтов' },
+        { command: 'user', description: 'Карточка пользователя' },
+        { command: 'ban', description: 'Заблокировать аккаунт' },
+        { command: 'unban', description: 'Снять блокировку' },
+        { command: 'delete', description: 'Удалить аккаунт' }
+      ];
+      const moderationCommands = [
+        { command: 'warn', description: 'Выдать предупреждение' },
+        { command: 'warnings', description: 'История предупреждений' },
+        { command: 'clearwarnings', description: 'Снять предупреждения' },
+        { command: 'mute', description: 'Ограничить действия аккаунта' },
+        { command: 'unmute', description: 'Снять ограничения' },
+        { command: 'tempmute', description: 'Временное ограничение' },
+        { command: 'restrict', description: 'Ограничить аккаунт' },
+        { command: 'unrestrict', description: 'Снять ограничения' },
+        { command: 'kick', description: 'Ограничить доступ в VIBE' },
+        { command: 'tempban', description: 'Временная блокировка' },
+        { command: 'banreason', description: 'Причина ограничения' },
+        { command: 'banhistory', description: 'История санкций' },
+        { command: 'report', description: 'Просмотр жалобы' },
+        { command: 'reports', description: 'Очередь жалоб' },
+        { command: 'reportclose', description: 'Закрыть жалобу' },
+        { command: 'usernotes', description: 'Заметки пользователя' },
+        { command: 'addnote', description: 'Добавить заметку' },
+        { command: 'delnote', description: 'Удалить заметку' },
+        { command: 'modhistory', description: 'Журнал модерации' },
+        { command: 'userinfo', description: 'Карточка пользователя' },
+        { command: 'antispam', description: 'Настройки антиспама' },
+        { command: 'spamcheck', description: 'Проверить активность' },
+        { command: 'floodlimit', description: 'Лимит действий' },
+        { command: 'linkfilter', description: 'Настройки ссылок' },
+        { command: 'wordfilter', description: 'Список фильтра слов' },
+        { command: 'addword', description: 'Добавить слово в фильтр' },
+        { command: 'delword', description: 'Удалить слово из фильтра' },
+        { command: 'duplicatecheck', description: 'Проверка повторов' },
+        { command: 'newaccounts', description: 'Новые аккаунты' },
+        { command: 'suspicious', description: 'Подозрительные аккаунты' },
+        { command: 'fakecheck', description: 'Проверить признаки фейка' },
+        { command: 'massreport', description: 'Статистика массовых жалоб' },
+        { command: 'reportstats', description: 'Статистика жалоб' },
+        { command: 'modqueue', description: 'Очередь модерации' },
+        { command: 'priorityqueue', description: 'Приоритетная очередь' },
+        { command: 'contentreview', description: 'Проверка контента' },
+        { command: 'profilecheck', description: 'Проверка профиля' },
+        { command: 'appeals', description: 'Список апелляций' },
+        { command: 'appealreview', description: 'Рассмотрение апелляции' },
+        { command: 'securitylog', description: 'Журнал безопасности' },
+        { command: 'modstats', description: 'Статистика модерации' },
+        { command: 'adminlog', description: 'Журнал администраторов' },
+        { command: 'modlog', description: 'Журнал модерации' },
+        { command: 'rollback', description: 'Просмотр действий для отмены' },
+        { command: 'masswarn', description: 'Массовые предупреждения' },
+        { command: 'massban', description: 'Массовая блокировка' },
+        { command: 'massunban', description: 'Массовое снятие блокировок' },
+        { command: 'slowmode', description: 'Ограничение частоты действий' },
+        { command: 'maintenance', description: 'Режим обслуживания' },
+        { command: 'readonly', description: 'Режим только чтения' },
+        { command: 'modmode', description: 'Усиленная модерация' },
+        { command: 'modconfig', description: 'Настройки модерации' },
+        { command: 'permissions', description: 'Права сотрудников' },
+        { command: 'setpermission', description: 'Назначить разрешение' },
+        { command: 'revokepermission', description: 'Отозвать разрешение' },
+        { command: 'stafflist', description: 'Список сотрудников' },
+        { command: 'staffactivity', description: 'Активность сотрудников' },
+        { command: 'audituser', description: 'Аудит пользователя' },
+        { command: 'backupconfig', description: 'Резервная копия настроек' },
+        { command: 'restoreconfig', description: 'Восстановить настройки' }
+      ];
+      const fullAdminCommands = [...adminCommands, ...moderationCommands.filter(c => !adminCommands.some(a => a.command === c.command))];
+      const developerCommands = [...fullAdminCommands,
+        { command: 'publicstatus', description: 'Назначить публичный статус профиля' },
+        { command: 'clearstatus', description: 'Снять публичный статус профиля' }
+      ];
+      const setCommands = (commands, scope) => fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ commands, scope, language_code: 'ru' })
+      }).then(r => r.json()).then(result => {
+        if (!result.ok) console.error('Telegram command menu setup failed:', result.description);
+        else console.log('Telegram command menu configured:', scope.type);
+      }).catch(err => console.error('Telegram command menu setup failed:', err.message));
+      setCommands(publicCommands, { type: 'default' });
+      setCommands(developerCommands, { type: 'chat', chat_id: Number(DEVELOPER_TELEGRAM_ID) });
+      pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin')")
+        .then(q => Promise.all([...new Set([...(process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(x => x.trim()).filter(Boolean), ...q.rows.map(x => String(x.telegram_id))])]
+          .filter(id => id !== DEVELOPER_TELEGRAM_ID)
+          .map(id => setCommands(fullAdminCommands, { type: 'chat', chat_id: Number(id) }))))
+        .catch(err => console.error('Telegram admin command menu setup failed:', err.message));
+      fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: 'https://znakomstva-824i.onrender.com/telegram/webhook' })
+      }).then(r => r.json()).then(result => console.log('Telegram webhook setup:', result.ok ? 'ok' : result.description))
+        .catch(err => console.error('Telegram webhook setup failed:', err.message));
+    } else {
+      console.error('BOT_TOKEN is missing; Telegram bot is disabled');
+    }
+  });
+}
+start();) OR telegram_id::text=$1 LIMIT 1",[value]);
+      const audit = async (action,targetId=null,details='') => pool.query('INSERT INTO moderation_audit(actor_telegram_id,action,target_user_id,details) VALUES($1,$2,$3,$4)',[String(from.id),action,targetId,details.slice(0,1000)]);
+      const target = async () => { if(!key) return null; const q=await targetQ(key); return q.rows[0]||null; };
+      const setting = async (name,value) => pool.query("INSERT INTO moderation_settings(name,value,updated_by) VALUES($1,$2,$3) ON CONFLICT(name) DO UPDATE SET value=EXCLUDED.value,updated_by=EXCLUDED.updated_by,updated_at=NOW()",[name,value,String(from.id)]);
+      const getSetting = async name => { const q=await pool.query('SELECT value FROM moderation_settings WHERE name=$1',[name]); return q.rows[0]?.value||'off'; };
+      const targetUser=async()=>{const u=await target();if(!u){await send('Пользователь не найден. Укажи @username или шестизначный код профиля.');return null;}if(String(u.telegram_id)===DEVELOPER_TELEGRAM_ID&& !isDeveloper){await notifyDeveloperAttempt({actorId:from.id,actorName:from.first_name,actorUsername:from.username,action:cmd,source:'Команда модерации'});await send('⛔ Аккаунт разработчика защищён.');return null;}if(roleRank[await getRole(u.telegram_id)]>=roleRank[role]&&!isDeveloper){await send('⛔ Нельзя применять санкции к сотруднику с равным или более высоким рангом.');return null;}return u;};
+      try {
+        if(['/warn','/mute','/unmute','/tempmute','/restrict','/unrestrict','/kick','/tempban','/banreason','/banhistory','/usernotes','/addnote','/delnote','/userinfo','/spamcheck','/fakecheck','/profilecheck','/audituser'].includes(cmd)) {
+          if(!key){await send('Формат: '+cmd+' @username|шестизначный_код '+(cmd==='/warn'||cmd==='/mute'||cmd==='/tempmute'||cmd==='/restrict'||cmd==='/tempban'||cmd==='/addnote'?'причина':'') );return;}
+          if(['/warn','/mute','/unmute','/tempmute','/restrict','/unrestrict','/kick','/tempban'].includes(cmd)){
+            const u=await targetUser();if(!u)return;
+            const reason=rest||cmd;
+            if(cmd==='/warn'){
+              await pool.query('INSERT INTO moderation_warnings(user_id,actor_telegram_id,reason) VALUES($1,$2,$3)',[u.id,String(from.id),reason.slice(0,500)]);
+              await audit('warn',u.id,reason);await send('⚠️ Предупреждение выдано: '+u.first_name+'\nПричина: '+reason);return;
+            }
+            if(cmd==='/mute'||cmd==='/tempmute'||cmd==='/restrict'||cmd==='/kick'){
+              let status='restricted',until=null;
+              if(cmd==='/tempban'){status='banned';const mins=Number(p[2]);if(!Number.isInteger(mins)||mins<1||mins>43200){await send('Формат: /tempban @username минуты причина (1–43200)');return;}until=new Date(Date.now()+mins*60000); }
+              if(cmd==='/tempmute'){const mins=Number(p[2]);if(!Number.isInteger(mins)||mins<1||mins>10080){await send('Формат: /tempmute @username минуты причина (1–10080)');return;}until=new Date(Date.now()+mins*60000);}
+              if(cmd==='/mute'||cmd==='/restrict'||cmd==='/kick') {if(!rest){await send('Укажи причину после пользователя.');return;}}
+              await pool.query('INSERT INTO moderation_sanctions(user_id,actor_telegram_id,kind,reason,expires_at,active) VALUES($1,$2,$3,$4,$5,TRUE)',[u.id,String(from.id),cmd.slice(1),reason.slice(0,500),until]);
+              if(['restricted','banned'].includes(status)) await pool.query('UPDATE users SET account_status=$1,discoverable=FALSE,moderation_note=$2,updated_at=NOW() WHERE id=$3',[status,reason.slice(0,500),u.id]);
+              await audit(cmd.slice(1),u.id,reason);await send('✅ Санкция зарегистрирована для '+u.first_name+'.'+(until?'\nДо: '+until.toLocaleString('ru-RU'):'')+'\nВажно: Telegram-бот не отправляет ограничения в личные чаты Telegram; ограничения применяются внутри VIBE.');return;
+            }
+            if(cmd==='/unmute'||cmd==='/unrestrict'){
+              await pool.query('UPDATE moderation_sanctions SET active=FALSE WHERE user_id=$1 AND active=TRUE',[u.id]);
+              if(u.account_status==='restricted'||u.account_status==='suspended')await pool.query("UPDATE users SET account_status='active',moderation_note=NULL,discoverable=TRUE,updated_at=NOW() WHERE id=$1",[u.id]);
+              await audit(cmd.slice(1),u.id);await send('✅ Активные ограничения сняты для '+u.first_name+'.');return;
+            }
+          }
+          if(cmd==='/banreason'){const u=await target();await send(u?'Причина ограничения: '+(u.moderation_note||'не указана'):'Пользователь не найден.');return;}
+          if(cmd==='/userinfo'||cmd==='/profilecheck'||cmd==='/fakecheck'||cmd==='/spamcheck'||cmd==='/audituser'){const u=await target();if(!u){await send('Пользователь не найден.');return;}const q=await pool.query("SELECT COUNT(*) FILTER(WHERE status IN ('open','reviewing'))::int open_reports, COUNT(*)::int total_reports FROM reports WHERE reported_id=$1",[u.id]);await send('VIBE | ПРОВЕРКА ПОЛЬЗОВАТЕЛЯ\nИмя: '+u.first_name+'\nКод: '+String(u.id).padStart(6,'0')+'\nUsername: '+(u.username?'@'+u.username:'—')+'\nСтатус: '+u.account_status+'\nПричина: '+(u.moderation_note||'—')+'\nЖалобы: '+q.rows[0].total_reports+' всего, '+q.rows[0].open_reports+' открытых\nАвтоматическая проверка не доказывает нарушение.');await audit(cmd.slice(1),u.id);return;}
+          if(cmd==='/banhistory'){const u=await target();if(!u){await send('Пользователь не найден.');return;}const q=await pool.query("SELECT action,details,created_at FROM moderation_audit WHERE target_user_id=$1 ORDER BY created_at DESC LIMIT 20",[u.id]);await send('История модерации:\n'+(q.rows.map(x=>new Date(x.created_at).toLocaleString('ru-RU')+' — '+x.action+' '+x.details).join('\n')||'Записей нет.'));return;}
+          if(cmd==='/usernotes'){const u=await target();if(!u){await send('Пользователь не найден.');return;}const q=await pool.query('SELECT id,note,created_at FROM moderation_notes WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20',[u.id]);await send('Заметки '+u.first_name+':\n'+(q.rows.map(x=>'#'+x.id+' '+x.note).join('\n')||'Заметок нет.'));return;}
+          if(cmd==='/addnote'){const u=await target();if(!u||!rest){await send('Формат: /addnote @username текст заметки');return;}await pool.query('INSERT INTO moderation_notes(user_id,actor_telegram_id,note) VALUES($1,$2,$3)',[u.id,String(from.id),rest.slice(0,1000)]);await audit('addnote',u.id,rest);await send('Заметка добавлена.');return;}
+          if(cmd==='/delnote'){const id=Number(p[1]);if(!Number.isSafeInteger(id)||id<1){await send('Формат: /delnote ID_заметки');return;}const q=await pool.query('DELETE FROM moderation_notes WHERE id=$1 RETURNING user_id',[id]);await send(q.rowCount?'Заметка удалена.':'Заметка не найдена.');return;}
+        }
+        if(['/warnings','/clearwarnings'].includes(cmd)){const u=await target();if(!u){await send('Формат: '+cmd+' @username');return;}if(cmd==='/clearwarnings'){const q=await pool.query('DELETE FROM moderation_warnings WHERE user_id=$1',[u.id]);await audit('clearwarnings',u.id,'count='+q.rowCount);await send('Снято предупреждений: '+q.rowCount);return;}const q=await pool.query('SELECT reason,created_at FROM moderation_warnings WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20',[u.id]);await send('Предупреждения '+u.first_name+':\n'+(q.rows.map(x=>new Date(x.created_at).toLocaleString('ru-RU')+' — '+x.reason).join('\n')||'Предупреждений нет.'));return;}
+        if(['/reports','/report','/massreport','/reportstats','/appeals','/appealreview','/reportclose','/modqueue','/priorityqueue','/contentreview'].includes(cmd)){
+          if(cmd==='/report'){const id=Number(key);if(!Number.isInteger(id)){await send('Формат: /report ID_жалобы');return;}const q=await pool.query('SELECT r.*,u.first_name reported_name FROM reports r JOIN users u ON u.id=r.reported_id WHERE r.id=$1',[id]);await send(q.rowCount?'Жалоба #'+id+'\nПользователь: '+q.rows[0].reported_name+'\nПричина: '+q.rows[0].reason+'\nПодробности: '+(q.rows[0].details||'—')+'\nСтатус: '+q.rows[0].status:'Жалоба не найдена.');return;}
+          if(cmd==='/reportclose'){const id=Number(key);if(!Number.isInteger(id)){await send('Формат: /reportclose ID resolved|dismissed');return;}const status=p[2];if(!['resolved','dismissed'].includes(status)){await send('Укажи статус resolved или dismissed.');return;}const q=await pool.query('UPDATE reports SET status=$1 WHERE id=$2 RETURNING id',[status,id]);await audit('reportclose',null,'report='+id+' status='+status);await send(q.rowCount?'Жалоба закрыта: '+status:'Жалоба не найдена.');return;}
+          if(cmd==='/reportstats'||cmd==='/massreport'){const q=await pool.query("SELECT status,COUNT(*)::int count FROM reports GROUP BY status ORDER BY status");await send('Статистика жалоб:\n'+q.rows.map(x=>x.status+': '+x.count).join('\n'));return;}
+          const q=await pool.query("SELECT r.id,r.reason,r.details,r.status,r.created_at,u.first_name,u.username FROM reports r JOIN users u ON u.id=r.reported_id WHERE r.status IN ('open','reviewing') ORDER BY "+(cmd==='/priorityqueue'?"r.created_at ASC":"r.created_at ASC")+" LIMIT 30");await send('VIBE | ОЧЕРЕДЬ ЖАЛОБ\n'+(q.rows.map(x=>'#'+x.id+' '+x.first_name+' — '+x.reason+' ['+x.status+']').join('\n')||'Очередь пуста.'));return;
+        }
+        if(['/antispam','/floodlimit','/linkfilter','/slowmode','/maintenance','/readonly','/modmode','/modconfig'].includes(cmd)){const name=cmd.slice(1);if(!rest){await send(name+' = '+await getSetting(name)+'\nФормат: '+cmd+' значение');return;}await setting(name,rest.slice(0,200));await audit('setting:'+name,null,rest);await send('Настройка сохранена: '+name+' = '+rest+'\nПримечание: применение к API/клиенту включается только там, где добавлена проверка настройки.');return;}
+        if(['/wordfilter','/addword','/delword'].includes(cmd)){if(cmd==='/wordfilter'){const q=await pool.query('SELECT word FROM moderation_word_filter ORDER BY word LIMIT 100');await send('Фильтр слов:\n'+(q.rows.map(x=>x.word).join('\n')||'Список пуст.'));return;}const word=rest.toLowerCase().trim();if(!word||word.length>100){await send('Укажи слово (до 100 символов).');return;}if(cmd==='/addword'){await pool.query('INSERT INTO moderation_word_filter(word,added_by) VALUES($1,$2) ON CONFLICT(word) DO NOTHING',[word,String(from.id)]);await audit('addword',null,word);await send('Слово добавлено в список фильтра.');}else{const q=await pool.query('DELETE FROM moderation_word_filter WHERE word=$1',[word]);await audit('delword',null,word);await send(q.rowCount?'Слово удалено.':'Слово не найдено.');}return;}
+        if(['/newaccounts','/suspicious','/duplicatecheck'].includes(cmd)){const q=await pool.query("SELECT u.id,u.first_name,u.username,u.created_at,COUNT(r.id)::int reports FROM users u LEFT JOIN reports r ON r.reported_id=u.id WHERE u.created_at>NOW()-INTERVAL '7 days' GROUP BY u.id ORDER BY reports DESC,u.created_at DESC LIMIT 20");await send('Недавние аккаунты для ручной проверки:\n'+(q.rows.map(u=>String(u.id).padStart(6,'0')+' '+u.first_name+(u.username?' @'+u.username:'')+' жалоб:'+u.reports).join('\n')||'Нет записей.'));return;}
+        if(['/modstats','/adminlog','/modlog','/securitylog','/staffactivity','/rollback','/permissions','/setpermission','/revokepermission','/stafflist','/backupconfig','/restoreconfig','/masswarn','/massban','/massunban'].includes(cmd)){
+          if(['/masswarn','/massban','/massunban','/setpermission','/revokepermission','/restoreconfig'].includes(cmd)&&!isDeveloper){await send('⛔ Эта операция доступна только разработчику.');return;}
+          if(cmd==='/massban'||cmd==='/massunban'||cmd==='/masswarn'){await send('⛔ Массовые действия требуют отдельного списка целей и двухэтапного подтверждения. Эта команда пока не выполняет операцию.');return;}
+          if(cmd==='/setpermission'||cmd==='/revokepermission'){await send('Используй существующее безопасное назначение ролей через карточку пользователя: /юзер @username.');return;}
+          if(cmd==='/stafflist'||cmd==='/permissions'){const q=await pool.query('SELECT telegram_id,username,role,updated_at FROM admin_roles ORDER BY role,telegram_id');await send('Команда VIBE:\n'+(q.rows.map(x=>x.role+' — '+(x.username?'@'+x.username:x.telegram_id)).join('\n')||'Сотрудников нет.'));return;}
+          if(cmd==='/backupconfig'){const q=await pool.query('SELECT name,value FROM moderation_settings ORDER BY name');await send('Настройки (скопируй для резервной копии):\n'+JSON.stringify(q.rows));return;}
+          if(cmd==='/restoreconfig'){await send('Формат восстановления будет добавлен после проектирования безопасного импорта JSON. Данные не изменены.');return;}
+          const q=await pool.query('SELECT action,actor_telegram_id,target_user_id,details,created_at FROM moderation_audit ORDER BY created_at DESC LIMIT 25');await send('Журнал VIBE:\n'+(q.rows.map(x=>new Date(x.created_at).toLocaleString('ru-RU')+' '+x.action+' actor='+x.actor_telegram_id+' target='+(x.target_user_id||'—')+' '+x.details).join('\n')||'Записей нет.'));return;
+        }
+      } catch(e) { console.error('Moderation command failed:',cmd,e.message); await send('Не удалось выполнить команду. Проверь аргументы и повтори попытку.'); return; }
+    }
     if(m && (cmd==='/бан' || cmd==='/ban') && /^все$/i.test(arg)){
       if(!isDeveloper){await send('⛔ Недостаточно прав. Команда /бан все доступна только разработчику.');return;}
       const reason=txt.split(/\s+/).slice(2).join(' ').trim();
