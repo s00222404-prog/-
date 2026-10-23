@@ -882,7 +882,7 @@ app.post('/telegram/webhook', (req,res) => {
           await send(reply); return;
         }
       }
-      if (firstVisit && !['en','ru','de'].includes((await pool.query("SELECT language FROM users WHERE telegram_id=$1",[String(from.id)])).rows[0]?.language)) {
+      if (firstVisit) {
         reply='✨ Welcome to VIBE! Please choose your language:';
         markup={inline_keyboard:[[{text:'🇬🇧 English',callback_data:'lang:set:en'},{text:'🇩🇪 Deutsch',callback_data:'lang:set:de'},{text:'🇷🇺 Русский',callback_data:'lang:set:ru'}]]};
       } else if (firstVisit) {
