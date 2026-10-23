@@ -1,243 +1,243 @@
 export const EXTRA_ADMIN_COMMANDS = [
   {
     "command": "stats",
-    "description": "Show platform statistics"
+    "description": "Показать статистику платформы"
   },
   {
     "command": "today",
-    "description": "Accounts created today"
+    "description": "Новые аккаунты за сегодня"
   },
   {
     "command": "week",
-    "description": "Accounts created this week"
+    "description": "Новые аккаунты за неделю"
   },
   {
     "command": "pending",
-    "description": "Count pending profiles"
+    "description": "Количество анкет на проверке"
   },
   {
     "command": "published",
-    "description": "Count published profiles"
+    "description": "Количество опубликованных анкет"
   },
   {
     "command": "rejected",
-    "description": "Count rejected profiles"
+    "description": "Количество отклонённых анкет"
   },
   {
     "command": "reports",
-    "description": "List open reports"
+    "description": "Список открытых жалоб"
   },
   {
     "command": "reportstats",
-    "description": "Report statistics"
+    "description": "Статистика жалоб"
   },
   {
     "command": "flags",
-    "description": "List open moderation flags"
+    "description": "Открытые сигналы модерации"
   },
   {
     "command": "flagstats",
-    "description": "Moderation flag statistics"
+    "description": "Статистика сигналов модерации"
   },
   {
     "command": "recent",
-    "description": "Recently registered users"
+    "description": "Недавно зарегистрированные пользователи"
   },
   {
     "command": "inactive",
-    "description": "Accounts inactive for 30 days"
+    "description": "Неактивные более 30 дней аккаунты"
   },
   {
     "command": "search",
-    "description": "Search users by name or username"
+    "description": "Поиск по имени или username"
   },
   {
     "command": "bycity",
-    "description": "Count profiles by city"
+    "description": "Количество анкет по городу"
   },
   {
     "command": "topcities",
-    "description": "Most common profile cities"
+    "description": "Популярные города в анкетах"
   },
   {
     "command": "interests",
-    "description": "Popular profile interests"
+    "description": "Популярные интересы пользователей"
   },
   {
     "command": "likes",
-    "description": "Likes and mutual matches count"
+    "description": "Количество лайков и взаимных симпатий"
   },
   {
     "command": "matches",
-    "description": "Count mutual matches"
+    "description": "Количество взаимных симпатий"
   },
   {
     "command": "chats",
-    "description": "Count active conversations"
+    "description": "Количество активных переписок"
   },
   {
     "command": "messages",
-    "description": "Count messages"
+    "description": "Количество сообщений"
   },
   {
     "command": "profiles",
-    "description": "Profile listing statistics"
+    "description": "Статистика анкет"
   },
   {
     "command": "verified",
-    "description": "Count age-verified users"
+    "description": "Количество подтверждённых совершеннолетних"
   },
   {
     "command": "unverified",
-    "description": "Count users awaiting age verification"
+    "description": "Ожидают подтверждения возраста"
   },
   {
     "command": "agequeue",
-    "description": "List age verification requests"
+    "description": "Очередь проверки возраста"
   },
   {
     "command": "staff",
-    "description": "List staff roles"
+    "description": "Список ролей команды"
   },
   {
     "command": "admins",
-    "description": "List administrators"
+    "description": "Список администраторов"
   },
   {
     "command": "moderators",
-    "description": "List moderators"
+    "description": "Список модераторов"
   },
   {
     "command": "helpers",
-    "description": "List helpers"
+    "description": "Список помощников"
   },
   {
     "command": "rolecheck",
-    "description": "Check a user's admin role"
+    "description": "Проверить роль пользователя"
   },
   {
     "command": "permissions",
-    "description": "Explain your command permissions"
+    "description": "Показать ваши права доступа"
   },
   {
     "command": "statuslist",
-    "description": "Count public profile badges"
+    "description": "Статистика публичных статусов"
   },
   {
     "command": "review",
-    "description": "Mark a report or flag as reviewing"
+    "description": "Взять жалобу или сигнал на проверку"
   },
   {
     "command": "resolve",
-    "description": "Resolve a report or flag by ID"
+    "description": "Закрыть жалобу или сигнал по ID"
   },
   {
     "command": "dismiss",
-    "description": "Dismiss a report or flag by ID"
+    "description": "Отклонить жалобу или сигнал по ID"
   },
   {
     "command": "approve",
-    "description": "Approve a profile listing by ID"
+    "description": "Одобрить анкету по ID"
   },
   {
     "command": "reject",
-    "description": "Reject a profile listing by ID"
+    "description": "Отклонить анкету по ID"
   },
   {
     "command": "hide",
-    "description": "Hide a published listing by ID"
+    "description": "Скрыть опубликованную анкету по ID"
   },
   {
     "command": "show",
-    "description": "Publish an approved listing by ID"
+    "description": "Опубликовать одобренную анкету по ID"
   },
   {
     "command": "restrict",
-    "description": "Restrict a user account"
+    "description": "Ограничить аккаунт пользователя"
   },
   {
     "command": "suspend",
-    "description": "Suspend a user account"
+    "description": "Приостановить аккаунт пользователя"
   },
   {
     "command": "restore",
-    "description": "Restore a user account"
+    "description": "Восстановить аккаунт пользователя"
   },
   {
     "command": "health",
-    "description": "Check service and database health"
+    "description": "Проверить состояние сервиса и базы данных"
   },
   {
     "command": "ping",
-    "description": "Check bot response"
+    "description": "Проверить ответ бота"
   },
   {
     "command": "dbcheck",
-    "description": "Check VIBE database connectivity"
+    "description": "Проверить подключение к базе VIBE"
   },
   {
     "command": "botinfo",
-    "description": "Show bot and app information"
+    "description": "Информация о боте и приложении"
   },
   {
     "command": "myrole",
-    "description": "Show your current role"
+    "description": "Показать вашу текущую роль"
   },
   {
     "command": "queueall",
-    "description": "Summarize all moderation queues"
+    "description": "Сводка по всем очередям модерации"
   },
   {
     "command": "flagqueue",
-    "description": "Show open moderation flags"
+    "description": "Показать открытые сигналы модерации"
   },
   {
     "command": "reportqueue",
-    "description": "Show open reports"
+    "description": "Показать открытые жалобы"
   },
   {
     "command": "profilequeue",
-    "description": "Show pending profile listings"
+    "description": "Показать анкеты на проверке"
   },
   {
     "command": "oldreports",
-    "description": "Show reports older than seven days"
+    "description": "Жалобы старше семи дней"
   },
   {
     "command": "closedreports",
-    "description": "Count resolved or dismissed reports"
+    "description": "Количество закрытых жалоб"
   },
   {
     "command": "banned",
-    "description": "List banned accounts"
+    "description": "Список заблокированных аккаунтов"
   },
   {
     "command": "restricted",
-    "description": "List restricted accounts"
+    "description": "Список аккаунтов с ограничениями"
   },
   {
     "command": "suspended",
-    "description": "List suspended accounts"
+    "description": "Список приостановленных аккаунтов"
   },
   {
     "command": "blocked",
-    "description": "Count block relationships"
+    "description": "Количество блокировок пользователей"
   },
   {
     "command": "blocks",
-    "description": "Show block relationship statistics"
+    "description": "Статистика блокировок пользователей"
   },
   {
     "command": "likesstats",
-    "description": "Detailed likes statistics"
+    "description": "Подробная статистика лайков"
   },
   {
     "command": "matchstats",
-    "description": "Detailed mutual match statistics"
+    "description": "Подробная статистика взаимных симпатий"
   },
   {
     "command": "activity",
-    "description": "Show last-24-hour activity"
+    "description": "Активность за последние 24 часа"
   }
 ];
 
