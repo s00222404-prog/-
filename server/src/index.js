@@ -34,9 +34,14 @@ const BAN_REASONS = {
 function telegramCommandsForRole(_role) { return []; }
 async function hideTelegramCommands(token) {
   if (!token) return;
-  for (const language_code of [undefined, 'ru', 'en']) {
-    const body={commands:[]}; if(language_code) body.language_code=language_code;
-    await fetch('https://api.telegram.org/bot'+token+'/setMyCommands',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const scopes=[{type:'default'},{type:'all_private_chats'},{type:'all_group_chats'}];
+  const staff=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator','helper')");
+  const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(x=>String(x.telegram_id))]);
+  for(const id of ids) scopes.push({type:'chat',chat_id:Number(id)});
+  for(const scope of scopes) for(const language_code of [undefined,'ru','en']) {
+    const body={commands:[],scope}; if(language_code) body.language_code=language_code;
+    const r=await fetch('https://api.telegram.org/bot'+token+'/setMyCommands',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    const result=await r.json(); if(!result.ok) console.error('Telegram menu clear failed:',scope.type,result.description);
   }
 }
 function hashAdminPassword(password,salt){return scryptSync(password,salt,64).toString('hex');}
