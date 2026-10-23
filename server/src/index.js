@@ -549,8 +549,9 @@ app.post('/telegram/webhook', (req,res) => {
         await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,(date_trunc('day', NOW() AT TIME ZONE $2) + INTERVAL '1 day') AT TIME ZONE $2) ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id),q.rows[0].time_zone]);
         await send('Доступ открыт до 00:00 по времени '+q.rows[0].time_zone+'.\n\n'+adminCommandHelp(role));return;
       }
-      // Ordinary text is not a bot command; don't respond to it.
-      if(!isDeveloper) return;
+      // For staff accounts, do not pass a failed password attempt into the public user-help flow.
+      // This prevents the regular user menu from appearing after an invalid admin password.
+      return;
     }
     // Keep the old slash login compatible, if an admin still uses it.
     if(m&&roleRank[role]>=roleRank.admin&&/^\/(вход|adminlogin)(?:@\S+)?$/i.test(cmd)){
