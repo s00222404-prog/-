@@ -91,6 +91,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [people, setPeople] = useState([]);
   const [likesData, setLikesData] = useState({incoming:[],outgoing:[]});
+  const [mutualIds, setMutualIds] = useState([]);
   const [myListing, setMyListing] = useState(null);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -178,7 +179,10 @@ function App() {
       const chatData = await request('/api/chats');
       setChats(chatData.chats || []);
       const likes = await request('/api/likes').catch(() => ({incoming:[],outgoing:[]}));
-      setLikesData({incoming:likes.incoming||[],outgoing:likes.outgoing||[]});
+      const incomingLikes = likes.incoming || [];
+      const outgoingLikes = likes.outgoing || [];
+      setLikesData({incoming:incomingLikes,outgoing:outgoingLikes});
+      setMutualIds(incomingLikes.filter(person => outgoingLikes.some(other => String(other.id) === String(person.id))).map(person => String(person.id)));
     } catch (e) {
       if (e.banned) {
         setUser({ account_status: 'banned', moderation_note: e.banReason, ban_issuer_label: e.banIssuer });
@@ -262,6 +266,7 @@ function App() {
       const result = await request('/api/likes/' + encodeURIComponent(person.id), { method: 'POST' });
       setPeople(current => current.filter(p => p.id !== person.id));
       setLikesData(current => ({incoming:current.incoming.filter(p=>String(p.id)!==String(person.id)),outgoing:[person,...current.outgoing.filter(p=>String(p.id)!==String(person.id))]}));
+      if (result.matched) setMutualIds(current => current.includes(String(person.id)) ? current : [...current, String(person.id)]);
       setNotice(result.matched ? 'У вас взаимная симпатия 💜' : 'Симпатия отправлена.');
     } catch (e) { setError(e.message); }
   }
@@ -337,9 +342,7 @@ function App() {
     setPeople(current => current.filter(p => String(p.id) !== String(person.id)));
   }
 
-  const isMutualMatch = personId =>
-    likesData.incoming.some(person => String(person.id) === String(personId)) &&
-    likesData.outgoing.some(person => String(person.id) === String(personId));
+  const isMutualMatch = personId => mutualIds.includes(String(personId));
 
   const normalizedFeedSearch = feedSearch.trim().toLocaleLowerCase();
   const cityOptions = [...new Set(people.map(person => person.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -357,7 +360,7 @@ function App() {
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><LanguagePicker/><button className="avatar" aria-label="Открыть мой профиль" onClick={() => setProfileOpen(true)}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
     <section className="hero"><div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА</div><h1>Люди, с которыми<br/><span>совпадает вайб.</span></h1><p>Настоящие анкеты пользователей VIBE — без выдуманных профилей.</p></section>
-    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); setLikesData({incoming:data.incoming||[],outgoing:data.outgoing||[]}); } catch(e) { setError(e.message); } }}><Heart size={17}/> Симпатии <span className="tab-count">{likesData.incoming.length}</span></button><button className={tab === 'listing' ? 'active' : ''} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={17}/> Моя анкета</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты <span className="tab-count">{chats.length}</span></button></nav>
+    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); const incomingLikes = data.incoming || []; const outgoingLikes = data.outgoing || []; setLikesData({incoming:incomingLikes,outgoing:outgoingLikes}); setMutualIds(incomingLikes.filter(person => outgoingLikes.some(other => String(other.id) === String(person.id))).map(person => String(person.id))); } catch(e) { setError(e.message); } }}><Heart size={17}/> Симпатии <span className="tab-count">{likesData.incoming.length}</span></button><button className={tab === 'listing' ? 'active' : ''} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={17}/> Моя анкета</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты <span className="tab-count">{chats.length}</span></button></nav>
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
