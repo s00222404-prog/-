@@ -544,10 +544,10 @@ app.post('/telegram/webhook', (req,res) => {
     }
     // Plain-text password login: no slash or command prefix. Non-staff messages are ignored.
     if(m && txt && !txt.startsWith('/') && roleRank[role]>=roleRank.admin){
-      const q=await pool.query('SELECT salt,password_hash FROM admin_access_passwords WHERE telegram_id=$1',[String(from.id)]);
+      const q=await pool.query('SELECT p.salt,p.password_hash,t.time_zone FROM admin_access_passwords p JOIN admin_access_timezones t ON t.telegram_id=p.telegram_id WHERE p.telegram_id=$1',[String(from.id)]);
       if(q.rowCount && verifyAdminPassword(txt,q.rows[0].salt,q.rows[0].password_hash)){
-        await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,(date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') + INTERVAL '1 day') AT TIME ZONE 'Europe/Berlin') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
-        await send('✅ Доступ открыт до 00:00 по настроенному часовому поясу.\n\n'+adminCommandHelp(role));return;
+        await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,(date_trunc('day', NOW() AT TIME ZONE $2) + INTERVAL '1 day') AT TIME ZONE $2) ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id),q.rows[0].time_zone]);
+        await send('Доступ открыт до 00:00 по времени '+q.rows[0].time_zone+'.\n\n'+adminCommandHelp(role));return;
       }
       // Ordinary text is not a bot command; don't respond to it.
       if(!isDeveloper) return;
