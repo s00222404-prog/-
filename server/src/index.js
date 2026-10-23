@@ -14,7 +14,7 @@ const ROLE_LABELS = { developer: 'Разработчик', chief_admin: 'Гла�
 const roleRank = { none: 0, helper: 1, moderator: 2, admin: 3, chief_admin: 4, developer: 5 };
 async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
   if (!process.env.BOT_TOKEN) return;
-  const text = '🚨 Попытка действия против разработчика @rootkit_sec\nДействие: ' + action + '\nКто: ' + (actorName || 'неизвестно') + (actorUsername ? ' (@' + actorUsername + ')' : '') + '\nTelegram ID: ' + (actorId ?? 'неизвестен') + '\nИсточник: ' + source + '\nЗащита VIBE заблокировала действие.';
+  const text = '🚨 Попытка действия против разработчика @rootkit_sec\nДействие: ' + action + '\nКто пытался: ' + (actorUsername ? '@' + actorUsername : (actorName || 'неизвестно')) + (actorUsername && actorName ? ' (' + actorName + ')' : '') + '\nИсточник: ' + source + '\nЗащита VIBE заблокировала действие.';
   try {
     const r = await fetch('https://api.telegram.org/bot' + process.env.BOT_TOKEN + '/sendMessage', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({chat_id:DEVELOPER_TELEGRAM_ID,text}) });
     if (!r.ok) console.error('Developer protection notification failed:', await r.text());
