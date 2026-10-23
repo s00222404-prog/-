@@ -135,7 +135,7 @@ app.put('/api/me',auth,wrap(async(req,res)=>{
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
   if(gender!==null&&!['woman','man','nonbinary','prefer_not_to_say'].includes(gender)) return res.status(400).json({error:'Invalid gender'});
   const d=birthDate?new Date(birthDate+'T00:00:00Z'):null;
-  if(birthDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)||Number.isNaN(d.getTime())||d.toISOString().slice(0,10)!==birthDate||d>new Date())) return res.status(400).json({error:'Invalid birth date'});
+  if(!birthDate||!/^\\d{4}-\\d{2}-\\d{2}$/.test(birthDate)||!d||Number.isNaN(d.getTime())||d.toISOString().slice(0,10)!==birthDate||d>new Date()) return res.status(400).json({error:'Укажи корректную дату рождения, чтобы создать профиль.'});
   const q=await pool.query(`UPDATE users SET birth_date=$1,age_confirmed=$2,gender=$3,bio=$4,city=$5,photo_url=$6,goal=$7,interests=$8,updated_at=NOW()
     WHERE id=$9 RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,
     [birthDate||null,Boolean(birthDate),gender,bio,city,photoUrl,goal,interests,req.user.id]);
