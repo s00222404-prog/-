@@ -384,7 +384,7 @@ app.post('/telegram/webhook', (req,res) => {
       if(!isDeveloper){await send('⛔ Публичные статусы может выдавать и снимать только Разработчик.');return;}
       const parts=txt.split(/\s+/);
       const key=(parts[1]||'').replace(/^@/,'');
-      if(!key){await send(cmd.startsWith('/без')?'Использование: /безпаливные @username или 001234':'Использование: /паливные @username или 001234 помощник|модератор|администратор|главный_администратор');return;}
+      if(!key){await send((cmd.startsWith('/без')||cmd==='/clearstatus')?'Формат: /безпаливные @username или /clearstatus @username':'Формат: /паливные @username помощник|модератор|администратор|главный_администратор\nИли: /publicstatus @username helper|moderator|admin|chief_admin');return;}
       const target=await pool.query("SELECT id,telegram_id,username,first_name FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);
       if(!target.rowCount){await send('Пользователь не найден. Проверьте @username или шестизначный код профиля.');return;}
       const u=target.rows[0];
