@@ -11,6 +11,8 @@ function App() {
   const [tab, setTab] = useState('discover');
   const [user, setUser] = useState(null);
   const [people, setPeople] = useState([]);
+  const [myListing, setMyListing] = useState(null);
+  const [viewingProfile, setViewingProfile] = useState(null);
   const [profile, setProfile] = useState({ birthDate: '', gender: '', bio: '', city: '', photoUrl: '', goal: 'both', interests: '' });
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -78,8 +80,9 @@ function App() {
       setAgeStatus(age);
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
-      const myListing = await request('/api/listings/mine').catch(() => ({listing:null}));
-      if (myListing.listing) setListing({name:myListing.listing.name,age:String(myListing.listing.age),city:myListing.listing.city,country:myListing.listing.country,hobbies:myListing.listing.hobbies||'',description:myListing.listing.description||''});
+      const mine = await request('/api/listings/mine').catch(() => ({listing:null}));
+      setMyListing(mine.listing || null);
+      if (mine.listing) setListing({name:mine.listing.name,age:String(mine.listing.age),city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',description:mine.listing.description||''});
       const chatData = await request('/api/chats');
       setChats(chatData.chats || []);
     } catch (e) {
@@ -210,7 +213,9 @@ function App() {
     setPublishing(true); setError(''); setNotice('');
     try {
       const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:Number(listing.age)})});
-      setListing({...result.listing,age:String(result.listing.age)});
+      const savedListing={...result.listing,age:String(result.listing.age)};
+      setListing(savedListing);
+      setMyListing(savedListing);
       const discovery=await request('/api/discover'); setPeople(discovery.people||[]);
       setNotice('Анкета опубликована и отправлена в рекомендации VIBE.');
       setTab('discover');
@@ -224,12 +229,13 @@ function App() {
     setReporting(true);
     setError('');
     try {
-      await request('/api/reports/' + encodeURIComponent(reportTarget.id), {
+      const ticket = await request('/api/reports/' + encodeURIComponent(reportTarget.id), {
         method: 'POST',
         body: JSON.stringify({ reason: reportReason.trim(), details: reportDetails.trim() })
       });
-      setNotice('Жалоба отправлена. Администраторы получат уведомление в Telegram.');
+      setNotice('Жалоба-тикет №' + ticket.reportId + ' отправлена. Администраторы получат уведомление в Telegram.');
       setReportTarget(null);
+      setViewingProfile(null);
       setReportReason('');
       setReportDetails('');
     } catch (e) { setError(e.message || 'Не удалось отправить жалобу.'); }
@@ -255,9 +261,10 @@ function App() {
       {people.length === 0 && <div className="empty"><Sparkles/><h3>Пока нет доступных анкет</h3><p>Основной интерфейс открыт для просмотра. Анкеты появятся после регистрации пользователей и необходимых проверок.</p></div>}
       {people.map(p => <article className="person-card" key={p.id}>
         <div className="person-art violet">{p.photo_url ? <img src={p.photo_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <div className="person-initial">{(p.name || '?').slice(0,1)}</div>}<span className="art-caption">VIBE / MEMBER</span></div>
-        <div className="person-info"><div className="person-title"><div><h3>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}{p.role_label && <span className="staff-rank" style={{display:'inline-flex',marginLeft:8,padding:'3px 8px',borderRadius:999,fontSize:11,fontWeight:700,verticalAlign:'middle',background:p.public_role==='developer'?'#3b235d':p.public_role==='chief_admin'?'#4a3514':'#25223a',color:p.public_role==='developer'?'#e6c7ff':p.public_role==='chief_admin'?'#ffd98a':'#d7c7ff'}}>{p.role_label}</span>}</h3><span className="location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span></div></div><p>{p.description || p.bio || 'Пока без описания.'}</p><div className="chips">{(p.interests || []).map(x => <span key={x}>{x}</span>)}</div><div className="card-actions"><button className="skip" onClick={() => skip(p)}>Пропустить</button><button className="like" onClick={() => like(p)}><Heart size={17} fill="currentColor"/> Нравится</button><button className="skip" onClick={() => { setReportTarget(p); setReportReason(''); setReportDetails(''); }}>Пожаловаться</button></div></div>
+        <div className="person-info"><div className="person-title"><div><h3>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}{p.role_label && <span className="staff-rank" style={{display:'inline-flex',marginLeft:8,padding:'3px 8px',borderRadius:999,fontSize:11,fontWeight:700,verticalAlign:'middle',background:p.public_role==='developer'?'#3b235d':p.public_role==='chief_admin'?'#4a3514':'#25223a',color:p.public_role==='developer'?'#e6c7ff':p.public_role==='chief_admin'?'#ffd98a':'#d7c7ff'}}>{p.role_label}</span>}</h3><span className="location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span></div></div><p>{p.description || p.bio || 'Пока без описания.'}</p><div className="chips">{(p.interests || []).map(x => <span key={x}>{x}</span>)}</div><div className="card-actions"><button className="skip" onClick={() => setViewingProfile(p)}>Посмотреть анкету</button><button className="skip" onClick={() => skip(p)}>Пропустить</button><button className="like" onClick={() => like(p)}><Heart size={17} fill="currentColor"/> Нравится</button><button className="skip" onClick={() => { setViewingProfile(null); setReportTarget(p); setReportReason(''); setReportDetails(''); }}>Пожаловаться</button></div></div>
       </article>)}
     </section>}
+    {viewingProfile && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setViewingProfile(null)}>← Назад</button><h2>{viewingProfile.name || 'Пользователь'}{viewingProfile.age ? ', ' + viewingProfile.age : ''}</h2>{viewingProfile.photo_url && <img src={viewingProfile.photo_url} alt="Фото анкеты" style={{width:'100%',maxHeight:320,objectFit:'contain',borderRadius:14,background:'#0f0d16',margin:'14px 0'}}/>}<p><b>Город:</b> {[viewingProfile.city,viewingProfile.country].filter(Boolean).join(', ') || 'Не указан'}</p><p><b>О себе:</b> {viewingProfile.description || viewingProfile.bio || 'Описание не добавлено.'}</p><p><b>Интересы:</b> {(viewingProfile.interests || []).join(', ') || 'Не указаны'}</p>{String(viewingProfile.id) !== String(user?.id) && <button className="save" onClick={() => { setReportTarget(viewingProfile); setViewingProfile(null); setReportReason(''); setReportDetails(''); }}>Подать жалобу / создать тикет</button>}</section></div>}
     {reportTarget && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setReportTarget(null)}>← Отмена</button><h2>Пожаловаться на {reportTarget.name || 'пользователя'}</h2><p>Жалоба попадёт администраторам VIBE для проверки.</p><form onSubmit={submitReport}><label>Причина<select value={reportReason} onChange={e => setReportReason(e.target.value)} required><option value="">Выбери причину</option><option value="Спам">Спам</option><option value="Оскорбления или угрозы">Оскорбления или угрозы</option><option value="Фейковая анкета">Фейковая анкета</option><option value="Неприемлемый контент">Неприемлемый контент</option><option value="Подозрение на мошенничество">Подозрение на мошенничество</option><option value="Другое">Другое</option></select></label><label>Подробности (необязательно)<textarea value={reportDetails} onChange={e => setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло"/></label><button className="save" type="submit" disabled={reporting}>{reporting ? 'Отправляем…' : 'Отправить жалобу'}</button></form></section></div>}
     {!loading && user?.admin_access && <section className="panel"><div className="panel-icon"><ShieldAlert/></div><h2>Модерация: бан по коду</h2><p>Код из карточки пользователя в боте — ровно 6 цифр.</p><form onSubmit={banByCode}><label>Код профиля<input value={banCode} onChange={e=>setBanCode(e.target.value.replace(/\\D/g,'').slice(0,6))} inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} placeholder="001234" required/></label><label>Причина бана<textarea value={banReason} onChange={e=>setBanReason(e.target.value)} maxLength={500} required placeholder="Причина бана"/></label><button className="save" type="submit">Забанить профиль</button></form>{banResult && <p role="status">{banResult}</p>}</section>}
     {!loading && tab === 'likes' && <section className="panel"><div className="panel-icon"><Heart/></div><h2>Симпатии</h2><p>Когда симпатия взаимная, здесь можно начать переписку через раздел «Чаты».</p><button className="save" onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button></section>}
@@ -273,7 +280,7 @@ function App() {
       <p className="field-hint">Перед публикацией проверяем текст на ругательства и пошлые выражения. Возраст анкеты должен быть 18+.</p>
       <button className="save" type="submit" disabled={publishing}><PlusCircle size={16}/>{publishing?'Публикуем…':'Опубликовать анкету'}<ArrowRight size={16}/></button>
     </form></section>}
-    {!loading && tab === 'profile' && <section className="panel profile-panel"><div className="panel-icon"><UserRound/></div><h2>Твой профиль</h2><p>Профиль сохраняется в базе данных и привязывается к твоему Telegram.</p>
+    {!loading && tab === 'profile' && <><section className="panel profile-panel"><div className="panel-icon"><UserRound/></div><h2>Твой профиль</h2><p>Профиль сохраняется в базе данных и привязывается к твоему Telegram.</p>{myListing ? <div className="own-listing-preview"><h3>Твоя публичная анкета</h3><p><b>{myListing.name}</b>{myListing.age ? ', ' + myListing.age : ''} · {[myListing.city,myListing.country].filter(Boolean).join(', ')}</p><p>{myListing.description || 'Описание не добавлено.'}</p><p><b>Хобби:</b> {myListing.hobbies || 'Не указаны'}</p><button className="skip" type="button" onClick={() => setViewingProfile({...myListing,id:user?.id,photo_url:user?.photo_url,interests:(myListing.hobbies||'').split(',').map(x=>x.trim()).filter(Boolean)})}>Посмотреть свою анкету</button><button className="skip" type="button" onClick={() => setTab('listing')}>Редактировать анкету</button></div> : <div className="own-listing-preview"><h3>Публичной анкеты пока нет</h3><p>Создай отдельную анкету, чтобы её можно было посмотреть в этом разделе.</p><button className="save" type="button" onClick={() => setTab('listing')}>Создать анкету</button></div>}
       <form onSubmit={saveProfile}>
         <label>Имя в Telegram<input value={user?.first_name || ''} readOnly/></label>
         <label>Username Telegram<input value={user?.username ? '@' + user.username : 'Не указан'} readOnly/></label>
@@ -292,7 +299,7 @@ function App() {
         {ageStatus && <p>Статус проверки возраста: <b>{({unverified:'не подтверждён',pending:'на проверке',verified:'подтверждён',rejected:'отклонён',manual_review:'нужна дополнительная проверка'})[ageStatus.status] || 'неизвестен'}</b></p>}
         <button className="save" type="submit" disabled={saving || uploadingMedia}><PlusCircle size={16}/>{saving ? 'Сохраняем…' : (user?.bio || user?.photo_url || user?.city ? 'Сохранить анкету' : 'Создать анкету')} <ArrowRight size={16}/></button>
       </form>
-    </section>}
+    </section></>}
     <footer><span>vibe. © 2026</span><span><Lock size={12}/> Безопасность важна</span></footer>
   </main>;
 }
