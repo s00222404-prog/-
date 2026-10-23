@@ -87,11 +87,11 @@ async function auth(req,res,next) {
     const identity = validateTelegramInitData(req.get('X-Telegram-Init-Data'), process.env.BOT_TOKEN);
     const q = await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
       ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
-      RETURNING id,telegram_id,username,first_name,birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status`,
+      RETURNING id,telegram_id,username,first_name,birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status,ban_issuer`,
       [identity.id,identity.username,identity.firstName,identity.photoUrl]);
     req.user=q.rows[0];
     if (req.user.account_status === 'banned') {
-      return res.status(403).json({ error: 'Ваш аккаунт забанен', banned: true, reason: req.user.moderation_note || 'Причина не указана', moderation_note: req.user.moderation_note || '' });
+      return res.status(403).json({ error: 'Ваш аккаунт забанен', banned: true, reason: req.user.moderation_note || 'Причина не указана', moderation_note: req.user.moderation_note || '', ban_issuer: req.user.ban_issuer || 'moderator', ban_issuer_label: (req.user.ban_issuer || 'moderator') === 'developer' ? 'разработчиком' : 'модератором' });
     }
     if (['suspended','restricted'].includes(req.user.account_status)) {
       return res.status(403).json({ error: 'Доступ к аккаунту ограничен', restricted: true, reason: req.user.moderation_note || 'Причина не указана' });
@@ -384,7 +384,7 @@ app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
   const actorRole=await getRole(req.user.telegram_id);
   const targetRole=await getRole(targetUser.telegram_id);
   if(roleRank[targetRole]>=roleRank[actorRole]) return res.status(403).json({error:'Нельзя банить пользователя с равным или более высоким рангом'});
-  const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING id,first_name,username,telegram_id",[reason,targetUser.id]);
+  const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3 RETURNING id,first_name,username,telegram_id",[reason,targetUser.id]);
   res.json({banned:true,user:{...q.rows[0],profile_code:String(q.rows[0].id).padStart(6,'0')},reason});
 }));
 app.get('/api/admin/users/:code',auth,adminOnly,wrap(async(req,res)=>{
@@ -438,9 +438,10 @@ app.post('/telegram/webhook', (req,res) => {
     const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,...(markup?{reply_markup:markup}:{})})});
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
-    const ownAccount=from?.id ? await pool.query('SELECT account_status,moderation_note FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]) : {rowCount:0,rows:[]};
+    const ownAccount=from?.id ? await pool.query('SELECT account_status,moderation_note,ban_issuer FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]) : {rowCount:0,rows:[]};
     if(ownAccount.rowCount && ownAccount.rows[0].account_status==='banned' && String(from.id)!==DEVELOPER_TELEGRAM_ID){
-      const bannedText='⛔ Ваш аккаунт забанен.\nПричина: '+(ownAccount.rows[0].moderation_note||'Причина не указана')+'\nДоступ к VIBE заблокирован.';
+      const issuer=(ownAccount.rows[0].ban_issuer||'moderator')==='developer'?'разработчиком':'модератором';
+      const bannedText='⛔ Ваш аккаунт забанен.\nКем заблокирован: '+issuer+'.\nПричина: '+(ownAccount.rows[0].moderation_note||'Причина не указана')+'\nДоступ к VIBE заблокирован.';
       if(cb){await answer('Ваш аккаунт забанен');}
       if(m || cb) await send(bannedText);
       return;
@@ -449,7 +450,7 @@ app.post('/telegram/webhook', (req,res) => {
       if(!isDeveloper){await send('⛔ Недостаточно прав. Команда /бан все доступна только разработчику.');return;}
       const reason=txt.split(/\s+/).slice(2).join(' ').trim();
       if(!reason || reason.length>500){await send('Укажите причину массовой блокировки (до 500 символов).\nФормат: /бан все причина');return;}
-      const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE telegram_id<>$2 AND account_status IS DISTINCT FROM 'banned' RETURNING id",[reason,DEVELOPER_TELEGRAM_ID]);
+      const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer='developer',updated_at=NOW() WHERE telegram_id<>$2 AND account_status IS DISTINCT FROM 'banned' RETURNING id",[reason,DEVELOPER_TELEGRAM_ID]);
       await send('⛔ Массовая блокировка завершена.\nЗаблокировано аккаунтов: '+q.rowCount+'\nПричина: '+reason);
       return;
     }
@@ -583,7 +584,7 @@ app.post('/telegram/webhook', (req,res) => {
       if(ok)markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/help'}]],resize_keyboard:true};
     }else if(cmd==='/бан'||cmd==='/ban'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
-      else{const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(@?[A-Za-z0-9_]{5,32}|\d{6})\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажите @username или шестизначный код профиля и причину блокировки.\nПример: /бан 001234 спам';else if(bm[2].trim().length>500)reply='Причина блокировки не должна превышать 500 символов.';else{const key=bm[1].replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Бан разработчика (команда /бан)',source:'Telegram-команда'});reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';}else if(!found.rowCount)reply='Пользователь не найден.';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING id,first_name,username",[bm[2].trim(),found.rows[0].id]);reply='⛔ Забанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').\nПричина: '+bm[2].trim();}}}
+      else{const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(@?[A-Za-z0-9_]{5,32}|\d{6})\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажите @username или шестизначный код профиля и причину блокировки.\nПример: /бан 001234 спам';else if(bm[2].trim().length>500)reply='Причина блокировки не должна превышать 500 символов.';else{const key=bm[1].replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Бан разработчика (команда /бан)',source:'Telegram-команда'});reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';}else if(!found.rowCount)reply='Пользователь не найден.';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING id,first_name,username",[bm[2].trim(),isDeveloper?'developer':'moderator',found.rows[0].id]);reply='⛔ Забанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').\nПричина: '+bm[2].trim();}}}
     }else if(cmd==='/разбан'||cmd==='/unban'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else if(!/^(@?[A-Za-z0-9_]{5,32}|\d{6})$/.test(arg))reply='Формат: /разбан @username или /разбан 001234';
@@ -637,6 +638,7 @@ async function start() {
       await pool.query("ALTER TABLE reports ADD COLUMN IF NOT EXISTS report_type TEXT NOT NULL DEFAULT 'profile'");
       await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS listing_id BIGINT');
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS public_status TEXT NOT NULL DEFAULT ''");
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_issuer TEXT NOT NULL DEFAULT 'moderator'");
     console.log('VIBE database schema ready');
   } catch (err) {
     console.error('VIBE database schema initialization failed:', err.message);
