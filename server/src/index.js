@@ -193,6 +193,8 @@ app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
 }));
 app.post('/api/listings',auth,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
+ const profileCheck=await pool.query('SELECT birth_date FROM users WHERE id=$1',[req.user.id]);
+ if(!profileCheck.rows[0]?.birth_date)return res.status(400).json({error:'Сначала заполни профиль и укажи дату рождения.'});
  if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя должно содержать от 2 до 60 символов.'});
  if(!Number.isInteger(Number(age))||Number(age)<1||Number(age)>120)return res.status(400).json({error:'Укажи возраст числом от 1 до 120.'});
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
