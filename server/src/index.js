@@ -403,7 +403,7 @@ app.post('/telegram/webhook', (req,res) => {
       return;
     }else if(cmd==='/статус'||cmd==='/status'){
       const maintenance=String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';
-      reply=maintenance?'VIBE | СТАТУС СЕРВИСА\nСтатус: техническое обслуживание\n'+(process.env.MAINTENANCE_MESSAGE||'В данный момент проводятся технические работы. Пожалуйста, повторите попытку позже.'):'VIBE | СТАТУС СЕРВИСА\nСтатус: работает штатно\nПриложение доступно.';
+      reply=maintenance?'VIBE | SERVICE STATUS\nStatus: maintenance\n'+(process.env.MAINTENANCE_MESSAGE||'Maintenance is in progress. Please try again later.'):'VIBE | SERVICE STATUS\nStatus: operational\nThe app is available.';
     }else if(cmd==='/start'){
       if(from?.id&&from?.first_name) {
         const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
@@ -416,10 +416,10 @@ app.post('/telegram/webhook', (req,res) => {
           await send(reply); return;
         }
       }
-      reply='Добро пожаловать в VIBE.\nДля продолжения откройте приложение с помощью кнопки ниже.';markup={inline_keyboard:[[{text:'Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
+      reply='Welcome to VIBE.\nOpen the app using the button below to continue.';markup={inline_keyboard:[[{text:'Open VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
-      reply=ok?'VIBE | ПАНЕЛЬ УПРАВЛЕНИЯ\nВаша роль: '+(role==='developer'?'Разработчик':ROLE_LABELS[role])+'\nВыберите действие из меню ниже:':'⛔ Команда доступна только администраторам.';
-      if(ok)markup={keyboard:[[{text:'/очередь'},{text:'/пользователи'}],[{text:'/юзер'},{text:'/помощь'}]],resize_keyboard:true};
+      reply=ok?'VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'⛔ This command is available to administrators only.';
+      if(ok)markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/help'}]],resize_keyboard:true};
     }else if(cmd==='/бан'||cmd==='/ban'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else{const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(@?[A-Za-z0-9_]{5,32}|\d{6})\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажите @username или шестизначный код профиля и причину блокировки.\nПример: /бан 001234 спам';else if(bm[2].trim().length>500)reply='Причина блокировки не должна превышать 500 символов.';else{const key=bm[1].replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Бан разработчика (команда /бан)',source:'Telegram-команда'});reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';}else if(!found.rowCount)reply='Пользователь не найден.';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,updated_at=NOW() WHERE id=$2 RETURNING id,first_name,username",[bm[2].trim(),found.rows[0].id]);reply='⛔ Забанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').\nПричина: '+bm[2].trim();}}}
@@ -442,7 +442,7 @@ app.post('/telegram/webhook', (req,res) => {
       else if(!arg)reply='Формат: /юзер @username, /юзер 001234 или /юзер Telegram_ID';
       else{const q=await pool.query(`SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')`,[arg]);if(!q.rowCount)reply='Пользователь не найден. Он должен хотя бы один раз открыть бота или приложение VIBE.';else{await card(q.rows[0].id);return;}}
     }else if(cmd==='/помощь'||cmd==='/help'){
-      reply=ok?'VIBE | СПРАВКА ПО КОМАНДАМ\n\n/адм — открыть панель управления\n/очередь — сводка модерации\n/пользователи — общее число аккаунтов\n/баны — список заблокированных аккаунтов\n/юзер @username или 001234 — карточка пользователя\n/бан 001234 причина — заблокировать аккаунт\n/разбан @username или 001234 — снять блокировку\n/удалить @username или 001234 — удалить аккаунт\n/статус — состояние сервиса\n'+(isDeveloper?'\nКОМАНДЫ РАЗРАБОТЧИКА\n/паливные @username помощник|модератор|администратор|главный_администратор — назначить публичный статус\n/безпаливные @username — снять публичный статус\n/publicstatus @username helper|moderator|admin|chief_admin — назначить статус\n/clearstatus @username — снять публичный статус\n\nПубличный статус не предоставляет административных прав. Административные права назначаются отдельно в карточке пользователя.':''):'Добро пожаловать в VIBE. Отправьте /start, чтобы открыть приложение.';
+      reply=ok?'VIBE | COMMAND HELP\n\n/admin — open the admin panel\n/queue — moderation queue summary\n/users — total registered accounts\n/bans — list banned accounts\n/user @username or 001234 — view a user card\n/ban 001234 reason — ban an account\n/unban @username or 001234 — unban an account\n/delete @username or 001234 — delete an account\n/status — check service status\n'+(isDeveloper?'\nDEVELOPER COMMANDS\n/publicstatus @username helper|moderator|admin|chief_admin — set a public profile badge\n/clearstatus @username — remove a public profile badge\n\nPublic badges do not grant admin permissions. Administrative roles are managed separately in the user card.':''):'Welcome to VIBE. Send /start to open the app.';
     }else if(cmd==='/очередь'||cmd==='/queue'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='VIBE | СВОДКА МОДЕРАЦИИ\nОткрытые жалобы: '+r.rows[0].count+'\nОткрытые сигналы модерации: '+f.rows[0].count;}
@@ -451,7 +451,7 @@ app.post('/telegram/webhook', (req,res) => {
       else{const q=await pool.query("SELECT id,first_name,username,telegram_id,moderation_note FROM users WHERE account_status='banned' ORDER BY updated_at DESC LIMIT 50");reply=q.rowCount?'VIBE | ЗАБЛОКИРОВАННЫЕ АККАУНТЫ ('+q.rowCount+')\n\n'+q.rows.map(u=>'ID анкеты: '+u.id+' — '+u.first_name+(u.username?' (@'+u.username+')':'')+'\nTelegram ID: '+u.telegram_id+'\nПричина: '+(u.moderation_note||'—')+'\nРазбан: '+(u.username?'/разбан @'+u.username:'нет username — используй кнопку в карточке пользователя')).join('\n\n'):'✅ Аккаунтов с активной блокировкой не найдено.';}
     }else if(cmd==='/пользователи'||cmd==='/users'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';else{const q=await pool.query('SELECT COUNT(*)::int count FROM users');reply='VIBE | СТАТИСТИКА\nВсего аккаунтов: '+q.rows[0].count;}
-    }else{reply='Отправьте /start, чтобы открыть приложение VIBE.';markup={inline_keyboard:[[{text:'Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};}
+    }else{reply='Send /start to open the VIBE app.';markup={inline_keyboard:[[{text:'Open VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};}
     await send(reply,markup);
   })().catch(e=>console.error('Telegram webhook processing failed:',e.message));
 });
@@ -475,23 +475,23 @@ async function start() {
     const token = process.env.BOT_TOKEN;
     if (token) {
       const publicCommands = [
-        { command: 'start', description: 'Открыть приложение VIBE' },
-        { command: 'help', description: 'Справка и доступные команды' },
-        { command: 'status', description: 'Проверить состояние сервиса' }
+        { command: 'start', description: 'Open the VIBE app' },
+        { command: 'help', description: 'Show help and available commands' },
+        { command: 'status', description: 'Check service status' }
       ];
       const adminCommands = [...publicCommands,
-        { command: 'admin', description: 'Панель управления' },
-        { command: 'queue', description: 'Сводка модерации' },
-        { command: 'users', description: 'Статистика аккаунтов' },
-        { command: 'bans', description: 'Список заблокированных аккаунтов' },
-        { command: 'user', description: 'Карточка пользователя' },
-        { command: 'ban', description: 'Заблокировать аккаунт' },
-        { command: 'unban', description: 'Снять блокировку' },
-        { command: 'delete', description: 'Удалить аккаунт' }
+        { command: 'admin', description: 'Open the admin panel' },
+        { command: 'queue', description: 'View the moderation queue' },
+        { command: 'users', description: 'Count registered accounts' },
+        { command: 'bans', description: 'List banned accounts' },
+        { command: 'user', description: 'View a user profile card' },
+        { command: 'ban', description: 'Ban a user account' },
+        { command: 'unban', description: 'Unban a user account' },
+        { command: 'delete', description: 'Delete a user account' }
       ];
       const developerCommands = [...adminCommands,
-        { command: 'publicstatus', description: 'Назначить публичный статус профиля' },
-        { command: 'clearstatus', description: 'Снять публичный статус профиля' }
+        { command: 'publicstatus', description: 'Set a public profile badge' },
+        { command: 'clearstatus', description: 'Remove a public profile badge' }
       ];
       const setCommands = (commands, scope) => Promise.all([
         fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
