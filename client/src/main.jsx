@@ -319,13 +319,13 @@ function App() {
           {profile.photoUrl && <img className="profile-editor-photo" src={profile.photoUrl} alt="Предпросмотр фото профиля"/>}
           <span className="media-picker"><ImagePlus size={17}/>{uploadingMedia ? 'Обрабатываем фото…' : 'Выбрать фото'}<input type="file" accept="image/*" onChange={chooseMedia} disabled={uploadingMedia}/></span>
         </label>
-        <label>Дата рождения<input type="date" value={profile.birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setProfile({...profile,birthDate:e.target.value})}/><span className="field-hint">Дата используется для возрастных ограничений и проверки доступа.</span></label>
+        <label>Дата рождения<input type="date" value={profile.birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setProfile({...profile,birthDate:e.target.value})}/><span className="field-hint">Дата рождения определяет возрастную сторону: 14–17 лет или 18+. Не указывай ложную дату.</span></label>
         <label>Пол<select value={profile.gender} onChange={e=>setProfile({...profile,gender:e.target.value})}><option value="">Не указан</option><option value="woman">Женский</option><option value="man">Мужской</option><option value="nonbinary">Небинарный</option><option value="prefer_not_to_say">Не хочу указывать</option></select></label>
         <label>Город<input value={profile.city} maxLength={80} onChange={e=>setProfile({...profile,city:e.target.value})} placeholder="Например, Берлин"/></label>
         <label>О себе<textarea value={profile.bio} maxLength={500} onChange={e=>setProfile({...profile,bio:e.target.value})} placeholder="Расскажи немного о себе…"/></label>
         <label>Цель знакомства<select value={profile.goal} onChange={e=>setProfile({...profile,goal:e.target.value})}><option value="both">Общение и отношения</option><option value="friendship">Дружба</option><option value="chat">Общение</option><option value="relationship">Отношения</option></select></label>
         <label>Интересы через запятую<input value={profile.interests} maxLength={500} onChange={e=>setProfile({...profile,interests:e.target.value})} placeholder="Музыка, игры, кино, спорт"/></label>
-        {ageStatus && !ageStatus.adultAccess && <p className="field-hint">Заполнение даты рождения не заменяет проверку возраста, если она требуется для доступа к функциям знакомств.</p>}
+        {ageStatus && !ageStatus.adultAccess && <p className="field-hint">VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Взрослая сторона доступна после предусмотренной сервисом проверки возраста.</p>}
         <button className="save" type="submit" disabled={saving || uploadingMedia}><Lock size={15}/>{saving ? 'Сохраняем…' : 'Сохранить анкету'}</button>
         <button className="skip profile-public-listing-link" type="button" onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={15}/> Управлять публичной анкетой</button>
       </form>
