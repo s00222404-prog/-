@@ -118,7 +118,17 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
      const details='🆕 АНКЕТА НА МОДЕРАЦИЮ VIBE #'+listing.id+'\\nИмя: '+listing.name+'\\nВозраст: '+listing.age+'\\nГород: '+listing.city+', '+listing.country+'\\nХобби: '+(listing.hobbies||'—')+'\\nОписание: '+(listing.description||'—')+'\\nПрофиль сайта: '+code+'\\nПользователь: '+(u?.first_name||'неизвестно')+' (@'+(u?.username||'нет username')+')\\nTelegram ID: '+(u?.telegram_id||'нет аккаунта')+'\\nСоздано: '+created+'\\nФото: '+(u?.photo_url?'есть':'нет')+'\\nПроверь данные и выбери действие.';
      const keyboard={inline_keyboard:[[{text:'✅ Одобрить',callback_data:'l:approve:'+listing.id},{text:'❌ Отклонить',callback_data:'l:reject:'+listing.id}]]};
      await Promise.all([...ids].map(async chatId=>{
-       if(u?.photo_url && (u.photo_url.startsWith('http://') || u.photo_url.startsWith('https://'))) await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendPhoto',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,photo:u.photo_url,caption:'Фото анкеты #'+listing.id})}).catch(e=>console.error('Listing photo notification failed:',e.message));
+       if(u?.photo_url){
+         try {
+           const endpoint='https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendPhoto';
+           if(u.photo_url.startsWith('http://') || u.photo_url.startsWith('https://')) {
+             await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,photo:u.photo_url,caption:'Фото анкеты #'+listing.id})});
+           } else {
+             const encoded=u.photo_url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\\s\\S]+)$/);
+             if(encoded){const form=new FormData();form.append('chat_id',String(chatId));form.append('photo',new Blob([Buffer.from(encoded[2],'base64')],{type:encoded[1]}),'listing-photo');await fetch(endpoint,{method:'POST',body:form});}
+           }
+         } catch(e) { console.error('Listing photo notification failed:',e.message); }
+       }
        return fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:details,reply_markup:keyboard})}).catch(e=>console.error('Listing notification failed:',e.message));
      }));
    } catch(e) { console.error('Listing moderation notification failed:',e.message); }
