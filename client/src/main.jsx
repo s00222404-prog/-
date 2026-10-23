@@ -289,8 +289,4 @@ function Landing() {
   </main>;
 }
 
-function AdminLink() {
-  return <main className="app-shell"><header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><a href="/">← В приложение</a></header><section className="panel"><div className="panel-icon"><ShieldAlert/></div><h1>VIBE Admin</h1><p>Панель модерации доступна только авторизованным администраторам Telegram. Открой её из Mini App.</p><a className="save" href="https://github.com/s00222404-prog/-">Открыть репозиторий <ArrowRight size={16}/></a></section></main>;
-}
-
 createRoot(document.getElementById('root')).render(<App/>);
