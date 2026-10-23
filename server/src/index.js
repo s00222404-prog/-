@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
 import { validateTelegramInitData } from './telegram.js';
+import { EXTRA_ADMIN_COMMANDS, handleExtraAdminCommand } from './admin-commands.js';
 
 const app = express();
 const { Pool } = pg;
@@ -471,6 +472,9 @@ app.post('/telegram/webhook', (req,res) => {
       else{const q=await pool.query("SELECT id,first_name,username,telegram_id,moderation_note FROM users WHERE account_status='banned' ORDER BY updated_at DESC LIMIT 50");reply=q.rowCount?'VIBE | ЗАБЛОКИРОВАННЫЕ АККАУНТЫ ('+q.rowCount+')\n\n'+q.rows.map(u=>'ID анкеты: '+u.id+' — '+u.first_name+(u.username?' (@'+u.username+')':'')+'\nTelegram ID: '+u.telegram_id+'\nПричина: '+(u.moderation_note||'—')+'\nРазбан: '+(u.username?'/разбан @'+u.username:'нет username — используй кнопку в карточке пользователя')).join('\n\n'):'✅ Аккаунтов с активной блокировкой не найдено.';}
     }else if(cmd==='/пользователи'||cmd==='/users'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';else{const q=await pool.query('SELECT COUNT(*)::int count FROM users');reply='VIBE | СТАТИСТИКА\nВсего аккаунтов: '+q.rows[0].count;}
+    }else if(EXTRA_ADMIN_COMMANDS.some(item=>cmd==='/'+item.command)){
+      if(!ok)reply='⛔ This command is available to administrators only.';
+      else reply=await handleExtraAdminCommand({command:cmd.slice(1),parts,pool,role,developerId:DEVELOPER_TELEGRAM_ID,apiUrl:'https://znakomstva-824i.onrender.com',clientUrl:'https://vibe-client-sroc.onrender.com'});
     }else{reply='Send /start to open the VIBE app.';markup={inline_keyboard:[[{text:'Open VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}]]};}
     await send(reply,markup);
   })().catch(e=>console.error('Telegram webhook processing failed:',e.message));
@@ -507,7 +511,8 @@ async function start() {
         { command: 'user', description: 'View a user profile card' },
         { command: 'ban', description: 'Ban a user account' },
         { command: 'unban', description: 'Unban a user account' },
-        { command: 'delete', description: 'Delete a user account' }
+        { command: 'delete', description: 'Delete a user account' },
+        ...EXTRA_ADMIN_COMMANDS
       ];
       const developerCommands = [...adminCommands,
         { command: 'publicstatus', description: 'Set a public profile badge' },
