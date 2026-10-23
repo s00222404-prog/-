@@ -275,7 +275,7 @@ app.post('/telegram/webhook', (req,res) => {
         if(!Number.isSafeInteger(id)||id<=0||!['public','hidden'].includes(act)){await answer('Некорректная настройка');return;}
         const target=await pool.query('SELECT telegram_id FROM users WHERE id=$1',[id]);
         if(!target.rowCount){await answer('Пользователь не зарегистрирован');return;}
-        if(String(target.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await answer('Статус Разработчика всегда публичный');return;}
+        if(String(target.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение видимости разработчика',source:'Telegram-кнопка статуса'});await answer('Статус Разработчика всегда публичный');return;}
         await pool.query('UPDATE admin_roles SET is_public=$1,updated_at=NOW() WHERE telegram_id=$2',[act==='public',String(target.rows[0].telegram_id)]);
         await answer(act==='public'?'Статус будет виден на сайте':'Статус скрыт на сайте');
         await card(id,true);return;
@@ -286,7 +286,7 @@ app.post('/telegram/webhook', (req,res) => {
         const target=await pool.query('SELECT telegram_id,username FROM users WHERE id=$1',[id]);
         if(!target.rowCount){await answer('Пользователь не зарегистрирован');return;}
         const targetId=String(target.rows[0].telegram_id);
-        if(targetId===DEVELOPER_TELEGRAM_ID){await answer('Нельзя изменить роль Разработчика');return;}
+        if(targetId===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение роли разработчика',source:'Telegram-кнопка ролей'});await answer('Нельзя изменить роль Разработчика');return;}
         if(act==='none') await pool.query('DELETE FROM admin_roles WHERE telegram_id=$1',[targetId]);
         else await pool.query(`INSERT INTO admin_roles(telegram_id,username,role,assigned_by) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,role=EXCLUDED.role,assigned_by=EXCLUDED.assigned_by,updated_at=NOW()`,[targetId,target.rows[0].username,act,String(from.id)]);
         await answer(act==='none'?'Права сняты':'Назначено: '+(ROLE_LABELS[act]||act));
