@@ -325,7 +325,7 @@ app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
   if(typeof reporterUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reporterUsername.trim()))return res.status(400).json({error:'Укажи свой Telegram-юзернейм (3–32 символа)'});
   if(typeof reportedUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reportedUsername.trim()))return res.status(400).json({error:'Укажи Telegram-юзернейм пользователя, на которого жалуешься'});
   if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
-  if(typeof evidence!=='string'||evidence.length>3000000||(evidence&&!evidence.startsWith('data:image/')&&!evidence.startsWith('data:video/')))return res.status(400).json({error:'Доказательство должно быть фото или видео до 2 МБ'});
+  if(typeof evidence!=='string'||evidence.length>3000000||(evidence&&!/^(data:image\\/|data:video\\/|data:application\\/pdf)/.test(evidence)))return res.status(400).json({error:'Доказательство должно быть фото, видео или PDF до 2 МБ'});
   const targetExists=await pool.query("SELECT id,first_name,username FROM users WHERE id=$1 AND account_status='active'",[id]);
   if(!targetExists.rowCount)return res.status(404).json({error:'Профиль не найден или недоступен'});
   const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Преследование или угрозы безопасности','Другое'];
@@ -343,7 +343,23 @@ app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
       const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...roles.rows.map(x=>String(x.telegram_id))]);
       const target=targetExists.rows[0];
       const reportText='🚨 Новая жалоба VIBE #'+inserted.rows[0].id+'\\nТип: '+(reportType==='post'?'на публикацию':'на профиль')+'\\nНа пользователя: '+(target.first_name||'неизвестно')+' (@'+reportedHandle+')\\nОт: '+(req.user.first_name||'пользователь')+' ('+reporterUsername.trim()+')\\nПричина: '+reason.trim()+'\\nПодробности: '+(details.trim()||'—')+'\\nДоказательства: '+(evidence?'приложены в очереди модерации':'не приложены')+'\\nОткрой /очередь в боте для модерации.';
-      await Promise.all([...ids].map(telegramId=>fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText})}).catch(e=>console.error('Report admin notification failed:',e.message))));
+      await Promise.all([...ids].map(async telegramId=>{
+        try{
+          await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText.replace(/\\\\n/g,'\\n')})});
+          if(evidence){
+            const match=evidence.match(/^data:([^;]+);base64,([\\s\\S]+)$/);
+            if(match){
+              const mime=match[1], bytes=Buffer.from(match[2],'base64');
+              const kind=mime.startsWith('video/')?'video':mime==='application/pdf'?'document':mime.startsWith('image/')?'photo':null;
+              if(kind){
+                const form=new FormData();form.append('chat_id',String(telegramId));
+                form.append(kind,new Blob([bytes],{type:mime}),'vibe-report-evidence.'+(mime==='application/pdf'?'pdf':mime.startsWith('video/')?'mp4':'jpg'));
+                await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/send'+(kind==='photo'?'Photo':kind==='video'?'Video':'Document'),{method:'POST',body:form});
+              }
+            }
+          }
+        }catch(e){console.error('Report admin notification failed:',e.message);}
+      }));
     }catch(e){console.error('Report admin notification failed:',e.message);}
   }
   res.status(201).json({reported:true,reportId:inserted.rows[0].id});
