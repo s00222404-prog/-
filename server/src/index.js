@@ -13,6 +13,41 @@ const port = Number(process.env.PORT || 3001);
 const DEVELOPER_TELEGRAM_ID = '8745499515';
 const ROLE_LABELS = { developer: 'Разработчик', chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const PUBLIC_STATUS_LABELS = { chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
+
+function telegramCommandsForRole(role) {
+  const publicCommands = [
+    { command: 'start', description: 'Open the VIBE app' },
+    { command: 'help', description: 'Show help and available commands' },
+    { command: 'status', description: 'Check service status' }
+  ];
+  const adminCommands = [...publicCommands,
+    { command: 'admin', description: 'Open the admin panel' },
+    { command: 'queue', description: 'View the moderation queue' },
+    { command: 'users', description: 'Count registered accounts' },
+    { command: 'bans', description: 'List banned accounts' },
+    { command: 'user', description: 'View a user profile card' },
+    { command: 'ban', description: 'Ban a user account' },
+    { command: 'unban', description: 'Unban a user account' },
+    { command: 'delete', description: 'Delete a user account' },
+    ...EXTRA_ADMIN_COMMANDS
+  ];
+  if (role === 'developer') return [...adminCommands,
+    { command: 'publicstatus', description: 'Set a public profile badge' },
+    { command: 'clearstatus', description: 'Remove a public profile badge' }
+  ];
+  return roleRank[role] >= roleRank.admin ? adminCommands : publicCommands;
+}
+
+async function refreshTelegramCommands(chatId, role, token) {
+  const commands = telegramCommandsForRole(role);
+  const result = await fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ commands, scope: { type: 'chat', chat_id: Number(chatId) } })
+  }).then(r => r.json());
+  if (!result.ok) console.error('Telegram chat command menu refresh failed:', result.description);
+  else console.log('Telegram chat command menu refreshed:', String(chatId), role, commands.length);
+}
 // Public profile badges are independent from admin_roles permissions.
 const roleRank = { none: 0, helper: 1, moderator: 2, admin: 3, chief_admin: 4, developer: 5 };
 async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
@@ -311,6 +346,10 @@ app.post('/telegram/webhook', (req,res) => {
     const role = from?.id ? await getRole(from.id) : 'none';
     const ok = roleRank[role] >= roleRank.admin;
     const isDeveloper = role === 'developer';
+    if (m && ['/start','/help','/помощь','/admin','/адм'].includes(cmd)) {
+      try { await refreshTelegramCommands(chatId, role, token); }
+      catch (e) { console.error('Telegram chat command menu refresh failed:', e.message); }
+    }
     const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text,...(markup?{reply_markup:markup}:{})})});
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
@@ -498,26 +537,9 @@ async function start() {
     console.log('VIBE API listening on ' + port);
     const token = process.env.BOT_TOKEN;
     if (token) {
-      const publicCommands = [
-        { command: 'start', description: 'Open the VIBE app' },
-        { command: 'help', description: 'Show help and available commands' },
-        { command: 'status', description: 'Check service status' }
-      ];
-      const adminCommands = [...publicCommands,
-        { command: 'admin', description: 'Open the admin panel' },
-        { command: 'queue', description: 'View the moderation queue' },
-        { command: 'users', description: 'Count registered accounts' },
-        { command: 'bans', description: 'List banned accounts' },
-        { command: 'user', description: 'View a user profile card' },
-        { command: 'ban', description: 'Ban a user account' },
-        { command: 'unban', description: 'Unban a user account' },
-        { command: 'delete', description: 'Delete a user account' },
-        ...EXTRA_ADMIN_COMMANDS
-      ];
-      const developerCommands = [...adminCommands,
-        { command: 'publicstatus', description: 'Set a public profile badge' },
-        { command: 'clearstatus', description: 'Remove a public profile badge' }
-      ];
+      const publicCommands = telegramCommandsForRole('none');
+      const adminCommands = telegramCommandsForRole('admin');
+      const developerCommands = telegramCommandsForRole('developer');
       const setCommands = (commands, scope) => Promise.all([
         fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
           method: 'POST',
