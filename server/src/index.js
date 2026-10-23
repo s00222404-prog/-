@@ -93,7 +93,7 @@ function profileTextProblem(values){
  return bannedProfileTerms.some(term=>text.includes(term)||compact.includes(term.replace(/[^a-zа-яё]/gi,'')));
 }
 app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
- const q=await pool.query(`SELECT user_id AS id,name,age,city,country,hobbies,description,status,created_at,updated_at FROM listings WHERE user_id=$1`,[req.user.id]);
+ const q=await pool.query(`SELECT l.user_id AS id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.status,l.created_at,l.updated_at,l.id AS listing_id FROM listings l WHERE l.user_id=$1`,[req.user.id]);
  res.json({listing:q.rows[0]||null});
 }));
 app.post('/api/listings',auth,wrap(async(req,res)=>{
@@ -103,13 +103,30 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
  if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
  if(profileTextProblem([name,city,country,hobbies,description]))return res.status(400).json({error:'В анкете найдены запрещённые ругательства или пошлые слова. Исправь текст.'});
- const q=await pool.query(`INSERT INTO listings(user_id,name,age,city,country,hobbies,description,status) VALUES($1,$2,$3,$4,$5,$6,$7,'published')
- ON CONFLICT(user_id) DO UPDATE SET name=EXCLUDED.name,age=EXCLUDED.age,city=EXCLUDED.city,country=EXCLUDED.country,hobbies=EXCLUDED.hobbies,description=EXCLUDED.description,status='published',updated_at=NOW()
- RETURNING id,name,age,city,country,hobbies,description,created_at`,[req.user.id,name.trim(),Number(age),city.trim(),country.trim(),hobbies.trim(),description.trim()]);
- res.status(201).json({listing:q.rows[0]});
+ const q=await pool.query(`INSERT INTO listings(user_id,name,age,city,country,hobbies,description,status) VALUES($1,$2,$3,$4,$5,$6,$7,'pending')
+ ON CONFLICT(user_id) DO UPDATE SET name=EXCLUDED.name,age=EXCLUDED.age,city=EXCLUDED.city,country=EXCLUDED.country,hobbies=EXCLUDED.hobbies,description=EXCLUDED.description,status='pending',updated_at=NOW()
+ RETURNING id,user_id,name,age,city,country,hobbies,description,status,created_at,updated_at`,[req.user.id,name.trim(),Number(age),city.trim(),country.trim(),hobbies.trim(),description.trim()]);
+ const listing=q.rows[0];
+ if(process.env.BOT_TOKEN){
+   try {
+     const admins=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin')");
+     const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...admins.rows.map(x=>String(x.telegram_id))]);
+     const author=await pool.query('SELECT telegram_id,username,first_name,photo_url,created_at FROM users WHERE id=$1',[req.user.id]);
+     const u=author.rows[0];
+     const code=String(req.user.id).padStart(6,'0');
+     const created=new Date(listing.created_at).toLocaleString('ru-RU',{timeZone:'Europe/Berlin'});
+     const details='🆕 АНКЕТА НА МОДЕРАЦИЮ VIBE #'+listing.id+'\\nИмя: '+listing.name+'\\nВозраст: '+listing.age+'\\nГород: '+listing.city+', '+listing.country+'\\nХобби: '+(listing.hobbies||'—')+'\\nОписание: '+(listing.description||'—')+'\\nПрофиль сайта: '+code+'\\nПользователь: '+(u?.first_name||'неизвестно')+' (@'+(u?.username||'нет username')+')\\nTelegram ID: '+(u?.telegram_id||'нет аккаунта')+'\\nСоздано: '+created+'\\nФото: '+(u?.photo_url?'есть':'нет')+'\\nПроверь данные и выбери действие.';
+     const keyboard={inline_keyboard:[[{text:'✅ Одобрить',callback_data:'l:approve:'+listing.id},{text:'❌ Отклонить',callback_data:'l:reject:'+listing.id}]]};
+     await Promise.all([...ids].map(async chatId=>{
+       if(u?.photo_url && /^https?:\\/\\//i.test(u.photo_url)) await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendPhoto',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,photo:u.photo_url,caption:'Фото анкеты #'+listing.id})}).catch(e=>console.error('Listing photo notification failed:',e.message));
+       return fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:details,reply_markup:keyboard})}).catch(e=>console.error('Listing notification failed:',e.message));
+     }));
+   } catch(e) { console.error('Listing moderation notification failed:',e.message); }
+ }
+ res.status(201).json({listing});
 }));
 app.get('/api/discover',auth,wrap(async(req,res)=>{
-  const q=await pool.query(`SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,u.photo_url,CASE WHEN u.telegram_id::text=$2 THEN 'developer' WHEN ar.is_public THEN ar.role ELSE 'none' END AS public_role FROM listings l JOIN users u ON u.id=l.user_id LEFT JOIN admin_roles ar ON ar.telegram_id=u.telegram_id::text WHERE l.user_id<>$1 AND l.status='published' AND u.account_status='active' AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1)) ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID]);
+  const q=await pool.query(`SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.status,l.created_at,u.photo_url,CASE WHEN u.telegram_id::text=$2 THEN 'developer' WHEN ar.is_public THEN ar.role ELSE 'none' END AS public_role FROM listings l JOIN users u ON u.id=l.user_id LEFT JOIN admin_roles ar ON ar.telegram_id=u.telegram_id::text WHERE (l.status='published' OR l.user_id=$1) AND u.account_status='active' AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1)) AND (l.user_id=$1 OR (l.status='published' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years')) ORDER BY CASE WHEN l.user_id=$1 THEN 0 ELSE 1 END, RANDOM() LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID]);
   res.json({people:q.rows.map(p=>({...p,role_label:ROLE_LABELS[p.public_role]||null,bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
 }));
 app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
@@ -270,6 +287,19 @@ app.post('/telegram/webhook', (req,res) => {
     };
     if(cb){
       const [prefix,act,idRaw]=(cb.data||'').split(':'), id=Number(idRaw);
+      if(prefix==='l') {
+        if(!ok){await answer('Только для администраторов');return;}
+        if(!Number.isSafeInteger(id)||id<=0||!['approve','reject'].includes(act)){await answer('Некорректное действие');return;}
+        const found=await pool.query('SELECT l.id,l.user_id,l.name,u.telegram_id FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=$1',[id]);
+        if(!found.rowCount){await answer('Анкета не найдена');await edit('Анкета уже удалена или не найдена.');return;}
+        const status=act==='approve'?'published':'rejected';
+        await pool.query('UPDATE listings SET status=$1,updated_at=NOW() WHERE id=$2',[status,id]);
+        const message=act==='approve'?'✅ Твоя анкета VIBE «'+found.rows[0].name+'» прошла проверку и теперь доступна в рекомендациях.':'⚠️ Анкета VIBE «'+found.rows[0].name+'» пока не одобрена. Исправь данные и отправь её снова.';
+        await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:found.rows[0].telegram_id,text:message})}).catch(e=>console.error('Listing decision notification failed:',e.message));
+        await answer(act==='approve'?'Анкета одобрена':'Анкета отклонена');
+        await edit((act==='approve'?'✅ ОДОБРЕНО':'❌ ОТКЛОНЕНО')+' — анкета #'+id+' («'+found.rows[0].name+'»)'+ '\\nРешение: '+new Date().toLocaleString('ru-RU'));
+        return;
+      }
       if(prefix==='visibility') {
         if(!isDeveloper){await answer('Менять видимость статуса может только Разработчик');return;}
         if(!Number.isSafeInteger(id)||id<=0||!['public','hidden'].includes(act)){await answer('Некорректная настройка');return;}
@@ -372,6 +402,8 @@ async function start() {
     // Create VIBE tables in the configured VIBE database; CREATE IF NOT EXISTS preserves existing rows.
     const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
     await pool.query(schema);
+    await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_status_check");
+    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_roles (telegram_id TEXT PRIMARY KEY, username TEXT, role TEXT NOT NULL CHECK (role IN ('chief_admin','admin','moderator','helper')), assigned_by TEXT NOT NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
       await pool.query('ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE');
     console.log('VIBE database schema ready');
