@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS listings (
   country TEXT NOT NULL,
   hobbies TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft','published','hidden')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('draft','pending','published','hidden','rejected')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
