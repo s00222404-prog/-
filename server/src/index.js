@@ -115,25 +115,31 @@ app.get('/api/chats',auth,wrap(async(req,res)=>{
   const q=await pool.query(`SELECT u.id AS user_id,u.first_name,u.photo_url,
     (SELECT m.body FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id) ORDER BY m.created_at DESC LIMIT 1) AS last_message,
     (SELECT m.created_at FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id) ORDER BY m.created_at DESC LIMIT 1) AS last_message_at
-    FROM likes mine JOIN likes theirs ON theirs.from_user=mine.to_user AND theirs.to_user=mine.from_user
-    JOIN users u ON u.id=mine.to_user
-    WHERE mine.from_user=$1 AND u.account_status='active'
+    FROM users u
+    WHERE u.id<>$1 AND u.account_status='active'
+      AND (EXISTS (SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=u.id)
+        OR EXISTS (SELECT 1 FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id)))
+      AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
     ORDER BY last_message_at DESC NULLS LAST,u.first_name ASC`,[req.user.id]);
   res.json({chats:q.rows});
 }));
 app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   const other=Number(req.params.userId);
   if(!Number.isSafeInteger(other)||other===Number(req.user.id))return res.status(400).json({error:'Invalid user'});
-  const match=await pool.query(`SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2`,[req.user.id,other]);
-  if(!match.rowCount)return res.status(403).json({error:'Чат доступен только при взаимной симпатии'});
+  const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[other]);
+  if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
+  const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
+  if(blocked.rowCount)return res.status(403).json({error:'Переписка недоступна'});
   const q=await pool.query(`SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at ASC LIMIT 200`,[req.user.id,other]);
   res.json({messages:q.rows});
 }));
 app.post('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   const other=Number(req.params.userId); const body=req.body?.body;
   if(!Number.isSafeInteger(other)||other===Number(req.user.id)||typeof body!=='string'||!body.trim()||body.trim().length>4000)return res.status(400).json({error:'Некорректное сообщение'});
-  const match=await pool.query(`SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2`,[req.user.id,other]);
-  if(!match.rowCount)return res.status(403).json({error:'Чат доступен только при взаимной симпатии'});
+  const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[other]);
+  if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
+  const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
+  if(blocked.rowCount)return res.status(403).json({error:'Нельзя отправить сообщение этому пользователю'});
   const q=await pool.query(`INSERT INTO messages(match_low,match_high,sender_id,body) VALUES(LEAST($1,$2),GREATEST($1,$2),$1,$3) RETURNING id,sender_id,body,created_at`,[req.user.id,other,body.trim()]);
   res.status(201).json({message:q.rows[0]});
 }));
