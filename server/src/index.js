@@ -381,7 +381,7 @@ app.post('/telegram/webhook', (req,res) => {
     let reply,markup;
     if(cmd==='/паливные'||cmd==='/паливный'||cmd==='/безпаливные'||cmd==='/безпаливный'){
       if(!isDeveloper){await send('⛔ Публичные статусы может выдавать и снимать только Разработчик.');return;}
-      const parts=txt.split(/\\s+/);
+      const parts=txt.split(/\s+/);
       const key=(parts[1]||'').replace(/^@/,'');
       if(!key){await send(cmd.startsWith('/без')?'Использование: /безпаливные @username или 001234':'Использование: /паливные @username или 001234 помощник|модератор|администратор|главный_администратор');return;}
       const target=await pool.query("SELECT id,telegram_id,username,first_name FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}
@@ -425,7 +425,7 @@ app.post('/telegram/webhook', (req,res) => {
       else if(!arg)reply='Использование: /юзер @username, /юзер 6-значный_код или Telegram_ID';
       else{const q=await pool.query(`SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')`,[arg]);if(!q.rowCount)reply='Не найден. Пользователь должен хотя бы раз открыть бота/VIBE.';else{await card(q.rows[0].id);return;}}
     }else if(cmd==='/помощь'||cmd==='/help'){
-      reply=ok?'Команды VIBE:\n/адм — меню\n/очередь — жалобы и флаги\n/пользователи — число аккаунтов\n/баны — список забаненных пользователей\n/удалить @username или 001234 — удалить аккаунт\n/юзер @username или 001234 — карточка пользователя\n/разбан @username или 001234 — снять бан\n/бан 001234 причина — забанить по коду профиля\n'+(isDeveloper?'Только Разработчик может назначать роли в карточке пользователя.':''):'Нажми /start, чтобы открыть VIBE.';
+      reply=ok?'Команды VIBE:\n/адм — меню\n/очередь — жалобы и флаги\n/пользователи — число аккаунтов\n/баны — список забаненных пользователей\n/удалить @username или 001234 — удалить аккаунт\n/юзер @username или 001234 — карточка пользователя\n/разбан @username или 001234 — снять бан\n/бан 001234 причина — забанить по коду профиля\n'+(isDeveloper?'Права выдаются отдельно в карточке пользователя. Публичные статусы: /паливные @username помощник|модератор|администратор|главный_администратор; /безпаливные @username.':''):'Нажми /start, чтобы открыть VIBE.';
     }else if(cmd==='/очередь'||cmd==='/queue'){
       if(!ok)reply='⛔ Только для администраторов.';
       else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='📋 Очередь модерации\nЖалобы: '+r.rows[0].count+'\nФлаги: '+f.rows[0].count;}
