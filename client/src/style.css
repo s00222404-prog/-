@@ -800,3 +800,22 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+
+/* Full profile details and accessible actions */
+.profile-handle { color: var(--vibe-muted, #aaa1bc); font-size: 12px; margin: -7px 0 14px; overflow-wrap: anywhere; }
+.full-profile-details { display: grid; gap: 10px; margin: 16px 0 20px; }
+.full-profile-details p { display: grid; gap: 5px; margin: 0; padding: 12px 14px; border: 1px solid var(--vibe-border, rgba(219,190,255,.15)); border-radius: 14px; background: rgba(255,255,255,.025); }
+.full-profile-details p b { color: #d7c5f2; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.full-profile-details p span { color: #f7f2ff; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.profile-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+.profile-actions > button { min-width: 0; justify-content: center; }
+.profile-actions > button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.report-dialog form > .save { min-height: 48px; }
+.report-dialog form > label { min-width: 0; }
+.report-dialog textarea { resize: vertical; }
+@media(max-width:480px) {
+  .profile-actions { grid-template-columns: minmax(0,1fr); }
+  .profile-actions > button:last-child:nth-child(odd) { grid-column: auto; }
+  .full-profile-details p { padding: 11px; }
+}
