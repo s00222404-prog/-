@@ -237,3 +237,39 @@ footer span{color:#a9a0b5}
 .report-dialog>.role-badge{margin-top:0;margin-bottom:12px}
 .person-title{flex-wrap:wrap}
 .person-title>div{min-width:0}
+
+
+/* Profile cards: clear dating-app hierarchy and always-visible actions */
+.profile-card{overflow:hidden;margin:0 0 22px;border:1px solid rgba(208,188,235,.16);border-radius:25px;background:linear-gradient(160deg,#211c2b,#17141f 72%);box-shadow:0 16px 44px rgba(0,0,0,.2)}
+.profile-cover{height:clamp(310px,75vw,470px);max-height:480px;position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 25%,#6e5b82,#30263f 68%,#1b1724)}
+.profile-cover-image{width:100%;height:100%;object-fit:cover;object-position:center 35%;display:block}
+.profile-cover-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:radial-gradient(ellipse at 50% 35%,#a58dbb,#51415f 55%,#272130)}
+.profile-cover-placeholder span{font-size:clamp(110px,28vw,190px);font-weight:850;line-height:1;color:#f9f1ff9c;text-shadow:0 12px 55px #160e24aa}
+.profile-cover-placeholder small{font-size:10px;letter-spacing:2.2px;color:#f7eaffb8}
+.profile-cover-gradient{position:absolute;inset:20% 0 0;background:linear-gradient(180deg,transparent 10%,rgba(12,9,17,.12) 42%,rgba(12,9,17,.92) 100%);pointer-events:none}
+.profile-cover-label{position:absolute;left:16px;top:16px;display:flex;align-items:center;gap:6px;padding:8px 11px;border:1px solid #ffffff2b;border-radius:999px;background:#17121c99;backdrop-filter:blur(12px);font-size:10px;font-weight:800;letter-spacing:1.5px;color:#f3e6ff}
+.profile-report{position:absolute;right:14px;top:14px;z-index:3;display:grid;place-items:center;width:42px;height:42px;border-radius:50%;border:1px solid #ffffff35;background:#17121caa;color:#fff;backdrop-filter:blur(12px)}
+.profile-report:hover{background:#6d3045;border-color:#d68da5}
+.profile-status{position:absolute;z-index:3;right:14px;top:66px;padding:7px 10px;border-radius:9px;background:#30253dcc;color:#f4e5ff;font-size:11px}
+.profile-status.rejected{background:#5a2636dd;color:#ffe0e6}
+.profile-cover-heading{position:absolute;z-index:2;left:22px;right:22px;bottom:22px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.profile-cover-heading h3{font-size:clamp(27px,6vw,38px);letter-spacing:-1.1px;line-height:1.1;margin:0;color:#fff;font-weight:820;text-shadow:0 2px 18px #0006}
+.profile-cover-heading h3 span{font-weight:500;color:#f2e9f9}
+.profile-location{display:flex;align-items:center;gap:6px;font-size:13px;color:#f2e8f7d9}
+.profile-card-body{padding:20px 21px 18px}
+.profile-bio{margin:0;color:#d6cedf;font-size:14px;line-height:1.7;overflow-wrap:anywhere}
+.profile-interests{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
+.profile-interests span{padding:7px 10px;border:1px solid #ffffff13;border-radius:999px;background:#292332;color:#d8c9e7;font-size:11px}
+.profile-actions-bar{display:grid;grid-template-columns:.85fr 1.15fr 1.15fr;gap:10px;margin-top:20px}
+.profile-action{min-width:0;min-height:53px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:15px;padding:10px 7px;font-size:12px;font-weight:760}
+.profile-skip{border:1px solid #ffffff1c;background:#292432;color:#d6cddd}
+.profile-like{border:1px solid #d3b5ef;background:linear-gradient(135deg,#e0c9f5,#b998dc);color:#30213e;box-shadow:0 6px 18px #b18add22}
+.profile-chat{border:1px solid #ffffff20;background:#352a40;color:#f0e4fa}
+.profile-action:hover{transform:translateY(-2px);filter:brightness(1.07)}
+.profile-details-link{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:12px;padding:10px;border:0;background:transparent;color:#bfa6d8;font-size:12px}
+.profile-details-link:hover{color:#e6d4f8}
+.profile-edit-cta{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:18px;padding:13px;border:1px solid #ffffff1c;border-radius:13px;background:#30253d;color:#e7d4f8}
+.tab-count{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:99px;background:#3a2c49;color:#e8d6f8;font-size:10px}
+.tabs button.active .tab-count{background:#332443;color:#f5eaff}
+@media(min-width:620px){.profile-cover{height:410px}.profile-card-body{padding:22px 24px}.profile-actions-bar{gap:12px}.profile-action{min-height:56px;font-size:13px}}
+@media(max-width:390px){.profile-card-body{padding:17px 15px}.profile-actions-bar{gap:7px}.profile-action{font-size:11px;gap:5px;padding:9px 4px}.profile-cover-heading{left:17px;right:17px;bottom:18px}}
