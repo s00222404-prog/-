@@ -124,7 +124,7 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
            if(u.photo_url.startsWith('http://') || u.photo_url.startsWith('https://')) {
              await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,photo:u.photo_url,caption:'Фото анкеты #'+listing.id})});
            } else {
-             const encoded=u.photo_url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\\s\\S]+)$/);
+             const encoded=u.photo_url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/);
              if(encoded){const form=new FormData();form.append('chat_id',String(chatId));form.append('photo',new Blob([Buffer.from(encoded[2],'base64')],{type:encoded[1]}),'listing-photo');await fetch(endpoint,{method:'POST',body:form});}
            }
          } catch(e) { console.error('Listing photo notification failed:',e.message); }
