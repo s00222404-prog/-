@@ -7,6 +7,25 @@ const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const webApp = window.Telegram?.WebApp;
 const initData = webApp?.initData || '';
 
+
+const LANGUAGES = {
+  en: {label:'English', flag:'🇬🇧'},
+  de: {label:'Deutsch', flag:'🇩🇪'},
+  ru: {label:'Русский', flag:'🇷🇺'}
+};
+function LanguagePicker({className=''}) {
+  const [language,setLanguage] = useState(() => {
+    try { return localStorage.getItem('vibe-language') || 'en'; } catch { return 'en'; }
+  });
+  function changeLanguage(value) {
+    setLanguage(value);
+    try { localStorage.setItem('vibe-language', value); } catch {}
+    document.documentElement.lang = value;
+    window.dispatchEvent(new CustomEvent('vibe-language-change',{detail:value}));
+  }
+  return <label className={'language-picker '+className} aria-label="Choose language"><span aria-hidden="true">{LANGUAGES[language].flag}</span><select value={language} onChange={e=>changeLanguage(e.target.value)} aria-label="Language"><option value="en">English</option><option value="de">Deutsch</option><option value="ru">Русский</option></select></label>;
+}
+
 function RoleBadge({ role, label }) {
   if (!label || !role || role === 'none') return null;
   const Icon = role === 'developer' || role === 'chief_admin' ? Crown : role === 'admin' ? ShieldCheck : role === 'moderator' ? BadgeCheck : Wrench;
@@ -259,7 +278,7 @@ function App() {
   if (user?.account_status === 'banned') return <main className={tab === 'discover' ? 'app-shell feed-mode' : 'app-shell'}><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш аккаунт забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Кем заблокирован:</b> {user.ban_issuer_label || (user.ban_issuer === 'developer' ? 'разработчиком' : 'модератором')}</p><p><b>Причина:</b> {user.moderation_note || user.reason || 'Причина не указана'}</p></section></main>;
   if (!initData) return <Landing />;
   return <main className="app-shell">
-    <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><button className="avatar" aria-label="Открыть мой профиль" onClick={() => setProfileOpen(true)}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
+    <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><LanguagePicker/><button className="avatar" aria-label="Открыть мой профиль" onClick={() => setProfileOpen(true)}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
     <section className="hero"><div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА</div><h1>Люди, с которыми<br/><span>совпадает вайб.</span></h1><p>Настоящие анкеты пользователей VIBE — без выдуманных профилей.</p></section>
     <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); setLikesData({incoming:data.incoming||[],outgoing:data.outgoing||[]}); } catch(e) { setError(e.message); } }}><Heart size={17}/> Симпатии <span className="tab-count">{likesData.incoming.length}</span></button><button className={tab === 'listing' ? 'active' : ''} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={17}/> Моя анкета</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты <span className="tab-count">{chats.length}</span></button></nav>
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
@@ -344,10 +363,13 @@ function App() {
 
 
 function Landing() {
+  const [language,setLanguage] = useState(() => { try { return localStorage.getItem('vibe-language') || 'en'; } catch { return 'en'; } });
+  useEffect(() => { const update=e=>setLanguage(e.detail || 'en'); window.addEventListener('vibe-language-change',update); document.documentElement.lang=language; return ()=>window.removeEventListener('vibe-language-change',update); }, [language]);
+  const copy = {en:{tag:'YOUR WAVE · YOUR PEOPLE',title1:'Not just',title2:'dating.',title3:'A vibe that matches.',desc:'Fewer random swipes. More people you actually want to talk to. Find your people right inside Telegram.',cta:'Start meeting people',trust1:'Sign in with Telegram',trust2:'Privacy controls',online:'A new way to connect',about:'About VIBE',proof1:'Interest-based profiles',proof2:'Likes & matches',proof3:'Chat in one place',section:'Meet people',comfort:'on your own terms.',aboutdesc:'Everything that matters — simple, beautiful and without the noise.',final:'Ready to find',vibe:'your vibe?',open:'Open VIBE'},de:{tag:'DEINE WELLE · DEINE MENSCHEN',title1:'Mehr als',title2:'Dating.',title3:'Der Vibe passt.',desc:'Weniger zufälliges Swipen. Mehr Menschen, mit denen du wirklich reden möchtest. Finde deine Leute direkt in Telegram.',cta:'Neue Leute kennenlernen',trust1:'Anmeldung über Telegram',trust2:'Datenschutzkontrolle',online:'Eine neue Art, Menschen kennenzulernen',about:'Über VIBE',proof1:'Profile nach Interessen',proof2:'Likes & Matches',proof3:'Chats an einem Ort',section:'Lerne Menschen kennen',comfort:'so, wie es zu dir passt.',aboutdesc:'Alles Wichtige — einfach, schön und ohne unnötigen Lärm.',final:'Bereit,',vibe:'deinen Vibe zu finden?',open:'VIBE öffnen'},ru:{tag:'ТВОЯ ВОЛНА · ТВОИ ЛЮДИ',title1:'Не просто',title2:'знакомства.',title3:'Совпадение вайбов.',desc:'Меньше случайных свайпов. Больше людей, с которыми есть о чём поговорить. Найди своё общение прямо в Telegram.',cta:'Начать знакомство',trust1:'Вход через Telegram',trust2:'Контроль приватности',online:'Знакомства нового уровня',about:'О VIBE',proof1:'Анкеты по интересам',proof2:'Симпатии и совпадения',proof3:'Общение в одном месте',section:'Знакомься',comfort:'так, как тебе комфортно.',aboutdesc:'Всё важное — просто, красиво и без лишней суеты.',final:'Готов найти',vibe:'свой вайб?',open:'Открыть VIBE'}}[language] || {};
   return <main className="app-shell landing-shell">
     <header className="topbar landing-topbar">
       <a className="brand" href="#" aria-label="VIBE главная"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></a>
-      <div className="landing-top-actions"><span className="landing-online"><i/> Знакомства нового уровня</span><a className="landing-menu" href="#about">О VIBE <ArrowRight size={14}/></a></div>
+      <div className="landing-top-actions"><LanguagePicker/><span className="landing-online"><i/> {copy.online}</span><a className="landing-menu" href="#about">{copy.about} <ArrowRight size={14}/></a></div>
     </header>
     <section className="landing-hero">
       <div className="landing-copy">
@@ -355,7 +377,7 @@ function Landing() {
         <h1>Не просто<br/>знакомства.<br/><span>Совпадение вайбов.</span></h1>
         <p>Меньше случайных свайпов. Больше людей, с которыми есть о чём поговорить. Найди своё общение прямо в Telegram.</p>
         <a className="register-button" href="https://t.me/iBEDatig_Bot?start=register"><span className="telegram-icon">➤</span> Начать знакомство <ArrowRight size={18}/></a>
-        <div className="landing-trust"><span><Lock size={14}/> Вход через Telegram</span><span><ShieldCheck size={14}/> Контроль приватности</span></div>
+        <div className="landing-trust"><span><Lock size={14}/> {copy.trust1}</span><span><ShieldCheck size={14}/> {copy.trust2}</span></div>
       </div>
       <div className="landing-visual" aria-label="Пример карточки знакомства">
         <div className="landing-orbit landing-orbit-one"/><div className="landing-orbit landing-orbit-two"/>
@@ -368,16 +390,16 @@ function Landing() {
         <div className="landing-orbit-dot dot-a">✦</div><div className="landing-orbit-dot dot-b">♡</div>
       </div>
     </section>
-    <section className="landing-proof"><div><strong>01</strong><span>Анкеты по интересам</span></div><div><strong>02</strong><span>Симпатии и совпадения</span></div><div><strong>03</strong><span>Общение в одном месте</span></div></section>
+    <section className="landing-proof"><div><strong>01</strong><span>{copy.proof1}</span></div><div><strong>02</strong><span>{copy.proof2}</span></div><div><strong>03</strong><span>{copy.proof3}</span></div></section>
     <section className="landing-about" id="about">
-      <div className="landing-section-heading"><span className="eyebrow"><Sparkles size={13}/> ТВОЙ VIBE</span><h2>Знакомься так,<br/><span>как тебе комфортно.</span></h2><p>Всё важное — просто, красиво и без лишней суеты.</p></div>
+      <div className="landing-section-heading"><span className="eyebrow"><Sparkles size={13}/> ТВОЙ VIBE</span><h2>{copy.section}<br/><span>{copy.comfort}</span></h2><p>{copy.aboutdesc}</p></div>
       <div className="landing-features">
         <article className="landing-feature-card feature-purple"><span className="feature-icon"><Heart/></span><span className="feature-number">01 / CONNECT</span><h3>Встречай своих</h3><p>Открывай анкеты людей, которые могут совпасть с тобой по интересам и целям знакомства.</p><div className="feature-art feature-heart"><Heart size={72}/><Sparkles size={23}/></div></article>
         <article className="landing-feature-card feature-blue"><span className="feature-icon"><Sparkles/></span><span className="feature-number">02 / DISCOVER</span><h3>Меньше случайности</h3><p>Подборка использует информацию анкеты, чтобы знакомиться было проще и интереснее.</p><div className="feature-art feature-spark"><span>✳</span><span>✦</span><span>✧</span></div></article>
         <article className="landing-feature-card feature-pink"><span className="feature-icon"><MessageCircle/></span><span className="feature-number">03 / TALK</span><h3>Начинай общение</h3><p>Симпатии, совпадения и чаты собраны в одном приложении внутри Telegram.</p><div className="feature-art feature-chat"><span>Привет! 👋</span><span>Кажется, у нас общий вайб</span></div></article>
       </div>
     </section>
-    <section className="landing-final-cta"><div><span className="eyebrow"><Sparkles size={13}/> ТВОЯ ИСТОРИЯ НАЧИНАЕТСЯ ЗДЕСЬ</span><h2>Готов найти<br/><span>свой вайб?</span></h2><p>Зайди через Telegram и создай свою анкету.</p></div><a className="register-button" href="https://t.me/iBEDatig_Bot?start=register"><span className="telegram-icon">➤</span> Открыть VIBE <ArrowRight size={18}/></a></section>
+    <section className="landing-final-cta"><div><span className="eyebrow"><Sparkles size={13}/> ТВОЯ ИСТОРИЯ НАЧИНАЕТСЯ ЗДЕСЬ</span><h2>{copy.final}<br/><span>{copy.vibe}</span></h2><p>Зайди через Telegram и создай свою анкету.</p></div><a className="register-button" href="https://t.me/iBEDatig_Bot?start=register"><span className="telegram-icon">➤</span> {copy.open} <ArrowRight size={18}/></a></section>
     <footer><span>vibe. © 2026</span><span className="site-legal-links"><a href="/rules">Правила проекта</a><a href="/privacy">Конфиденциальность</a><Lock size={12}/> Твоя приватность важна</span></footer>
   </main>;
 }
