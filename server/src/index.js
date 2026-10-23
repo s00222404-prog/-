@@ -202,7 +202,8 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
  const listing=q.rows[0];
  if(process.env.BOT_TOKEN){
    try {
-     const ids=new Set(await staffTelegramIds());
+     const staff=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('helper','moderator','admin','chief_admin')");
+     const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(x=>String(x.telegram_id))]);
      const author=await pool.query('SELECT telegram_id,username,first_name,photo_url,created_at FROM users WHERE id=$1',[req.user.id]);
      const u=author.rows[0];
      const code=String(req.user.id).padStart(6,'0');
