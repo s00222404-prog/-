@@ -376,6 +376,8 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Переписка недоступна'});
+  const match=await pool.query('SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2',[req.user.id,other]);
+  if(!match.rowCount)return res.status(403).json({error:'Чат доступен только после взаимной симпатии.'});
   const q=await pool.query(`SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at ASC LIMIT 200`,[req.user.id,other]);
   res.json({messages:q.rows});
 }));
@@ -383,10 +385,14 @@ app.post('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   const other=Number(req.params.userId); const body=req.body?.body;
   if(!Number.isSafeInteger(other)||other===Number(req.user.id)||typeof body!=='string'||!body.trim()||body.trim().length>4000)return res.status(400).json({error:'Некорректное сообщение'});
   if(profileTextProblem([body]))return res.status(400).json({error:'Сообщение содержит запрещённые ругательства, оскорбления или пошлые выражения. Измени текст и попробуй снова.'});
+  const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(other);
+  if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Личные сообщения доступны только внутри твоей возрастной стороны VIBE.'});
   const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[other]);
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Нельзя отправить сообщение этому пользователю'});
+  const match=await pool.query('SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2',[req.user.id,other]);
+  if(!match.rowCount)return res.status(403).json({error:'Отправлять сообщения можно только после взаимной симпатии.'});
   const q=await pool.query(`INSERT INTO messages(match_low,match_high,sender_id,body) VALUES(LEAST($1,$2),GREATEST($1,$2),$1,$3) RETURNING id,sender_id,body,created_at`,[req.user.id,other,body.trim()]);
   res.status(201).json({message:q.rows[0]});
 }));
