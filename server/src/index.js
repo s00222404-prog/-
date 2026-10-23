@@ -13,6 +13,22 @@ const port = Number(process.env.PORT || 3001);
 const DEVELOPER_TELEGRAM_ID = '8745499515';
 const ROLE_LABELS = { developer: 'Разработчик', chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const PUBLIC_STATUS_LABELS = { chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
+const BAN_REASONS = {
+  spam: { label: 'Спам и навязчивая реклама', reason: 'Спам, массовые сообщения или навязчивая реклама' },
+  scam: { label: 'Мошенничество и обман', reason: 'Мошенничество, фишинг или попытка обмана пользователей' },
+  harassment: { label: 'Травля, оскорбления или угрозы', reason: 'Травля, систематические оскорбления или угрозы пользователям' },
+  hate: { label: 'Ненависть и дискриминация', reason: 'Разжигание ненависти или дискриминация по защищённым признакам' },
+  sexual: { label: 'Сексуальные домогательства', reason: 'Сексуальные домогательства, непрошеные откровенные материалы или сексуальная эксплуатация' },
+  minor: { label: 'Возрастные ограничения или обман о возрасте', reason: 'Нарушение возрастных ограничений или предоставление ложных сведений о возрасте' },
+  fake: { label: 'Фейковая анкета или выдача себя за другого', reason: 'Поддельная анкета, выдача себя за другого человека или использование чужих фотографий без разрешения' },
+  explicit: { label: 'Запрещённые фото или видео', reason: 'Публикация запрещённых, откровенных, шокирующих или насильственных фото и видео' },
+  privacy: { label: 'Публикация личных данных', reason: 'Публикация личных данных, переписок или изображений без согласия; доксинг' },
+  illegal: { label: 'Опасная или незаконная деятельность', reason: 'Продвижение незаконной деятельности, угрозы физической расправой или призывы к насилию' },
+  manipulation: { label: 'Боты и манипуляции платформой', reason: 'Использование ботов, фальшивых аккаунтов или манипуляция лайками и функциями VIBE' },
+  evasion: { label: 'Обход бана или повторные нарушения', reason: 'Обход ранее выданной блокировки или повторные нарушения правил VIBE' },
+  reports: { label: 'Злоупотребление жалобами', reason: 'Заведомо ложные жалобы или систематическое злоупотребление системой жалоб' },
+  other: { label: 'Другое подтверждённое нарушение правил', reason: 'Другое подтверждённое нарушение правил VIBE' }
+};
 
 function telegramCommandsForRole(role) {
   const publicCommands = [
@@ -514,6 +530,22 @@ app.post('/telegram/webhook', (req,res) => {
         await card(id,true);
         return;
       }
+      if(prefix==='br'){
+        if(!ok){await answer('Доступ разрешён только администраторам.');return;}
+        const targetId=Number(act), reasonKey=idRaw, selected=BAN_REASONS[reasonKey];
+        if(!Number.isSafeInteger(targetId)||targetId<=0||!selected){await answer('Причина блокировки недействительна');return;}
+        const target=await pool.query('SELECT id,telegram_id,first_name,username FROM users WHERE id=$1',[targetId]);
+        if(!target.rowCount){await answer('Пользователь не найден');await edit('Пользователь уже удалён или не найден.');return;}
+        if(String(target.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await answer('Аккаунт разработчика защищён');return;}
+        const actorRole=await getRole(String(from.id));
+        const targetRole=await getRole(String(target.rows[0].telegram_id));
+        if((roleRank[targetRole]??0)>=(roleRank[actorRole]??0)){await answer('Нельзя банить пользователя с равным или более высоким рангом');return;}
+        await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3",[selected.reason,actorRole==='developer'?'developer':'moderator',targetId]);
+        await answer('Аккаунт заблокирован: '+selected.label);
+        await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:target.rows[0].telegram_id,text:'⛔ Ваш аккаунт забанен.\nКем заблокирован: '+(actorRole==='developer'?'разработчиком':'модератором')+'.\nПричина: '+selected.reason+'\nДоступ к VIBE заблокирован.'})}).catch(e=>console.error('Ban notice failed:',e.message));
+        await edit('⛔ АККАУНТ ЗАБЛОКИРОВАН\nПользователь: '+target.rows[0].first_name+' (код '+String(targetId).padStart(6,'0')+')\nКем: '+(actorRole==='developer'?'разработчиком':'модератором')+'\nПричина: '+selected.reason);
+        return;
+      }
       if(!ok){await answer('Доступ разрешён только администраторам.');return;}
       if(prefix!=='u'||!Number.isSafeInteger(id)||id<=0||!['check','ban','unban','profile','account'].includes(act)){await answer('Некорректное действие');return;}
       const q=await pool.query('SELECT first_name,username,telegram_id FROM users WHERE id=$1',[id]);
@@ -526,7 +558,7 @@ app.post('/telegram/webhook', (req,res) => {
         await send('⛔ Разработчика нельзя банить, ограничивать или удалять.');
         return;
       }
-      if(act==='ban'){await answer('Укажите причину блокировки.');await send('Чтобы забанить '+q.rows[0].first_name+', отправь:\n/бан @'+(q.rows[0].username||'username')+' причина бана\nПричина обязательна (до 500 символов).');return;}
+      if(act==='ban'){const reasonsKeyboard={inline_keyboard:Object.entries(BAN_REASONS).map(([key,item])=>[{text:item.label,callback_data:'br:'+id+':'+key}])};await answer('Выбери причину бана');await send('⛔ Выберите причину блокировки для '+q.rows[0].first_name+'. После нажатия аккаунт будет заблокирован, а выбранная причина сохранится в системе.',reasonsKeyboard);return;}
       if(act==='unban'){await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1",[id]);await answer('Блокировка снята.');await edit('✅ Бан снят.');return;}
       if(act==='profile'){await pool.query("UPDATE users SET bio='',city=NULL,photo_url=NULL,gender=NULL,goal='friendship',interests='{}',discoverable=FALSE,profile_review_status='restricted',moderation_note='Profile deleted by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await answer('Анкета удалена');await edit('🧹 Анкета удалена. Аккаунт сохранён.');return;}
       if(act==='account'){await pool.query('DELETE FROM users WHERE id=$1',[id]);await answer('Учётная запись удалена.');await edit('🗑 Аккаунт удалён вместе с анкетой, лайками, чатами и жалобами. Пользователь сможет зарегистрироваться снова с тем же Telegram-аккаунтом.');return;}
@@ -584,7 +616,7 @@ app.post('/telegram/webhook', (req,res) => {
       if(ok)markup={keyboard:[[{text:'/queue'},{text:'/users'}],[{text:'/user'},{text:'/help'}]],resize_keyboard:true};
     }else if(cmd==='/бан'||cmd==='/ban'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
-      else{const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(@?[A-Za-z0-9_]{5,32}|\d{6})\s+(.+)$/i);if(!bm||!bm[2].trim())reply='Укажите @username или шестизначный код профиля и причину блокировки.\nПример: /бан 001234 спам';else if(bm[2].trim().length>500)reply='Причина блокировки не должна превышать 500 символов.';else{const key=bm[1].replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Бан разработчика (команда /бан)',source:'Telegram-команда'});reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';}else if(!found.rowCount)reply='Пользователь не найден.';else{const target=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3 RETURNING id,first_name,username",[bm[2].trim(),isDeveloper?'developer':'moderator',found.rows[0].id]);reply='⛔ Забанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').\nПричина: '+bm[2].trim();}}}
+      else{const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(@?[A-Za-z0-9_]{5,32}|\d{6})$/i);if(!bm)reply='Формат: /ban @username или /ban 001234. Затем выбери причину из списка.';else{const key=bm[1].replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Бан разработчика (команда /ban)',source:'Telegram-команда'});reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';}else if(!found.rowCount)reply='Пользователь не найден.';else{const targetRole=await getRole(String(found.rows[0].telegram_id));if((roleRank[targetRole]??0)>=(roleRank[role]??0))reply='⛔ Нельзя банить пользователя с равным или более высоким рангом.';else{reply='Выбери причину блокировки для '+found.rows[0].first_name+'.';markup={inline_keyboard:Object.entries(BAN_REASONS).map(([reasonKey,item])=>[{text:item.label,callback_data:'br:'+found.rows[0].id+':'+reasonKey}])};}}}
     }else if(cmd==='/разбан'||cmd==='/unban'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else if(!/^(@?[A-Za-z0-9_]{5,32}|\d{6})$/.test(arg))reply='Формат: /разбан @username или /разбан 001234';
