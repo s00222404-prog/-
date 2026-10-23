@@ -144,7 +144,7 @@ app.put('/api/me',auth,wrap(async(req,res)=>{
 }));
 
 async function getUserAgeBand(userId) {
-  const q = await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1 AND account_status=\'active\'', [userId]);
+  const q = await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1', [userId]);
   if (!q.rowCount) return 'restricted';
   const u = q.rows[0];
   const today = new Date();
