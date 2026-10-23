@@ -49,7 +49,29 @@ function verifyAdminPassword(password,salt,storedHash){try{const a=Buffer.from(h
 async function isAdminUnlocked(id){const q=await pool.query('SELECT unlocked_until FROM admin_access_sessions WHERE telegram_id=$1',[String(id)]);return q.rowCount>0&&new Date(q.rows[0].unlocked_until)>new Date();}
 // Public profile badges are independent from admin_roles permissions.
 const roleRank = { none: 0, helper: 1, moderator: 2, admin: 3, chief_admin: 4, developer: 5 };
-function adminCommandHelp(role){let t='VIBE — АДМИН-КОМАНДЫ\\n/adminhelp — полный список\\n/queue — очередь модерации\\n/users — количество пользователей\\n/bans — баны\\n/user @username или 001234 — карточка пользователя\\n/ban @username или 001234 — бан\\n/unban @username или 001234 — разбан\\n/delete @username или 001234 — удаление аккаунта';if(role==='developer')t+='\\n/deleteall — предпросмотр массового удаления\\n/deleteall CONFIRM — подтвердить\\n/пароли — список администраторов\\n/resetadminpass TELEGRAM_ID — новый пароль';return t;}
+function adminCommandHelp(role){
+  const core=[
+    ['/adminhelp','полный список команд'],
+    ['/queue','очередь жалоб и сигналов модерации'],
+    ['/users','количество пользователей'],
+    ['/bans','список заблокированных аккаунтов'],
+    ['/user @username или 001234','карточка пользователя'],
+    ['/ban @username или 001234','заблокировать пользователя'],
+    ['/unban @username или 001234','снять блокировку'],
+    ['/delete @username или 001234','удалить аккаунт'],
+    ['/часовойпояс Europe/Berlin','установить личный часовой пояс'],
+    ['/пароль ВАШ_ПАРОЛЬ','задать пароль (от 4 символов)']
+  ];
+  if(role==='developer') core.push(
+    ['/deleteall','предпросмотр массового удаления'],
+    ['/deleteall CONFIRM','подтвердить массовое удаление'],
+    ['/пароли','список администраторов'],
+    ['/resetadminpass TELEGRAM_ID','сбросить пароль администратора']
+  );
+  const extras=EXTRA_ADMIN_COMMANDS.filter(item=>role==='developer'||item.command!=='deleteall').map(item=>['/'+item.command,item.description]);
+  const format=items=>items.map(([command,description])=>'• '+command+' — '+description).join('\n');
+  return '🛡 VIBE | АДМИН-КОМАНДЫ\n━━━━━━━━━━━━━━━━━━\n🔑 ДОСТУП И ОСНОВНЫЕ КОМАНДЫ\n'+format(core)+'\n\n📚 ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ('+extras.length+')\n'+format(extras)+'\n\n⚠️ Команды работают только при наличии соответствующих прав.';
+}
 async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
   if (!process.env.BOT_TOKEN) return;
   const text = 'VIBE | СИСТЕМА БЕЗОПАСНОСТИ\nЗарегистрирована заблокированная попытка действия в отношении разработчика.\nДействие: ' + action + '\nКто пытался: ' + (actorUsername ? '@' + actorUsername : (actorName || 'неизвестно')) + (actorUsername && actorName ? ' (' + actorName + ')' : '') + '\nИсточник: ' + source + '\nРезультат: действие заблокировано системой безопасности VIBE.';
@@ -820,12 +842,8 @@ app.post('/telegram/webhook', (req,res) => {
       markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'✉️ Связаться с поддержкой',callback_data:'support:new'}],[{text:'📜 Правила',url:'https://vibe-client-sroc.onrender.com/rules'},{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
     }else if(cmd==='/adminhelp'||cmd==='/helpadmin'){
       if(!ok){reply='⛔ Эта справка доступна только администраторам и команде VIBE.';markup=undefined;}
-      else{
-        reply='🛡 VIBE — СПРАВКА ДЛЯ АДМИНИСТРАТОРОВ\n\n/admin — панель администратора\n/queue — открытые жалобы и сигналы модерации\n/users — количество аккаунтов\n/bans — список заблокированных аккаунтов\n/user @username или 001234 — карточка пользователя\n/ban 001234 — заблокировать аккаунт с выбором причины\n/unban @username или 001234 — снять блокировку\n/delete @username или 001234 — удалить аккаунт\n/deleteall — предпросмотр массового удаления (только разработчик)\n/deleteall CONFIRM — подтвердить массовое удаление\n/status — статус сервиса\n\nДля пользователей: /helpuser. Не используйте административные команды для личных вопросов.';
-        if(isDeveloper)reply+='\n\nКОМАНДЫ РАЗРАБОТЧИКА\n/publicstatus @username helper|moderator|admin|chief_admin — публичный статус профиля\n/clearstatus @username — снять публичный статус\nПубличный статус не выдаёт административные права.';
-        markup={remove_keyboard:true};
-      }
-    }else if(cmd==='/очередь'||cmd==='/queue'){
+      else{reply=adminCommandHelp(role);markup={remove_keyboard:true};}
+     }else if(cmd==='/очередь'||cmd==='/queue'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else{const [r,f]=await Promise.all([pool.query("SELECT COUNT(*)::int count FROM reports WHERE status IN ('open','reviewing')"),pool.query("SELECT COUNT(*)::int count FROM moderation_flags WHERE status IN ('open','reviewing')")]);reply='VIBE | СВОДКА МОДЕРАЦИИ\nОткрытые жалобы: '+r.rows[0].count+'\nОткрытые сигналы модерации: '+f.rows[0].count;}
     }else if(cmd==='/баны'||cmd==='/bans'){
