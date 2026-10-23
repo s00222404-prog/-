@@ -577,16 +577,6 @@ app.post('/telegram/webhook', (req,res) => {
     const isDeveloper = role === 'developer';
     const adminCommandNames = new Set([...EXTRA_ADMIN_COMMANDS.map(x=>x.command), 'adminhelp','helpadmin','queue','users','пользователи','bans','баны','user','юзер','ban','бан','unban','разбан','delete','удалить','пароли','resetadminpass','часовойпояс','пароль']);
     if(m && cmd.startsWith('/') && adminCommandNames.has(cmd.slice(1)) && roleRank[role]>=roleRank.helper && !roleCanUseCommand(role,cmd)) { await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:'⛔ Команда недоступна для активной роли «'+({helper:'Помощник',moderator:'Модератор',admin:'Администратор',chief_admin:'Главный администратор',developer:'Разработчик'}[role]||role)+'». Используй /adminhelp для списка доступных команд.'})}); return; }
-    if(cb?.data?.startsWith('lang:set:')) {
-      const chosen=cb.data.split(':')[2];
-      if(['en','ru','de'].includes(chosen) && from?.id) {
-        await pool.query("INSERT INTO users(telegram_id,username,first_name,language) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET language=EXCLUDED.language,updated_at=NOW()",[String(from.id),from.username||null,from.first_name||'User',chosen]);
-        botLanguage=chosen;
-        await answer(chosen==='ru'?'Язык сохранён':chosen==='de'?'Sprache gespeichert':'Language saved');
-        await send(chosen==='ru'?'Язык сохранён. Напиши /start, чтобы открыть меню.':chosen==='de'?'Sprache gespeichert. Sende /start, um das Menü zu öffnen.':'Language saved. Send /start to open the menu.');
-      } else await answer('Unsupported language');
-      return;
-    }
     if (m && ['/start','/help','/помощь','/admin','/адм'].includes(cmd)) {
       try { await hideTelegramCommands(token); }
       catch (e) { console.error('Telegram chat command menu refresh failed:', e.message); }
@@ -626,6 +616,15 @@ app.post('/telegram/webhook', (req,res) => {
     const staffTelegramIds=async()=>{const q=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('helper','moderator','admin','chief_admin')");return [...new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...q.rows.map(x=>String(x.telegram_id))])];};
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
+    if(cb?.data?.startsWith('lang:set:')) {
+      const chosen=cb.data.split(':')[2];
+      if(['en','ru','de'].includes(chosen) && from?.id) {
+        await pool.query("INSERT INTO users(telegram_id,username,first_name,language) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET language=EXCLUDED.language,updated_at=NOW()",[String(from.id),from.username||null,from.first_name||'User',chosen]);
+        await answer(chosen==='ru'?'Язык сохранён':chosen==='de'?'Sprache gespeichert':'Language saved');
+        await send(chosen==='ru'?'Язык сохранён. Напиши /start, чтобы открыть меню.':chosen==='de'?'Sprache gespeichert. Sende /start, um das Menü zu öffnen.':'Language saved. Send /start to open the menu.');
+      } else await answer('Unsupported language');
+      return;
+    }
     const ownAccount=from?.id ? await pool.query('SELECT account_status,moderation_note,ban_issuer FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]) : {rowCount:0,rows:[]};
     if(m&&(cmd==='/closeproject'||cmd==='/закрытьпроект')){
       if(!isDeveloper){await send('⛔ Эта команда доступна только разработчику.');return;}
