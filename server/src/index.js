@@ -313,7 +313,10 @@ app.post('/telegram/webhook', (req,res) => {
       const userRole = String(u.telegram_id)===DEVELOPER_TELEGRAM_ID ? 'developer' : (roleRow.rows[0]?.role || 'none');
       const rolePublic = String(u.telegram_id)===DEVELOPER_TELEGRAM_ID ? true : Boolean(roleRow.rows[0]?.is_public);
       const kb={inline_keyboard:[[{text:'🔎 Проверить',callback_data:'u:check:'+id}],[{text:u.account_status==='banned'?'✅ Разбанить':'⛔ Забанить Telegram',callback_data:'u:'+(u.account_status==='banned'?'unban':'ban')+':'+id}],[{text:'🧹 Удалить анкету',callback_data:'u:profile:'+id}],[{text:'🗑 Удалить аккаунт',callback_data:'u:account:'+id}]]};
-      if (isDeveloper && String(u.telegram_id)!==DEVELOPER_TELEGRAM_ID) kb.inline_keyboard.push([{text:'👑 Главный админ',callback_data:'role:chief_admin:'+id},{text:'🛡 Админ',callback_data:'role:admin:'+id}],[{text:'🔨 Модератор',callback_data:'role:moderator:'+id},{text:'🧰 Помощник',callback_data:'role:helper:'+id}],[{text:'👁 Статус публичный',callback_data:'visibility:public:'+id},{text:'🕶 Статус скрытый',callback_data:'visibility:hidden:'+id}],[{text:'❌ Снять права',callback_data:'role:none:'+id}]);
+      if (String(u.telegram_id)!==DEVELOPER_TELEGRAM_ID) {
+        if (isDeveloper) kb.inline_keyboard.push([{text:'👑 Главный админ',callback_data:'role:chief_admin:'+id},{text:'🛡 Админ',callback_data:'role:admin:'+id}],[{text:'🔨 Модератор',callback_data:'role:moderator:'+id},{text:'🧰 Помощник',callback_data:'role:helper:'+id}],[{text:'👁 Статус публичный',callback_data:'visibility:public:'+id},{text:'🕶 Статус скрытый',callback_data:'visibility:hidden:'+id}],[{text:'❌ Снять права',callback_data:'role:none:'+id}]);
+        else if (role==='admin') kb.inline_keyboard.push([{text:'🧰 Выдать статус помощника',callback_data:'role:helper:'+id},{text:'➖ Снять статус помощника',callback_data:'role:none:'+id}]);
+      }
       const profileCode=String(u.id).padStart(6,'0');
        const details='👤 '+u.first_name+'\nКод профиля: '+profileCode+'\nUsername: '+(u.username?'@'+u.username:'не указан')+'\nTelegram ID: '+u.telegram_id+'\nID анкеты: '+u.id+'\nРоль: '+(ROLE_LABELS[userRole]||'Пользователь')+' ('+(rolePublic?'публичный':'скрытый')+')'+'\nАккаунт: '+u.account_status+'\nПричина бана/модерации: '+(u.moderation_note||'—')+'\nАнкета: '+u.profile_review_status+'\nГород: '+(u.city||'—')+'\nЦель: '+u.goal+'\nИнтересы: '+((u.interests||[]).join(', ')||'—')+'\nФото: '+(u.photo_url?'есть':'нет')+'\nОписание: '+(u.bio||'—')+'\nСоздан: '+new Date(u.created_at).toLocaleString('ru-RU');
       if(editMode)await edit(details,kb);else await send(details+'\nВыбери действие:',kb);
@@ -344,15 +347,18 @@ app.post('/telegram/webhook', (req,res) => {
         await card(id,true);return;
       }
       if(prefix==='role') {
-        if(!isDeveloper){await answer('Назначать роли может только Разработчик');return;}
+        const allowedByAdmin = role==='admin' && ['helper','none'].includes(act);
+        if(!isDeveloper&&!allowedByAdmin){await answer('Назначать роли может только Разработчик или Администратор (только помощника)');return;}
         if(!Number.isSafeInteger(id)||id<=0||!['chief_admin','admin','moderator','helper','none'].includes(act)){await answer('Некорректная роль');return;}
         const target=await pool.query('SELECT telegram_id,username FROM users WHERE id=$1',[id]);
         if(!target.rowCount){await answer('Пользователь не зарегистрирован');return;}
         const targetId=String(target.rows[0].telegram_id);
         if(targetId===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение роли разработчика',source:'Telegram-кнопка ролей'});await answer('Нельзя изменить роль Разработчика');return;}
+        const currentRole = await getRole(targetId);
+        if (!isDeveloper && (roleRank[currentRole] > roleRank.helper || (act==='none' && currentRole!=='helper'))) { await answer('Администратор может менять только статус помощника'); return; }
         if(act==='none') await pool.query('DELETE FROM admin_roles WHERE telegram_id=$1',[targetId]);
         else await pool.query(`INSERT INTO admin_roles(telegram_id,username,role,assigned_by) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,role=EXCLUDED.role,assigned_by=EXCLUDED.assigned_by,updated_at=NOW()`,[targetId,target.rows[0].username,act,String(from.id)]);
-        await answer(act==='none'?'Права сняты':'Назначено: '+(ROLE_LABELS[act]||act));
+        await answer(act==='none'?'Статус помощника снят':'Назначено: '+(ROLE_LABELS[act]||act));
         await card(id,true);
         return;
       }
