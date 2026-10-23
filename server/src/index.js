@@ -261,7 +261,18 @@ app.post('/api/listings',auth,wrap(async(req,res)=>{
 }));
 app.get('/api/discover',auth,wrap(async(req,res)=>{
    const viewerBand=await getUserAgeBand(req.user.id);
-   if(!['teen','adult'].includes(viewerBand))return res.json({people:[]});
+   // Let a user preview their own listing even before age verification is complete.
+   // This does not expose the listing to other users or bypass age-group filtering.
+   if(!['teen','adult'].includes(viewerBand)){
+     const own=await pool.query(`
+       SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,u.photo_url,u.username,
+         CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
+       FROM listings l JOIN users u ON u.id=l.user_id
+       WHERE l.user_id=$1 AND u.account_status='active'
+       LIMIT 1
+     `,[req.user.id,DEVELOPER_TELEGRAM_ID]);
+     return res.json({people:own.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
+   }
    const q=await pool.query(`
      WITH viewer AS (
        SELECT city, verified_birth_date, goal, interests
