@@ -1,5 +1,9 @@
 export const EXTRA_ADMIN_COMMANDS = [
   {
+    "command": "deleteall",
+    "description": "Массовое удаление аккаунтов (только разработчик)"
+  },
+  {
     "command": "stats",
     "description": "Показать статистику платформы"
   },
@@ -264,6 +268,32 @@ export async function handleExtraAdminCommand({ command, parts, pool, role, deve
     return 'Account ' + String(q.rows[0].id).padStart(6,'0') + ' updated to ' + status + '.';
   };
   switch (command) {
+    case 'deleteall': {
+      if (role !== 'developer') return '⛔ Команда /deleteall доступна только разработчику.';
+      if ((parts[1] || '').toUpperCase() !== 'CONFIRM') {
+        const users = await rows("SELECT COUNT(*)::int AS count FROM users WHERE telegram_id::text <> $1", [developerId]);
+        const listings = await rows("SELECT COUNT(*)::int AS count FROM listings l JOIN users u ON u.id=l.user_id WHERE u.telegram_id::text <> $1", [developerId]);
+        const tickets = await rows("SELECT COUNT(*)::int AS count FROM telegram_support_tickets t WHERE t.telegram_id::text <> $1", [developerId]);
+        return '⚠️ МАССОВОЕ УДАЛЕНИЕ VIBE\\n\\nБудет удалено аккаунтов: ' + users[0].count + '\\nАнкет: ' + listings[0].count + '\\nОбращений поддержки: ' + tickets[0].count + '\\n\\nТвой аккаунт разработчика и роли команды сохранятся. Связанное с удаляемыми аккаунтами (лайки, чаты, сообщения, жалобы, блокировки, проверки возраста и сигналы модерации) будет удалено.\\n\\nДля подтверждения отправь отдельной командой: /deleteall CONFIRM';
+      }
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const userIds = await client.query('SELECT id FROM users WHERE telegram_id::text <> $1 FOR UPDATE', [developerId]);
+        const ids = userIds.rows.map(u => u.id);
+        await client.query("DELETE FROM telegram_support_sessions WHERE telegram_id::text <> $1", [developerId]);
+        await client.query("DELETE FROM telegram_support_tickets WHERE telegram_id::text <> $1 OR user_id = ANY($2::bigint[])", [developerId, ids]);
+        const deleted = await client.query("DELETE FROM users WHERE telegram_id::text <> $1 RETURNING id", [developerId]);
+        await client.query('COMMIT');
+        return '✅ Массовое удаление завершено.\\nУдалено аккаунтов: ' + deleted.rowCount + '.\\nСвязанные анкеты, лайки, чаты, сообщения, жалобы, блокировки и проверки удалены каскадно.\\nАккаунт разработчика и настройки ролей команды сохранены.';
+      } catch (e) {
+        await client.query('ROLLBACK');
+        console.error('VIBE bulk account deletion failed:', e.message);
+        return '❌ Удаление отменено: транзакция отменена, частичной очистки не произошло. Проверь схему таблиц поддержки.';
+      } finally {
+        client.release();
+      }
+    }
     case 'stats': return 'VIBE | PLATFORM STATISTICS\nAccounts: ' + await count('SELECT COUNT(*)::int AS count FROM users') + '\nListings: ' + await count('SELECT COUNT(*)::int AS count FROM listings') + '\nPublished: ' + await count("SELECT COUNT(*)::int AS count FROM listings WHERE status='published'") + '\nLikes: ' + await count('SELECT COUNT(*)::int AS count FROM likes') + '\nMessages: ' + await count('SELECT COUNT(*)::int AS count FROM messages');
     case 'today': return 'New accounts today: ' + await count('SELECT COUNT(*)::int AS count FROM users WHERE created_at >= CURRENT_DATE');
     case 'week': return 'New accounts in the last 7 days: ' + await count("SELECT COUNT(*)::int AS count FROM users WHERE created_at >= NOW()-INTERVAL '7 days'");
