@@ -27,3 +27,5 @@
 .report-dialog form{display:grid;gap:14px}
 .report-dialog label{display:grid;gap:7px}
 .report-dialog textarea{min-height:100px}
+
+.own-listing-preview{margin:18px 0;padding:16px;border:1px solid #49365f;background:#1b1525;border-radius:14px}.own-listing-preview h3{margin:0 0 10px}.own-listing-preview p{color:#c4bbd0;font-size:13px;line-height:1.55}.own-listing-preview button{margin:6px 8px 0 0}
