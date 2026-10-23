@@ -181,7 +181,6 @@ const bannedProfileTerms=[
  'puta','puto','joder','mierda','coño','cono','gilipollas','cabron','cabrón','pendejo','chingar','verga','maricon','maricón',
  'cazzo','stronzo','vaffanculo','figa','troia','bastardo',
  'kurwa','chuj','pizda','blyat','suka','cyka','hui','pizdec','pidor','pidaras','zaeb','nahui','huy','huylo','jebac','kurw','dziwka',
- 'boku no?'
 ];
 function profileTextProblem(values){
  const text=values.filter(v=>typeof v==='string').join(' ').normalize('NFKC').toLocaleLowerCase();
