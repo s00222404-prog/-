@@ -97,6 +97,9 @@ const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(nex
 
 async function auth(req,res,next) {
   try {
+    const maintenance=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");
+    if(maintenance.rows[0]?.enabled){const identity=validateTelegramInitData(req.get('X-Telegram-Init-Data'),process.env.BOT_TOKEN);if(String(identity.id)!==DEVELOPER_TELEGRAM_ID)return res.status(503).json({error:'VIBE временно закрыт',maintenance:true,reason:maintenance.rows[0].reason});}
+
     const identity = validateTelegramInitData(req.get('X-Telegram-Init-Data'), process.env.BOT_TOKEN);
     const q = await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
       ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
@@ -113,9 +116,12 @@ async function auth(req,res,next) {
   } catch { res.status(401).json({error:'Telegram authentication failed'}); }
 }
 const adminOnly = canManage;
-app.get('/health',(_req,res)=>{const maintenance=String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';res.status(maintenance?503:200).json({ok:!maintenance,status:maintenance?'maintenance':'online',app:'vibe-api',message:maintenance?(process.env.MAINTENANCE_MESSAGE||'Проводятся технические работы. Попробуйте позже.'): 'Сервер работает нормально'});});
+app.get('/api/service-status',wrap(async(_req,res)=>{const q=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");const m=q.rows[0];res.json({maintenance:Boolean(m?.enabled),reason:m?.reason||''});}));
+app.get('/health',wrap(async(_req,res)=>{const q=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");const m=q.rows[0];const maintenance=Boolean(m?.enabled)||String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';res.status(maintenance?503:200).json({ok:!maintenance,status:maintenance?'maintenance':'online',app:'vibe-api',message:maintenance?(m?.reason||process.env.MAINTENANCE_MESSAGE||'Проводятся технические работы. Попробуйте позже.'): 'Сервер работает нормально'});}));
 
 app.post('/api/auth/telegram',wrap(async(req,res)=>{
+  const maintenance=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");
+  if(maintenance.rows[0]?.enabled){const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);if(String(i.id)!==DEVELOPER_TELEGRAM_ID)return res.status(503).json({error:'VIBE временно закрыт',maintenance:true,reason:maintenance.rows[0].reason});}
   const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);
   const q=await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
     ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
@@ -531,6 +537,20 @@ app.post('/telegram/webhook', (req,res) => {
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
     const ownAccount=from?.id ? await pool.query('SELECT account_status,moderation_note,ban_issuer FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]) : {rowCount:0,rows:[]};
+    if(m&&(cmd==='/closeproject'||cmd==='/закрытьпроект')){
+      if(!isDeveloper){await send('⛔ Эта команда доступна только разработчику.');return;}
+      const reason=parts.slice(1).join(' ').trim();
+      if(!reason||reason.length>500){await send('⚠️ ЗАКРЫТИЕ VIBE\n\nУкажи обязательную причину (до 500 символов).\n\nФормат:\n/closeproject Причина закрытия');return;}
+      await pool.query("UPDATE service_maintenance SET enabled=TRUE,reason=$1,updated_by=$2,updated_at=NOW() WHERE id=1",[reason,String(from.id)]);
+      await send('🔒 VIBE ЗАКРЫТ\n━━━━━━━━━━━━━━━━━━\nПричина: '+reason+'\n\nСайт покажет это сообщение при входе. Разработчик сохранит доступ.\n\nЧтобы открыть проект снова, отправь: /openproject');
+      return;
+    }
+    if(m&&(cmd==='/openproject'||cmd==='/открытьпроект')){
+      if(!isDeveloper){await send('⛔ Эта команда доступна только разработчику.');return;}
+      await pool.query("UPDATE service_maintenance SET enabled=FALSE,reason='',updated_by=$1,updated_at=NOW() WHERE id=1",[String(from.id)]);
+      await send('✅ VIBE снова открыт. Пользователи могут входить на сайт.');
+      return;
+    }
     if(m&&isDeveloper&&/^\/(пароли|adminpasswords)(?:@\S+)?$/i.test(txt)){
       const q=await pool.query("SELECT telegram_id,username,role FROM admin_roles WHERE role IN ('chief_admin','admin','moderator','helper') ORDER BY role DESC,username NULLS LAST");
       const lines=['🔐 ПАРОЛИ АДМИНОК','Текущие пароли не хранятся в открытом виде. Для забытого пароля можно выпустить новый.',''];
@@ -887,6 +907,8 @@ async function start() {
     // Create VIBE tables in the configured VIBE database; CREATE IF NOT EXISTS preserves existing rows.
     const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
     await pool.query(schema);
+    await pool.query("CREATE TABLE IF NOT EXISTS service_maintenance (id INTEGER PRIMARY KEY CHECK (id=1), enabled BOOLEAN NOT NULL DEFAULT FALSE, reason TEXT NOT NULL DEFAULT '', updated_by TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    await pool.query("INSERT INTO service_maintenance(id,enabled,reason) VALUES(1,FALSE,'') ON CONFLICT(id) DO NOTHING");
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_passwords (telegram_id TEXT PRIMARY KEY, salt TEXT NOT NULL, password_hash TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_sessions (telegram_id TEXT PRIMARY KEY, unlocked_until TIMESTAMPTZ NOT NULL)');
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_timezones (telegram_id TEXT PRIMARY KEY, time_zone TEXT NOT NULL)');
