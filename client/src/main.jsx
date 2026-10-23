@@ -36,6 +36,8 @@ const UI_TRANSLATIONS = {
     'Знакомства':'Entdecken','Симпатии':'Likes','Моя анкета':'Mein Profilbogen','Чаты':'Chats','Поиск':'Entdecken','Профиль':'Profil','Лента для тебя':'Dein Feed','публикаций':'Beiträge','Лента пока пуста':'Dein Feed ist leer','Публикации появятся, когда пользователи добавят фото или видео и их анкеты будут одобрены.':'Beiträge erscheinen, sobald Nutzer Fotos oder Videos hinzufügen und ihre Profile freigegeben wurden.','Добавить публикацию':'Beitrag hinzufügen','ТВОЙ ВАЙБ. ТВОЯ ИСТОРИЯ.':'DEIN VIBE. DEINE GESCHICHTE.','Местоположение не указано':'Standort nicht angegeben','Пока ничего не рассказал о себе.':'Noch keine Angaben.','Лайк':'Like','ЛС':'Nachricht','Жалоба':'Melden','Назад':'Zurück','Город:':'Stadt:','Не указан':'Nicht angegeben','О себе:':'Über mich:','Описание не добавлено.':'Keine Beschreibung vorhanden.','Интересы:':'Interessen:','Не указаны':'Nicht angegeben','Поставить лайк':'Like geben','Написать в ЛС':'Nachricht schreiben','Пожаловаться':'Melden','Посмотри, кто поставил тебе лайк, и управляй своими симпатиями.':'Sieh, wer dich gelikt hat, und verwalte deine Likes.','Тебе поставили лайк ·':'Likes von anderen ·','Пока нет новых симпатий. Продолжай знакомиться в ленте.':'Noch keine Likes. Entdecke weitere Leute im Feed.','Взаимно':'Zurückliken','Ты поставил лайк ·':'Deine Likes ·','Здесь появятся анкеты, которым ты поставишь лайк.':'Hier erscheinen Profile, die du gelikt hast.','Написать':'Nachricht','Открыть чаты':'Chats öffnen','Твои чаты':'Deine Chats','Переписывайся напрямую с людьми из ленты VIBE.':'Schreibe direkt mit Menschen aus dem VIBE-Feed.','Пока нет чатов':'Noch keine Chats','Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.':'Öffne den Feed und tippe bei einer Person auf „Nachricht“, um ein Gespräch zu beginnen.','Начни разговор 👋':'Beginne ein Gespräch 👋','← Все чаты':'← Alle Chats','Напиши сообщение…':'Nachricht schreiben…','Добавить анкету':'Profilbogen erstellen','Это отдельная публичная анкета для рекомендаций. Она не меняет данные твоего профиля Telegram.':'Dies ist ein separater öffentlicher Profilbogen für Empfehlungen. Dein Telegram-Profil bleibt unverändert.','Имя':'Name','Возраст (14–100 лет)':'Alter (14–100)','Город':'Stadt','Страна':'Land','Фото или видео для ленты':'Foto oder Video für den Feed','Выбрать фото или видео':'Foto oder Video auswählen','Убрать медиа':'Medium entfernen','Хобби и занятия':'Hobbys und Aktivitäten','Описание':'Beschreibung','Опубликовать анкету':'Profilbogen veröffentlichen','Публикуем…':'Wird veröffentlicht…','Сначала заполни профиль и укажи дату рождения.':'Fülle zuerst dein Profil aus und gib dein Geburtsdatum an.','Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.':'Profilbogen gespeichert und zur Prüfung eingereicht. Nach Freigabe ist er für andere sichtbar. Du kannst ihn bereits in den Empfehlungen sehen.','Код аккаунта':'Kontocode','Настроить анкету':'Profil bearbeiten','Эти данные помогают VIBE подбирать совместимые знакомства. Не указывай точный адрес.':'Diese Angaben helfen VIBE, passende Menschen vorzuschlagen. Gib keine genaue Adresse an.','Фото профиля':'Profilfoto','Выбрать фото':'Foto auswählen','Дата рождения':'Geburtsdatum','Пол':'Geschlecht','Не указан':'Nicht angegeben','Женский':'Weiblich','Мужской':'Männlich','Небинарный':'Nichtbinär','Не хочу указывать':'Keine Angabe','О себе':'Über mich','Цель знакомства':'Wonach suchst du?','Общение и отношения':'Gespräche und Beziehungen','Дружба':'Freundschaft','Общение':'Gespräche','Отношения':'Beziehungen','Интересы через запятую':'Interessen, durch Kommas getrennt','Сохранить профиль':'Profil speichern','Сохраняем…':'Wird gespeichert…','Закрыть профиль':'Profil schließen','Управлять публичной анкетой':'Öffentlichen Profilbogen verwalten','Пожаловаться на':'Melden:','публикацию':'Beitrag','профиль':'Profil','Жалоба отправится модерации VIBE. Причина обязательна; доказательства можно приложить, если они есть.':'Deine Meldung geht an die VIBE-Moderation. Ein Grund ist erforderlich; Belege können angehängt werden.','Твой Telegram-юзернейм':'Dein Telegram-Benutzername','Telegram-юзернейм пользователя':'Telegram-Benutzername der Person','Обязательная причина':'Grund (erforderlich)','Выбери причину':'Grund auswählen','Спам':'Spam','Оскорбления или угрозы':'Beleidigungen oder Drohungen','Фейковая анкета':'Fake-Profil','Неприемлемый контент':'Unangemessene Inhalte','Подозрение на мошенничество':'Betrugsverdacht','Преследование или угрозы безопасности':'Belästigung oder Sicherheitsbedrohung','Другое':'Sonstiges','Подробности':'Details','Доказательства (необязательно)':'Belege (optional)','Прикрепить фото, видео или PDF':'Foto, Video oder PDF anhängen','Отправить жалобу':'Meldung senden','Отправляем…':'Wird gesendet…','Ваш аккаунт забанен':'Dein Konto ist gesperrt','Доступ к VIBE закрыт.':'Der Zugang zu VIBE ist gesperrt.','Кем заблокирован:':'Gesperrt von:','разработчиком':'Entwickler','модератором':'Moderator','Причина:':'Grund:','Причина не указана':'Kein Grund angegeben','VIBE временно закрыт':'VIBE ist vorübergehend geschlossen','Проект временно недоступен.':'Das Projekt ist vorübergehend nicht verfügbar.','Пожалуйста, попробуйте зайти позже.':'Bitte versuche es später erneut.','Подключаем VIBE…':'VIBE wird verbunden…','Правила проекта':'Projektregeln','Конфиденциальность':'Datenschutz','Безопасность важна':'Sicherheit ist wichtig','Закрыть':'Schließen'
   }
 };
+const translationOriginals = new WeakMap();
+const translationAttributeOriginals = new WeakMap();
 function translateUiText(value, language) {
   if (language === 'ru') return value;
   const dict = UI_TRANSLATIONS[language] || {};
@@ -67,19 +69,30 @@ function App() {
         const nodes = [];
         while (walker.nextNode()) nodes.push(walker.currentNode);
         nodes.forEach(node => {
-          if (!node.parentElement?.closest('script,style,textarea,input,option[data-no-translate]')) {
-            const original = node.nodeValue;
+          if (!node.parentElement?.closest('script,style,textarea,input')) {
+            if (!translationOriginals.has(node)) translationOriginals.set(node, node.nodeValue);
+            const original = translationOriginals.get(node);
             const translated = translateUiText(original, language);
-            if (translated !== original) node.nodeValue = translated;
+            if (node.nodeValue !== translated) node.nodeValue = translated;
           }
         });
         root.querySelectorAll('input[placeholder],textarea[placeholder],[aria-label],[title]').forEach(el => {
+          let originals = translationAttributeOriginals.get(el);
+          if (!originals) { originals = {}; translationAttributeOriginals.set(el, originals); }
           for (const attr of ['placeholder','aria-label','title']) {
             const value = el.getAttribute(attr);
-            if (value) el.setAttribute(attr, translateUiText(value, language));
+            if (value && !(attr in originals)) originals[attr] = value;
+            if (originals[attr]) {
+              const translated = translateUiText(originals[attr], language);
+              if (el.getAttribute(attr) !== translated) el.setAttribute(attr, translated);
+            }
           }
         });
-        root.querySelectorAll('option').forEach(el => { el.textContent = translateUiText(el.textContent, language); });
+        root.querySelectorAll('option').forEach(el => {
+          if (!translationOriginals.has(el.firstChild || el)) translationOriginals.set(el.firstChild || el, el.textContent);
+          const original = translationOriginals.get(el.firstChild || el);
+          if (original != null && el.textContent !== translateUiText(original, language)) el.textContent = translateUiText(original, language);
+        });
       };
       translate();
       const observer = new MutationObserver(translate);
