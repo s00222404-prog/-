@@ -534,7 +534,7 @@ app.post('/telegram/webhook', (req,res) => {
     }
     if(m && roleRank[role]>=roleRank.admin && cmd==='/пароль'){
       const password=parts[1]||'';
-      if(password.length<8||password.length>128){await send('Пароль должен быть длиной от 8 до 128 символов. Формат: /пароль ТВОЙ_ПАРОЛЬ');return;}
+      if(password.length<4||password.length>128){await send('Пароль должен быть длиной от 4 до 128 символов. Формат: /пароль ТВОЙ_ПАРОЛЬ');return;}
       const tz=await pool.query('SELECT time_zone FROM admin_access_timezones WHERE telegram_id=$1',[String(from.id)]);
       if(!tz.rowCount){await send('Сначала укажи часовой пояс: /часовойпояс Europe/Moscow (или другой регион IANA).');return;}
       const salt=randomBytes(16).toString('hex');
