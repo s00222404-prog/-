@@ -1103,7 +1103,8 @@ async function start() {
     await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
     // Existing databases retain old CREATE TABLE constraints; migrate listing ages for the teen band.
     await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_age_check");
-    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_age_check CHECK (age BETWEEN 14 AND 100)");
+    // Keep legacy rows intact during the policy migration; new writes still enforce the 14–100 range.
+    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_age_check CHECK (age BETWEEN 14 AND 100) NOT VALID");
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_roles (telegram_id TEXT PRIMARY KEY, username TEXT, role TEXT NOT NULL CHECK (role IN ('chief_admin','admin','moderator','helper')), assigned_by TEXT NOT NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
       await pool.query('ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE');
       await pool.query('ALTER TABLE listings ADD COLUMN IF NOT EXISTS media_url TEXT');
