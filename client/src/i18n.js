@@ -31,6 +31,7 @@ const UI_TRANSLATIONS = {
     'Укажи имя, город и страну. Имя — не короче 2 символов.':'Enter a name, city, and country. The name must be at least 2 characters.',
     'Добавь описание о себе (минимум 5 символов).':'Add a short description about yourself (at least 5 characters).',
     'VIBE доступен с 14 лет. Проверь дату рождения в профиле.':'VIBE is available from age 14. Check the birth date in your profile.',
+    'Город и страна':'City and country','О себе':'About me','Хобби и занятия':'Hobbies and activities','Интересы':'Interests','Поставить лайк':'Like','Написать в ЛС':'Message','Чат':'Chat','Пожаловаться':'Report','Пользователь':'User','Не указаны':'Not provided','Описание не добавлено.':'No description added.','Местоположение не указано':'Location not provided','Пока ничего не рассказал о себе.':'Nothing here yet.','Профиль сохранён':'Profile saved','Разработчик':'Developer','Назад':'Back','Сохранить':'Save','Отправить':'Send','Отмена':'Cancel',
     'Проверь дату рождения в профиле.':'Check the birth date in your profile.',
 
     'Найди людей по интересам или городу.':'Find people by interest or city.',
@@ -83,6 +84,7 @@ const UI_TRANSLATIONS = {
     'Укажи имя, город и страну. Имя — не короче 2 символов.':'Gib Name, Stadt und Land an. Der Name muss mindestens 2 Zeichen haben.',
     'Добавь описание о себе (минимум 5 символов).':'Füge eine kurze Beschreibung hinzu (mindestens 5 Zeichen).',
     'VIBE доступен с 14 лет. Проверь дату рождения в профиле.':'VIBE ist ab 14 Jahren verfügbar. Prüfe dein Geburtsdatum im Profil.',
+    'Город и страна':'Stadt und Land','О себе':'Über mich','Хобби и занятия':'Hobbys und Aktivitäten','Интересы':'Interessen','Поставить лайк':'Gefällt mir','Написать в ЛС':'Nachricht senden','Чат':'Chat','Пожаловаться':'Melden','Пользователь':'Nutzer','Не указаны':'Nicht angegeben','Описание не добавлено.':'Keine Beschreibung hinzugefügt.','Местоположение не указано':'Standort nicht angegeben','Пока ничего не рассказал о себе.':'Noch keine Angaben.','Профиль сохранён':'Profil gespeichert','Разработчик':'Entwickler','Назад':'Zurück','Сохранить':'Speichern','Отправить':'Senden','Отмена':'Abbrechen',
     'Проверь дату рождения в профиле.':'Prüfe dein Geburtsdatum im Profil.',
 
     'Найди людей по интересам или городу.':'Finde Menschen nach Interessen oder Stadt.',
@@ -176,10 +178,8 @@ export function translateUiText(value, language) {
   if (language === 'ru') return value;
   const dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}) };
   const text = value.trim();
-  if (dict[text]) return value.replace(text, dict[text]);
-  let result = value;
-  for (const [source, target] of Object.entries(dict).sort((a,b)=>b[0].length-a[0].length)) {
-    if (result.includes(source)) result = result.split(source).join(target);
-  }
-  return result;
+  // Translate complete UI strings only. Substring replacement corrupts words,
+  // usernames, locations and mixed-language sentences when dictionary keys overlap.
+  if (Object.prototype.hasOwnProperty.call(dict, text)) return value.replace(text, dict[text]);
+  return value;
 }
