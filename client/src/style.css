@@ -1463,3 +1463,18 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 @media (max-width:760px) and (orientation:portrait) {
  .app-shell.feed-mode .feed-scroll {width:100vw!important}
 }
+
+/* TikTok-style action buttons on the right edge of the portrait video */
+.app-shell.feed-mode .feed-post .feed-action-rail {
+ position:absolute!important;z-index:20!important;right:10px!important;top:50%!important;bottom:auto!important;transform:translateY(-18%)!important;
+ display:flex!important;flex-direction:column!important;align-items:center!important;gap:18px!important;width:54px!important;
+}
+.app-shell.feed-mode .feed-post .feed-action-rail button {
+ display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:4px!important;
+ min-width:48px!important;min-height:48px!important;padding:4px 2px!important;border:0!important;border-radius:12px!important;
+ color:#fff!important;background:rgba(0,0,0,.26)!important;text-shadow:0 1px 3px #000!important;cursor:pointer!important;
+}
+.app-shell.feed-mode .feed-post .feed-action-rail button svg {width:27px!important;height:27px!important;filter:drop-shadow(0 1px 2px #000)!important}
+.app-shell.feed-mode .feed-post .feed-action-rail button span {font-size:11px!important;line-height:1.1!important;font-weight:700!important;max-width:54px!important;text-align:center!important}
+.app-shell.feed-mode .feed-post .feed-action-rail button.already-liked {color:#ff4d83!important}
+.app-shell.feed-mode .feed-post .feed-profile-copy {right:70px!important}
