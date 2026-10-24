@@ -57,6 +57,20 @@ function RoleBadge({ role, label }) {
   return <span className={'role-badge role-' + role}><span className="role-badge-icon"><Icon size={13} strokeWidth={2.6}/></span><span>{label}</span><span className="role-badge-glint" aria-hidden="true"/></span>;
 }
 
+
+const VIBE_DEMO_NAMES = ['Alex','Mia','Noah','Lena','Elias','Sofia','Leon','Emma','Finn','Luca','Nina','Paul','Mila','Ben','Anna','Tom','Lilly','Max','Lara','Theo','Clara','Jonas','Ella','Oskar','Lina','Felix','Maya','David','Sara','Emil','Lea','Anton','Ida','Mats','Amelie','Jan','Zoe','Erik','Marie','Luis','Hannah','Nico','Julia','Tim','Alina','Moritz','Lia','Samuel','Elisa','Kai'];
+const VIBE_DEMO_CITIES = ['Berlin','Hamburg','München','Köln','Bremen','Dresden','Leipzig','Hannover','Düsseldorf','Stuttgart'];
+function makeVibeDemoProfiles() {
+  return VIBE_DEMO_NAMES.map((name, index) => ({
+    id: 'vibe-test-' + (index + 1), name, age: 16 + (index % 3), username: 'vibe_test_' + (index + 1),
+    city: VIBE_DEMO_CITIES[index % VIBE_DEMO_CITIES.length], country: 'Deutschland',
+    description: 'TESTPROFIL — Demo-Account zum Prüfen von Feed, Likes und Nachrichten.',
+    hobbies: ['Musik, Filme','Gaming, Technik','Sport, Fotografie','Kunst, Reisen','Bücher, Natur'][index % 5],
+    interests: ['Musik','Freundschaft'], media_type: 'image', media_url: '', photo_url: '',
+    public_role: 'none', role_label: '', is_test_profile: true
+  }));
+}
+
 function App() {
   const [language, setLanguage] = useState(getStoredLanguage);
   useEffect(() => {
@@ -167,6 +181,7 @@ function App() {
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [testLikes, setTestLikes] = useState([]);
   const messagesEndRef = useRef(null);
   const [draft, setDraft] = useState('');
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -223,7 +238,7 @@ function App() {
         interests: Array.isArray(u.interests) ? u.interests.join(', ') : ''
       });
       const discovery = await request('/api/discover');
-      setPeople(discovery.people || []);
+      setPeople([...(discovery.people || []), ...(me.user?.public_role === 'developer' ? makeVibeDemoProfiles() : [])]);
       const mine = await request('/api/listings/mine').catch(() => ({listing:null}));
       if (mine.listing) { setListing({name:mine.listing.name,age:String(mine.listing.age),city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',description:mine.listing.description||''}); setListingMediaUrl(mine.listing.media_url||''); setListingMediaType(mine.listing.media_type||'image'); }
       const chatData = await request('/api/chats');
@@ -314,6 +329,14 @@ function App() {
     if (!personId || likingIds.includes(personId)) return;
     setLikingIds(current => current.includes(personId) ? current : [...current, personId]);
     setError('');
+    if (person.is_test_profile && user?.public_role === 'developer') {
+      setTestLikes(current => current.includes(personId) ? current : [...current, personId]);
+      setPeople(current => current.filter(p => String(p.id) !== personId));
+      setLikesData(current => ({incoming:current.incoming, outgoing:[person, ...current.outgoing.filter(p => String(p.id) !== personId)]}));
+      setNotice('ТЕСТ: лайк демо-анкете обработан локально; реальный пользователь не уведомлялся.');
+      setLikingIds(current => current.filter(id => id !== personId));
+      return;
+    }
     try {
       const result = await request('/api/likes/' + encodeURIComponent(person.id), { method: 'POST' });
       setPeople(current => current.filter(p => String(p.id) !== personId));
@@ -352,6 +375,12 @@ function App() {
   }
 
   async function openChat(chat) {
+    if (String(chat.user_id).startsWith('vibe-test-') && user?.public_role === 'developer') {
+      setActiveChat(chat);
+      setMessages([{id:'test-welcome-'+chat.user_id,sender_id:chat.user_id,body:'ТЕСТОВЫЙ АВТООТВЕТ: демо-чат открыт. Напиши сообщение, чтобы проверить тестовый ответ.',created_at:new Date().toISOString(),test_mode:true}]);
+      setTab('chat');
+      return;
+    }
     try {
       setActiveChat(chat);
       const data = await request('/api/chats/' + encodeURIComponent(chat.user_id) + '/messages');
@@ -366,6 +395,17 @@ function App() {
     if (!activeChat || !body || sendingMessage) return;
     setSendingMessage(true);
     setError('');
+    if (String(activeChat.user_id).startsWith('vibe-test-') && user?.public_role === 'developer') {
+      const now = new Date().toISOString();
+      setMessages(current => [...current,
+        {id:'test-user-'+Date.now(),sender_id:user.id,body,created_at:now,test_mode:true},
+        {id:'test-reply-'+Date.now(),sender_id:activeChat.user_id,body:'ТЕСТОВЫЙ АВТООТВЕТ: сообщение получено демо-обработчиком. Это проверяет только тестовый интерфейс, не доставку реальному пользователю.',created_at:new Date(Date.now()+1).toISOString(),test_mode:true}
+      ]);
+      setDraft('');
+      setNotice('Тестовое сообщение и автоответ показаны локально. Реальная доставка не проверялась.');
+      setSendingMessage(false);
+      return;
+    }
     try {
       const data = await request('/api/chats/' + encodeURIComponent(activeChat.user_id) + '/messages', {
         method: 'POST', body: JSON.stringify({ body })
@@ -466,7 +506,7 @@ function App() {
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
     {!loading && tab === 'discover' && <section className="people tiktok-feed">
-      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам или городу.</p></div><span className="count">{filteredPeople.length} / {people.length}</span><button type="button" className="skip feed-exit" onClick={() => setTab("chats")} aria-label="Выйти из ленты анкет">× В меню</button></div>
+      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам или городу.</p>{user?.public_role === 'developer' && people.some(p=>p.is_test_profile) && <p className="field-hint">РЕЖИМ РАЗРАБОТЧИКА: демо-анкеты. Лайки и автоответы тестовые и не отправляются реальным людям.</p>}</div><span className="count">{filteredPeople.length} / {people.length}</span><button type="button" className="skip feed-exit" onClick={() => setTab("chats")} aria-label="Выйти из ленты анкет">× В меню</button></div>
       <div className="feed-tools" role="search">
         <label className="feed-search"><Compass size={17} aria-hidden="true"/><input value={feedSearch} onChange={e=>setFeedSearch(e.target.value)} placeholder="Поиск по имени, интересам или описанию" aria-label="Поиск по анкетам"/></label>
         <label className="feed-city-filter"><MapPin size={16} aria-hidden="true"/><select value={feedCity} onChange={e=>setFeedCity(e.target.value)} aria-label="Фильтр по городу"><option value="all">Все города</option>{cityOptions.map(city=><option key={city} value={city}>{city}</option>)}</select></label>
@@ -481,7 +521,7 @@ function App() {
             (p.media_url || p.photo_url) ? <img className="feed-media-asset" src={p.media_url || p.photo_url} alt={'Публикация: ' + (p.name || 'пользователь')}/> :
             <div className="profile-cover-placeholder feed-placeholder"><span>{(p.name || '?').slice(0,1).toUpperCase()}</span><small>ТВОЙ ВАЙБ. ТВОЯ ИСТОРИЯ.</small></div>}
           <div className="feed-media-shade"/>
-          <div className="feed-profile-copy"><div className="feed-identity"><button className="feed-name" onClick={()=>setViewingProfile(p)}>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}</button><RoleBadge role={p.public_role} label={p.role_label}/></div><span className="profile-location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span>{p.hobbies && <p className="feed-hobbies"><strong>Хобби</strong> {p.hobbies}</p>}<p className="feed-description">{p.description || p.bio || 'Пока ничего не рассказал о себе.'}</p>{((p.interests || []).length>0 || p.hobbies) && <div className="profile-interests">{[...(p.interests || []), ...(p.hobbies ? p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [])].filter((x,i,a)=>x && a.indexOf(x)===i).slice(0,5).map(x=><span key={x}>#{x}</span>)}</div>}</div>
+          <div className="feed-profile-copy"><div className="feed-identity"><button className="feed-name" onClick={()=>setViewingProfile(p)}>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}{p.is_test_profile ? ' · ТЕСТ' : ''}</button><RoleBadge role={p.public_role} label={p.role_label}/></div><span className="profile-location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span>{p.hobbies && <p className="feed-hobbies"><strong>Хобби</strong> {p.hobbies}</p>}<p className="feed-description">{p.description || p.bio || 'Пока ничего не рассказал о себе.'}</p>{((p.interests || []).length>0 || p.hobbies) && <div className="profile-interests">{[...(p.interests || []), ...(p.hobbies ? p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [])].filter((x,i,a)=>x && a.indexOf(x)===i).slice(0,5).map(x=><span key={x}>#{x}</span>)}</div>}</div>
           <div className="feed-action-rail">
             <button className={String(p.id)===String(user?.id)?'own-profile-like':likesData.outgoing.some(item=>String(item.id)===String(p.id))?'already-liked':''} onClick={()=>{if(String(p.id)!==String(user?.id)||user?.public_role==='developer')like(p)}} disabled={(String(p.id)===String(user?.id)&&user?.public_role!=='developer')||likingIds.includes(String(p.id))||likesData.outgoing.some(item=>String(item.id)===String(p.id))} aria-label={String(p.id)===String(user?.id)?'Тестовая симпатия разработчика':likesData.outgoing.some(item=>String(item.id)===String(p.id))?'Симпатия уже отправлена':'Поставить лайк'} title={String(p.id)===String(user?.id)?'Тестовая симпатия разработчика':likesData.outgoing.some(item=>String(item.id)===String(p.id))?'Симпатия уже отправлена':'Лайк'}><Heart size={25} fill="currentColor"/><span>{String(p.id)===String(user?.id)?(likingIds.includes(String(p.id))?'Отправляем…':'Тест лайка'):likingIds.includes(String(p.id))?'Отправляем…':likesData.outgoing.some(item=>String(item.id)===String(p.id))?'Отправлено':'Лайк'}</span></button>
             {(String(p.id)!==String(user?.id)||user?.public_role==='developer') && <><button onClick={()=>openChat({user_id:p.id,first_name:p.name||'Пользователь',photo_url:p.photo_url})} aria-label="Написать автору в личные сообщения" title="Написать автору"><MessageCircle size={24}/><span>Чат</span></button>{String(p.id)!==String(user?.id) && <button onClick={()=>{setReportingPerson(p);setReportType('post');setReportReason('');setReportDetails('');setReporterUsername(user?.username?'@'+user.username:'');setReportedUsername(p.username?'@'+p.username:'');setReportEvidence('');setReportEvidenceName('');}} aria-label="Пожаловаться на публикацию" title="Пожаловаться"><Flag size={23}/><span>Жалоба</span></button>}</>}
@@ -512,7 +552,7 @@ function App() {
       <button className="save" style={{marginTop:18}} onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button>
     </section>}
     {!loading && tab === 'chats' && <section className="panel chat-list-panel"><div className="panel-heading-row"><div className="panel-icon"><MessageCircle/></div><span className="panel-kicker">НА СВЯЗИ</span></div><h2>Твои чаты</h2><p>Переписывайся напрямую с людьми из ленты VIBE.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{chat.photo_url ? <img src={chat.photo_url} alt="" loading="lazy"/> : (chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
-    {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><div className="chat-conversation-heading"><span className="chat-avatar">{activeChat.photo_url ? <img src={activeChat.photo_url} alt="" loading="lazy"/> : (activeChat.first_name || '?').slice(0,1)}</span><div><h2>{activeChat.first_name}</h2><p>Личные сообщения VIBE</p></div></div><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}<div ref={messagesEndRef}/></div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required disabled={sendingMessage}/><button className="like" type="submit" disabled={sendingMessage || !draft.trim()} aria-label="Отправить сообщение">{sendingMessage ? <RefreshCw size={17} className="spin"/> : <ArrowRight size={17}/>}</button></form></section>}
+    {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><div className="chat-conversation-heading"><span className="chat-avatar">{activeChat.photo_url ? <img src={activeChat.photo_url} alt="" loading="lazy"/> : (activeChat.first_name || '?').slice(0,1)}</span><div><h2>{activeChat.first_name}</h2><p>{String(activeChat.user_id).startsWith('vibe-test-') ? 'ТЕСТОВЫЙ ДЕМО-ЧАТ — не реальный пользователь' : 'Личные сообщения VIBE'}</p></div></div><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p>{message.test_mode && <small>ТЕСТ · не доставлено реальному пользователю</small>}<small>{new Date(message.created_at).toLocaleString()}</small></div>)}<div ref={messagesEndRef}/></div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required disabled={sendingMessage}/><button className="like" type="submit" disabled={sendingMessage || !draft.trim()} aria-label="Отправить сообщение">{sendingMessage ? <RefreshCw size={17} className="spin"/> : <ArrowRight size={17}/>}</button></form></section>}
     {!loading && tab === 'listing' && <section className="panel profile-panel listing-wizard">
       <div className="listing-wizard-heading">
         <span className="listing-wizard-icon"><PlusCircle size={22}/></span>
