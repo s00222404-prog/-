@@ -1637,3 +1637,22 @@ button, a, [role="button"] {
     transition:background-color .16s ease,color .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease!important;
   }
 }
+
+
+/* Fix black lower half on profiles without uploaded media */
+.app-shell.feed-mode .feed-media:has(.feed-placeholder) {
+  position:absolute!important;inset:0!important;width:100%!important;height:100%!important;
+  min-height:100dvh!important;background:radial-gradient(ellipse at 50% 30%,#38264b 0%,#1a1422 48%,#100e16 100%)!important;
+}
+.app-shell.feed-mode .feed-media .feed-placeholder {
+  display:flex!important;position:absolute!important;inset:0!important;
+  width:100%!important;height:100%!important;min-height:100%!important;
+  box-sizing:border-box!important;justify-content:center!important;
+  background:radial-gradient(ellipse at 50% 35%,#8d69a8 0%,#392846 38%,#17121f 78%,#100e16 100%)!important;
+}
+.app-shell.feed-mode .feed-media-shade {
+  z-index:1!important;
+  background:linear-gradient(0deg,rgba(0,0,0,.64) 0%,rgba(0,0,0,.18) 28%,transparent 55%,rgba(0,0,0,.08) 100%)!important;
+}
+.app-shell.feed-mode .feed-profile-copy {z-index:3!important}
+.app-shell.feed-mode .feed-action-rail {z-index:5!important}
