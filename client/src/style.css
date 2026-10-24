@@ -1854,3 +1854,22 @@ input:focus, textarea:focus, select:focus {
 .account-restriction-screen{max-width:560px;margin:10vh auto;padding:clamp(22px,5vw,36px);text-align:center}
 .account-restriction-screen .panel-icon{margin:0 auto 16px}
 .account-restriction-screen .save{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:18px;text-decoration:none}
+
+
+/* First-time profile onboarding controls */
+.listing-wizard select{
+  width:100%;
+  min-height:49px;
+  padding:13px 15px;
+  border:1px solid rgba(210,184,237,.16);
+  border-radius:14px;
+  color:#f3eaff;
+  background:#15111d;
+  outline:none;
+}
+.listing-wizard select:focus{
+  border-color:#b58ae1;
+  box-shadow:0 0 0 3px rgba(181,138,225,.11);
+}
+.onboarding-interest-suggestions{margin:8px 0 22px}
+.onboarding-interest-suggestions button{min-height:36px}
