@@ -12,8 +12,17 @@ VIBE is a Telegram Mini App for social discovery, friendship, conversation, and 
 - Adult access requires a verified birth date; self-reported age alone must never unlock adult access.
 - Do not enable adult/minor matching.
 - Never trust client-supplied Telegram IDs or age; verify Telegram `initData` on the server.
-- This starter does not include production-ready photo moderation, identity/age verification, rate limiting, or abuse review tooling. Add these before public launch.
-- Random chat and direct messaging are not implemented in this first UI scaffold.
+- The codebase has request rate limits and report handling, but production-grade media scanning, an integrated age-assurance provider, audit logs, appeals, and operational abuse review are still release blockers.
+- Chat endpoints exist; random chat matching and end-to-end delivery/notification behavior still require validation.
+
+## Server architecture notes
+
+- `server/src/index.js` wires HTTP routes and Telegram webhook behavior.
+- `server/src/db.js` owns the shared PostgreSQL pool; `server/src/database-config.js` validates the connection URL, pool size, timeouts, and production TLS verification.
+- `server/src/age-policy.js` is the shared age calculation/routing policy.
+- `server/src/moderation/` contains focused validators for profile text and report evidence.
+- On Render, the process handles `SIGTERM` / `SIGINT` by closing the HTTP listener and PostgreSQL pool gracefully.
+- Run `npm test` in `server/` to execute the Node test suite. Keep database credentials in the server environment, never in the client bundle.
 
 ## Run locally
 Requirements: Node.js 20+ and PostgreSQL.
@@ -63,8 +72,9 @@ Still needed before public launch:
 
 ## Age routing and profile review (starter scaffolding)
 
-- The self-declared date of birth routes users to `age_gate`, `youth`, or `adult_verification`; it never unlocks adult discovery.
-- Adult discovery and likes require `age_verification_status = 'verified'` on the server.
+- Users aged 14–17 are routed to the teen space; users seeking adult access must have a verified birth date of 18 or older. Other or invalid age states remain restricted.
+- The server uses verified birth date as authoritative for adult access; self-reported age alone never unlocks adult discovery.
+- Keep database schema initialization and migrations reviewed: startup must fail rather than serve requests when schema setup fails.
 - Passport/ID images must be handled by a vetted age-assurance provider's hosted flow. This starter intentionally does not accept passport uploads or send identity documents to a general-purpose AI model. Configure a provider adapter and webhook verification before production.
 - Automated photo/profile signals create a moderation flag for human review. Do not auto-ban someone because a model guesses their gender from a photo; gender presentation cannot reliably establish identity and such rules can unfairly target transgender people. Ban only after substantiated impersonation/fraud or other policy violations, with an appeal path.
 - Apply schema changes to an existing database using a reviewed migration; `CREATE TABLE IF NOT EXISTS` does not add new columns to an existing `users` table. For a fresh database, `schema.sql` includes the new columns.
