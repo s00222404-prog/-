@@ -142,3 +142,9 @@ body{background:radial-gradient(ellipse at 50% -20%,#38244f 0,transparent 48%),v
 .auth-telegram-button{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:44px;padding:11px 16px;border:1px solid #ffffff20;border-radius:14px;background:#ffffff08;color:#d7cde5;text-decoration:none;font-size:12px;font-weight:650;transition:background .18s,border-color .18s}
 .auth-telegram-button:hover{background:#ffffff12;border-color:#ffffff38}
 .auth-telegram-button svg:last-child{margin-left:auto;color:#a99bbd}
+
+
+/* VIBE support contact */
+.support-email-link{display:inline-flex;align-items:center;justify-content:center;gap:4px;color:#cbb7ff;text-decoration:none;font-size:10px;line-height:1.6;overflow-wrap:anywhere;transition:color .18s}
+.support-email-link:hover{color:#f1eaff;text-decoration:underline}
+.rail-footer .support-email-link{display:flex;justify-content:flex-start;margin-top:8px}
