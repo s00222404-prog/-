@@ -996,6 +996,13 @@ app.post('/telegram/webhook', (req,res) => {
         await send('⛔ Разработчика нельзя банить, ограничивать или удалять.');
         return;
       }
+      const actorRole=await getRole(String(from.id));
+      const targetRole=await getAssignedRole(String(q.rows[0].telegram_id));
+      if(['unban','profile','account'].includes(act) && !await ensureTargetBelowActor(String(q.rows[0].telegram_id),actorRole)){
+        if(String(q.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID)await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:({unban:'Изменение блокировки разработчика',profile:'Удаление анкеты разработчика',account:'Удаление аккаунта разработчика'})[act],source:'Telegram-кнопка модерации'});
+        await answer('Нельзя изменять аккаунт сотрудника с равной или более высокой ролью.');
+        return;
+      }
       if(act==='ban'){const reasonsKeyboard={inline_keyboard:Object.entries(BAN_REASONS).map(([key,item])=>[{text:item.label,callback_data:'br:'+id+':'+key}])};await answer('Выбери причину бана');await send('⛔ Выберите причину блокировки для '+q.rows[0].first_name+'. После нажатия аккаунт будет заблокирован, а выбранная причина сохранится в системе.',reasonsKeyboard);return;}
       if(act==='unban'){await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1",[id]);await answer('Блокировка снята.');await edit('✅ Бан снят.');return;}
       if(act==='profile'){await pool.query("UPDATE users SET bio='',city=NULL,photo_url=NULL,gender=NULL,goal='friendship',interests='{}',discoverable=FALSE,profile_review_status='restricted',moderation_note='Profile deleted by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await answer('Анкета удалена');await edit('🧹 Анкета удалена. Аккаунт сохранён.');return;}
