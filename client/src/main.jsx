@@ -58,19 +58,6 @@ function RoleBadge({ role, label }) {
 }
 
 
-const VIBE_DEMO_NAMES = ['Alex','Mia','Noah','Lena','Elias','Sofia','Leon','Emma','Finn','Luca','Nina','Paul','Mila','Ben','Anna','Tom','Lilly','Max','Lara','Theo','Clara','Jonas','Ella','Oskar','Lina','Felix','Maya','David','Sara','Emil','Lea','Anton','Ida','Mats','Amelie','Jan','Zoe','Erik','Marie','Luis','Hannah','Nico','Julia','Tim','Alina','Moritz','Lia','Samuel','Elisa','Kai'];
-const VIBE_DEMO_CITIES = ['Berlin','Hamburg','München','Köln','Bremen','Dresden','Leipzig','Hannover','Düsseldorf','Stuttgart'];
-function makeVibeDemoProfiles() {
-  return VIBE_DEMO_NAMES.map((name, index) => ({
-    id: 'vibe-test-' + (index + 1), name, age: 16 + (index % 3), username: 'vibe_test_' + (index + 1),
-    city: VIBE_DEMO_CITIES[index % VIBE_DEMO_CITIES.length], country: 'Deutschland',
-    description: 'Ein Profil zum Kennenlernen und Austesten von VIBE.',
-    hobbies: ['Musik, Filme','Gaming, Technik','Sport, Fotografie','Kunst, Reisen','Bücher, Natur'][index % 5],
-    interests: ['Musik','Freundschaft'], media_type: 'image', media_url: '', photo_url: '',
-    public_role: 'none', role_label: '', is_test_profile: true
-  }));
-}
-
 function App() {
   const [language, setLanguage] = useState(getStoredLanguage);
   useEffect(() => {
@@ -239,7 +226,7 @@ function App() {
         interests: Array.isArray(u.interests) ? u.interests.join(', ') : ''
       });
       const discovery = await request('/api/discover');
-      setPeople([...(discovery.people || []), ...(me.user?.public_role === 'developer' ? makeVibeDemoProfiles() : [])]);
+      setPeople(discovery.people || []);
       const mine = await request('/api/listings/mine').catch(() => ({listing:null}));
       if (mine.listing) { setListing({name:mine.listing.name,age:String(mine.listing.age),city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',description:mine.listing.description||''}); setListingMediaUrl(mine.listing.media_url||''); setListingMediaType(mine.listing.media_type||'image'); }
       const chatData = await request('/api/chats');
@@ -527,7 +514,7 @@ function App() {
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
     {!loading && tab === 'discover' && <section className="people tiktok-feed">
-      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам или городу.</p>{user?.public_role === 'developer' && people.some(p=>p.is_test_profile) && <p className="field-hint">РЕЖИМ РАЗРАБОТЧИКА: демо-анкеты. Лайки и автоответы тестовые и не отправляются реальным людям.</p>}</div><span className="count">{filteredPeople.length} / {people.length}</span><button type="button" className="skip feed-exit" onClick={() => setTab("chats")} aria-label="Выйти из ленты анкет">× В меню</button></div>
+      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам или городу.</p></div><span className="count">{filteredPeople.length} / {people.length}</span><button type="button" className="skip feed-exit" onClick={() => setTab("chats")} aria-label="Выйти из ленты анкет">× В меню</button></div>
       <div className="feed-tools" role="search">
         <label className="feed-search"><Compass size={17} aria-hidden="true"/><input value={feedSearch} onChange={e=>setFeedSearch(e.target.value)} placeholder="Поиск по имени, интересам или описанию" aria-label="Поиск по анкетам"/></label>
         <label className="feed-city-filter"><MapPin size={16} aria-hidden="true"/><select value={feedCity} onChange={e=>setFeedCity(e.target.value)} aria-label="Фильтр по городу"><option value="all">Все города</option>{cityOptions.map(city=><option key={city} value={city}>{city}</option>)}</select></label>
