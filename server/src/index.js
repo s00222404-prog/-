@@ -194,6 +194,21 @@ async function getRole(telegramId) {
   const current=active.rows[0]?.role;
   return current && roleRank[current]!==undefined && roleRank[current]<=roleRank[assigned] ? current : assigned;
 }
+async function getAssignedRole(telegramId) {
+  const id = String(telegramId);
+  if (id === DEVELOPER_TELEGRAM_ID) return 'developer';
+  const assigned = await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1', [id]);
+  if (assigned.rowCount) return assigned.rows[0].role;
+  if ((process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(value => value.trim()).includes(id)) return 'admin';
+  return 'none';
+}
+
+async function ensureTargetBelowActor(targetTelegramId, actorRole) {
+  const targetRole = await getAssignedRole(targetTelegramId);
+  if (targetRole === 'developer' || roleRank[targetRole] >= roleRank[actorRole]) return false;
+  return true;
+}
+
 async function canManage(req,res,next) {
   try {
     const role = await getRole(req.user.telegram_id);
@@ -655,16 +670,48 @@ app.get('/api/admin/queue',auth,adminOnly,wrap(async(_req,res)=>{
 app.patch('/api/admin/reports/:id',auth,adminOnly,wrap(async(req,res)=>{
   const id=Number(req.params.id);const {status,action='none',note=''}=req.body||{};
   if(!Number.isSafeInteger(id)||!['reviewing','resolved','dismissed'].includes(status)||!['none','restrict','suspend','ban','restore'].includes(action))return res.status(400).json({error:'Invalid action'});
-  if(action==='ban'&&(!String(note).trim()||String(note).trim().length>500))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
-  const c=await pool.connect();try{await c.query('BEGIN');const f=await c.query('SELECT r.reported_id,u.telegram_id FROM reports r JOIN users u ON u.id=r.reported_id WHERE r.id=$1 FOR UPDATE OF r,u',[id]);if(!f.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Report not found'});}if(['ban','restrict','suspend'].includes(action)&&String(f.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await c.query('ROLLBACK');await notifyDeveloperAttempt({actorId:req.user.telegram_id,actorName:req.user.first_name,actorUsername:req.user.username,action:'Модерация разработчика ('+action+')',source:'Веб-жалобы'});return res.status(403).json({error:'Разработчика нельзя забанить или ограничить'});}
-  await c.query('UPDATE reports SET status=$1 WHERE id=$2',[status,id]);if(action!=='none'){const s={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];await c.query(`UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3`,[s,note||'Admin action: '+action,f.rows[0].reported_id,req.adminRole==='developer'?'developer':'moderator']);}await c.query('COMMIT');res.json({updated:true});}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
+  if(typeof note!=='string'||(action==='ban'&&(!note.trim()||note.trim().length>500)))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
+  const c=await pool.connect();let targetTelegramId=null;
+  try{
+    await c.query('BEGIN');
+    const f=await c.query('SELECT r.reported_id,u.telegram_id FROM reports r JOIN users u ON u.id=r.reported_id WHERE r.id=$1 FOR UPDATE OF r,u',[id]);
+    if(!f.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Report not found'});}
+    targetTelegramId=String(f.rows[0].telegram_id);
+    if(action!=='none'&&!await ensureTargetBelowActor(targetTelegramId,req.adminRole)){
+      await c.query('ROLLBACK');
+      if(targetTelegramId===DEVELOPER_TELEGRAM_ID)await notifyDeveloperAttempt({actorId:req.user.telegram_id,actorName:req.user.first_name,actorUsername:req.user.username,action:'Модерация разработчика ('+action+')',source:'Веб-жалобы'});
+      return res.status(403).json({error:'Нельзя изменять аккаунт сотрудника с равной или более высокой ролью'});
+    }
+    await c.query('UPDATE reports SET status=$1 WHERE id=$2',[status,id]);
+    if(action!=='none'){
+      const accountStatus={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];
+      await c.query("UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3",[accountStatus,note.trim()||'Admin action: '+action,f.rows[0].reported_id,req.adminRole==='developer'?'developer':'moderator']);
+    }
+    await c.query('COMMIT');res.json({updated:true});
+  }catch(e){try{await c.query('ROLLBACK');}catch{}throw e;}finally{c.release();}
 }));
 app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
   const id=Number(req.params.id);const {status,action='none',note=''}=req.body||{};
   if(!Number.isSafeInteger(id)||!['reviewing','resolved','dismissed'].includes(status)||!['none','restrict','suspend','ban','restore'].includes(action))return res.status(400).json({error:'Invalid action'});
-  if(action==='ban'&&(!String(note).trim()||String(note).trim().length>500))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
-  const f=await pool.query('SELECT mf.user_id,u.telegram_id FROM moderation_flags mf JOIN users u ON u.id=mf.user_id WHERE mf.id=$1',[id]);if(!f.rowCount)return res.status(404).json({error:'Flag not found'});if(action==='ban'&&String(f.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:req.user.telegram_id,actorName:req.user.first_name,actorUsername:req.user.username,action:'Бан разработчика',source:'Веб-флаги модерации'});return res.status(403).json({error:'Разработчика нельзя забанить'});}await pool.query('UPDATE moderation_flags SET status=$1 WHERE id=$2',[status,id]);
-  if(action!=='none'){const s={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];await pool.query('UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1=\'active\' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1=\'banned\' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3',[s,note||'Admin action: '+action,f.rows[0].user_id,req.adminRole==='developer'?'developer':'moderator']);}res.json({updated:true});
+  if(typeof note!=='string'||(action==='ban'&&(!note.trim()||note.trim().length>500)))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
+  const c=await pool.connect();let targetTelegramId=null;
+  try{
+    await c.query('BEGIN');
+    const f=await c.query('SELECT mf.user_id,u.telegram_id FROM moderation_flags mf JOIN users u ON u.id=mf.user_id WHERE mf.id=$1 FOR UPDATE OF mf,u',[id]);
+    if(!f.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Flag not found'});}
+    targetTelegramId=String(f.rows[0].telegram_id);
+    if(action!=='none'&&!await ensureTargetBelowActor(targetTelegramId,req.adminRole)){
+      await c.query('ROLLBACK');
+      if(targetTelegramId===DEVELOPER_TELEGRAM_ID)await notifyDeveloperAttempt({actorId:req.user.telegram_id,actorName:req.user.first_name,actorUsername:req.user.username,action:'Модерация разработчика ('+action+')',source:'Веб-флаги модерации'});
+      return res.status(403).json({error:'Нельзя изменять аккаунт сотрудника с равной или более высокой ролью'});
+    }
+    await c.query('UPDATE moderation_flags SET status=$1 WHERE id=$2',[status,id]);
+    if(action!=='none'){
+      const accountStatus={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];
+      await c.query("UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3",[accountStatus,note.trim()||'Admin action: '+action,f.rows[0].user_id,req.adminRole==='developer'?'developer':'moderator']);
+    }
+    await c.query('COMMIT');res.json({updated:true});
+  }catch(e){try{await c.query('ROLLBACK');}catch{}throw e;}finally{c.release();}
 }));
 
 app.post('/telegram/webhook', (req,res) => {
