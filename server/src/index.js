@@ -3,7 +3,7 @@ import { initializeDatabase } from './db/initialize.js';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { pool } from './db.js';
 import { validateTelegramInitData } from './telegram.js';
 import { EXTRA_ADMIN_COMMANDS, handleExtraAdminCommand } from './admin-commands.js';
@@ -245,9 +245,6 @@ const reportRateLimit = rateLimit({
   limit: 10,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  keyGenerator: req => req.user?.telegram_id
-    ? `telegram:${req.user.telegram_id}`
-    : ipKeyGenerator(req.ip),
   message: { error: 'Слишком много жалоб. Попробуй позже.' },
 });
 
