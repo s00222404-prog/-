@@ -697,7 +697,7 @@ function LegalPage() {
       <h2>12. Contact and requests</h2>
       <p>Questions and requests concerning personal-data processing may be sent to VIBE administration through the official Telegram bot. State which right you wish to exercise and provide the information needed to verify the request.</p>
       <p className="legal-note">This document describes general data-processing practices. Before a commercial launch, it should be supplemented with the controller's legal details, responsible contact information and specific retention periods that reflect VIBE's actual infrastructure.</p>
-    </article>)} : <article className="legal-document">
+    </article>) : <article className="legal-document">
       <p className="legal-lead">Настоящие Правила определяют условия безопасного использования VIBE, требования к анкетам, публикациям и общению, а также основания для применения мер модерации.</p>
       <h2>1. Общие условия</h2>
       <p>Используя VIBE, пользователь обязуется соблюдать настоящие Правила, применимое законодательство и требования платформы Telegram. Пользователь несёт ответственность за содержание размещаемой информации и свои действия в сервисе.</p>
