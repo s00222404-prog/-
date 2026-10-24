@@ -63,8 +63,9 @@ function App() {
     const updateLanguage = event => setLanguage(event.detail || 'en');
     window.addEventListener('vibe-language-change', updateLanguage);
     document.documentElement.lang = language;
-    const root = document.querySelector('.app-shell');
-    if (root) {
+    const translateRoot = () => {
+      const root = document.querySelector('.app-shell');
+      if (!root) return;
       const translate = () => {
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         const nodes = [];
@@ -96,11 +97,44 @@ function App() {
         });
       };
       translate();
-      const observer = new MutationObserver(translate);
-      observer.observe(root, {subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','aria-label','title']});
-      return () => { observer.disconnect(); window.removeEventListener('vibe-language-change', updateLanguage); };
-    }
-    return () => window.removeEventListener('vibe-language-change', updateLanguage);
+    };
+    translateRoot();
+    // The app shell may be rendered after the initial loading screen. Observe the
+    // document so translation also starts when that shell appears.
+    const observer = new MutationObserver(() => {
+      const root = document.querySelector('.app-shell');
+      if (!root) return;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(node => {
+        if (!node.parentElement?.closest('script,style,textarea,input')) {
+          if (!translationOriginals.has(node)) translationOriginals.set(node, node.nodeValue);
+          const original = translationOriginals.get(node);
+          const translated = translateUiText(original, language);
+          if (node.nodeValue !== translated) node.nodeValue = translated;
+        }
+      });
+      root.querySelectorAll('input[placeholder],textarea[placeholder],[aria-label],[title],option').forEach(el => {
+        let originals = translationAttributeOriginals.get(el);
+        if (!originals) { originals = {}; translationAttributeOriginals.set(el, originals); }
+        for (const attr of ['placeholder','aria-label','title']) {
+          const value = el.getAttribute(attr);
+          if (value && !(attr in originals)) originals[attr] = value;
+          if (originals[attr]) {
+            const translated = translateUiText(originals[attr], language);
+            if (el.getAttribute(attr) !== translated) el.setAttribute(attr, translated);
+          }
+        }
+        if (el.tagName === 'OPTION') {
+          if (!translationOriginals.has(el.firstChild || el)) translationOriginals.set(el.firstChild || el, el.textContent);
+          const original = translationOriginals.get(el.firstChild || el);
+          if (original != null && el.textContent !== translateUiText(original, language)) el.textContent = translateUiText(original, language);
+        }
+      });
+    });
+    observer.observe(document.body, {subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','aria-label','title']});
+    return () => { observer.disconnect(); window.removeEventListener('vibe-language-change', updateLanguage); };
   }, [language]);
   const [tab, setTab] = useState('discover');
   const [user, setUser] = useState(null);
