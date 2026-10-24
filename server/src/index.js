@@ -334,6 +334,7 @@ app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
 }));
 app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
+ if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя анкеты должно содержать от 2 до 60 символов.'});
  const profileCheck=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
  if(!profileCheck.rows[0]?.birth_date)return res.status(400).json({error:'Сначала заполни профиль и укажи дату рождения.'});
  const ageSource=profileCheck.rows[0].age_verification_status==='verified'&&profileCheck.rows[0].verified_birth_date
@@ -345,9 +346,13 @@ app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
 
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
  if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
- if(mediaUrl!==null&&(typeof mediaUrl!=='string'||mediaUrl.length>4400000||!(mediaUrl.startsWith('data:image/')||mediaUrl.startsWith('data:video/'))))return res.status(400).json({error:'Медиа должно быть фото или видео размером до 3 МБ.'});
  if(!['image','video'].includes(mediaType))return res.status(400).json({error:'Некорректный тип медиа.'});
- if(mediaUrl&&((mediaType==='video'&&!mediaUrl.startsWith('data:video/'))||(mediaType==='image'&&!mediaUrl.startsWith('data:image/'))))return res.status(400).json({error:'Тип файла не совпадает с выбранным типом медиа.'});
+ if(mediaUrl!==null){
+   if(typeof mediaUrl!=='string')return res.status(400).json({error:'Медиа должно быть фото или видео размером до 3 МБ.'});
+   const mediaMatch=mediaUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+|video\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/);
+   if(!mediaMatch||mediaUrl.length>4400000||Buffer.byteLength(mediaMatch[2],'base64')>3*1024*1024)return res.status(400).json({error:'Медиа должно быть корректным фото или видео размером до 3 МБ.'});
+   if((mediaType==='video'&&!mediaMatch[1].startsWith('video/'))||(mediaType==='image'&&!mediaMatch[1].startsWith('image/')))return res.status(400).json({error:'Тип файла не совпадает с выбранным типом медиа.'});
+ }
  if(profileTextProblem([name,city,country,hobbies,description]))return res.status(400).json({error:'В анкете найдены запрещённые ругательства или пошлые слова. Исправь текст.'});
  const q=await pool.query(`INSERT INTO listings(user_id,name,age,city,country,hobbies,description,media_url,media_type,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
  ON CONFLICT(user_id) DO UPDATE SET name=EXCLUDED.name,age=EXCLUDED.age,city=EXCLUDED.city,country=EXCLUDED.country,hobbies=EXCLUDED.hobbies,description=EXCLUDED.description,media_url=EXCLUDED.media_url,media_type=EXCLUDED.media_type,status='pending',updated_at=NOW()
