@@ -1143,3 +1143,170 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
   .profile-editor-form input,.profile-editor-form textarea,.profile-editor-form select,
   .profile-editor-form .save,.profile-actions button{transition:none}
 }
+
+
+/* VIBE Aura: listing creation wizard */
+.listing-wizard{
+  position:relative;
+  isolation:isolate;
+  border-color:rgba(198,157,239,.22);
+  background:
+    radial-gradient(ellipse at 100% 0%,rgba(139,84,196,.13),transparent 42%),
+    linear-gradient(150deg,#191421 0%,#121019 62%,#15101d 100%);
+  box-shadow:0 24px 70px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.025);
+}
+.listing-wizard:before{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  top:0;left:8%;right:8%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(213,179,255,.55),transparent);
+}
+.listing-wizard-heading{gap:16px;margin-bottom:27px}
+.listing-wizard-icon{
+  flex-basis:52px;width:52px;height:52px;
+  border:1px solid rgba(238,216,255,.28);
+  background:linear-gradient(145deg,#e1c6ff,#b48be9 65%,#9160c9);
+  box-shadow:0 8px 24px rgba(154,94,210,.2);
+}
+.listing-wizard-heading .feed-kicker{display:inline-flex;margin:1px 0 3px}
+.listing-wizard-heading h2{font-size:clamp(25px,4vw,31px);letter-spacing:-1px}
+.listing-wizard-heading p{max-width:440px}
+.listing-stepper{gap:10px;margin-bottom:30px}
+.listing-step{
+  position:relative;
+  gap:10px;
+  padding:12px 13px;
+  border-color:rgba(210,184,237,.13);
+  background:rgba(255,255,255,.025);
+  transition:border-color .18s ease,background .18s ease,transform .18s ease;
+}
+.listing-step>span{
+  flex-basis:29px;width:29px;height:29px;
+  border:1px solid rgba(210,184,237,.12);
+  background:#292332;color:#bcb0cc;
+}
+.listing-step.current{
+  border-color:rgba(195,151,240,.58);
+  color:#f3e8ff;
+  background:linear-gradient(135deg,rgba(130,76,177,.25),rgba(67,43,91,.2));
+  box-shadow:0 5px 20px rgba(127,76,169,.1);
+}
+.listing-step.current>span,.listing-step.complete>span{
+  color:#21132e;
+  border-color:transparent;
+  background:linear-gradient(135deg,#e0c5ff,#b58ae8);
+}
+.listing-step.complete{color:#d5c4e7;border-color:rgba(169,126,212,.25)}
+.listing-step small{line-height:1.3}
+.listing-step-content{padding-top:2px}
+.listing-wizard label{
+  gap:10px;
+  margin:20px 0;
+  color:#ded4e9;
+  font-size:12px;
+  letter-spacing:.05px;
+}
+.listing-wizard input:not([type=file]),.listing-wizard textarea{
+  border-color:rgba(210,184,237,.16);
+  background:rgba(9,8,14,.62);
+  border-radius:14px;
+  padding:14px 15px;
+  box-shadow:inset 0 1px rgba(255,255,255,.018);
+  transition:border-color .18s ease,box-shadow .18s ease,background .18s ease;
+}
+.listing-wizard input:not([type=file]){min-height:49px}
+.listing-wizard textarea{min-height:112px;line-height:1.6;resize:vertical}
+.listing-wizard input:not([type=file]):focus,.listing-wizard textarea:focus{
+  border-color:#b58ae1;
+  background:rgba(13,10,20,.9);
+  box-shadow:0 0 0 3px rgba(181,138,225,.11),inset 0 1px rgba(255,255,255,.025);
+}
+.listing-wizard input::placeholder,.listing-wizard textarea::placeholder{color:#82778f}
+.listing-two-columns{gap:13px}
+.listing-info-note,.listing-age-summary,.listing-review-card{
+  gap:13px;
+  padding:15px;
+  border-color:rgba(196,153,234,.18);
+  border-radius:16px;
+  background:linear-gradient(135deg,rgba(143,94,181,.12),rgba(255,255,255,.025));
+}
+.listing-info-note{margin:20px 0}
+.listing-info-note svg{color:#d2aff8}
+.listing-age-summary{margin:8px 0 20px}
+.listing-age-icon,.listing-review-check{
+  flex-basis:39px;width:39px;height:39px;
+  border:1px solid rgba(208,171,245,.17);
+  border-radius:13px;
+  background:linear-gradient(145deg,#403050,#2b2037);
+}
+.listing-age-summary b,.listing-review-card b{color:#f0e6fb;font-size:13px}
+.listing-age-summary p,.listing-review-card p{margin:4px 0 0;color:#b8adc7;font-size:12px;line-height:1.6}
+.listing-wizard .media-picker{
+  min-height:58px;
+  padding:16px;
+  border:1px dashed rgba(195,151,240,.58);
+  border-radius:15px;
+  background:linear-gradient(135deg,rgba(119,71,158,.2),rgba(255,255,255,.025));
+  color:#e1c9ff;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.listing-wizard .media-picker:hover{
+  border-color:#d0a7ff;
+  background:linear-gradient(135deg,rgba(137,85,181,.3),rgba(255,255,255,.04));
+}
+.listing-media-preview{
+  padding:10px;
+  border:1px solid rgba(196,153,234,.17);
+  border-radius:17px;
+  background:rgba(0,0,0,.18);
+}
+.listing-media-preview img,.listing-media-preview video{
+  display:block;
+  max-height:min(52vh,440px);
+  border-radius:12px;
+}
+.listing-media-preview .skip{justify-self:start}
+.listing-review-card{margin:18px 0}
+.listing-review-check{color:#dfc3ff}
+.listing-wizard-actions{gap:10px;margin-top:24px}
+.listing-wizard-actions button,.listing-next{
+  min-height:48px;
+  border-radius:14px;
+}
+.listing-wizard .save{
+  box-shadow:0 9px 26px rgba(156,94,221,.16);
+  transition:filter .18s ease,transform .18s ease,box-shadow .18s ease;
+}
+.listing-wizard .save:not(:disabled):hover{
+  filter:brightness(1.06);
+  transform:translateY(-1px);
+  box-shadow:0 12px 30px rgba(156,94,221,.23);
+}
+.listing-wizard .save:disabled{box-shadow:none}
+.listing-wizard .skip{
+  border-color:rgba(210,184,237,.16);
+  border-radius:14px;
+  background:rgba(255,255,255,.035);
+}
+.listing-wizard .field-hint{line-height:1.65;color:#b0a5bd}
+@media(max-width:560px){
+  .listing-wizard{padding:19px 15px}
+  .listing-wizard-heading{gap:12px;margin-bottom:22px}
+  .listing-wizard-icon{flex-basis:44px;width:44px;height:44px;border-radius:14px}
+  .listing-stepper{gap:6px;margin-bottom:24px}
+  .listing-step{display:grid;justify-items:center;align-content:start;gap:7px;padding:10px 4px;text-align:center;border-radius:12px}
+  .listing-step>span{flex-basis:27px;width:27px;height:27px}
+  .listing-step small{font-size:10px;white-space:normal}
+  .listing-two-columns{grid-template-columns:1fr;gap:0}
+  .listing-wizard label{margin:16px 0}
+  .listing-info-note,.listing-age-summary,.listing-review-card{padding:12px;gap:10px}
+  .listing-wizard-actions{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr)}
+  .listing-wizard-actions button{padding:11px 9px;font-size:12px}
+}
+@media(prefers-reduced-motion:reduce){
+  .listing-step,.listing-wizard input:not([type=file]),.listing-wizard textarea,
+  .listing-wizard .media-picker,.listing-wizard .save{transition:none}
+  .listing-step-content{animation:none}
+}
