@@ -136,7 +136,7 @@ function App() {
     observer.observe(document.body, {subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','aria-label','title']});
     return () => { observer.disconnect(); window.removeEventListener('vibe-language-change', updateLanguage); };
   }, [language]);
-  const [tab, setTab] = useState('discover');
+  const [tab, setTab] = useState('chats');
   const [user, setUser] = useState(null);
   const [people, setPeople] = useState([]);
   const [likesData, setLikesData] = useState({incoming:[],outgoing:[]});
