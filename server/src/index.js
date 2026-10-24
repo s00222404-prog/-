@@ -251,7 +251,7 @@ async function upsertTelegramUser(identity) {
           first_name = EXCLUDED.first_name,
           photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
           updated_at = NOW()
-    RETURNING id, telegram_id, username, first_name, birth_date,
+    RETURNING id, telegram_id, username, first_name, birth_date, verified_birth_date,
       age_verification_status, age_verified_at, gender, profile_review_status,
       account_status, bio, city, photo_url, goal, interests, discoverable,
       moderation_note, public_status, ban_issuer`,
