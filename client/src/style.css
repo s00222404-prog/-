@@ -1551,3 +1551,47 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
   .app-shell.feed-mode .feed-scroll {scroll-behavior:auto!important}
   .feed-action-rail button {transition:none!important}
 }
+
+
+/* Full-screen Telegram-style conversation on mobile and in the mini app */
+.app-shell:has(.chat-panel) .chat-panel {
+  display:flex!important;
+  flex-direction:column!important;
+  position:fixed!important;
+  z-index:1200!important;
+  inset:0!important;
+  width:100vw!important;
+  height:100dvh!important;
+  max-height:100dvh!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:calc(12px + env(safe-area-inset-top)) 14px calc(12px + env(safe-area-inset-bottom))!important;
+  border:0!important;
+  border-radius:0!important;
+  overflow:hidden!important;
+  background:linear-gradient(160deg,#1c1726,#100e17 72%)!important;
+  box-sizing:border-box!important;
+}
+.app-shell:has(.chat-panel) .chat-panel .back-chat {flex:0 0 auto;align-self:flex-start;margin-bottom:10px}
+.app-shell:has(.chat-panel) .chat-conversation-heading {
+  flex:0 0 auto;padding:12px;border-radius:18px;
+  background:rgba(196,158,231,.08);border:1px solid rgba(210,181,242,.12);
+}
+.app-shell:has(.chat-panel) .messages-list {
+  flex:1 1 auto!important;min-height:0!important;max-height:none!important;
+  overflow-y:auto!important;overscroll-behavior:contain;
+  padding:16px 2px!important;scroll-behavior:smooth;
+}
+.app-shell:has(.chat-panel) .chat-compose {
+  flex:0 0 auto!important;position:relative!important;
+  padding:8px!important;margin-top:6px!important;
+  padding-bottom:calc(8px + env(safe-area-inset-bottom))!important;
+  background:rgba(24,19,33,.96)!important;
+}
+.app-shell:has(.chat-panel) .chat-compose input {min-width:0!important}
+.app-shell:has(.chat-panel) .mobile-nav,
+.app-shell:has(.chat-panel) footer {display:none!important}
+.app-shell:has(.chat-panel) {overflow:hidden!important}
+@media(min-width:761px) {
+ .app-shell:has(.chat-panel) .chat-panel {inset:20px!important;width:auto!important;height:auto!important;max-height:calc(100dvh - 40px)!important;border:1px solid rgba(210,181,242,.2)!important;border-radius:24px!important}
+}
