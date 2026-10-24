@@ -209,8 +209,22 @@ function App() {
     if (!initData || !user?.id || loading || user?.account_status === 'banned') return;
     const refreshInbox = async () => {
       if (document.visibilityState !== 'visible' || tab === 'chat') return;
-      try { const data = await request('/api/chats'); setChats(data.chats || []); }
-      catch { /* Inbox refresh is best-effort; keep the current screen usable. */ }
+      try {
+        const [chatData, likesDataFresh, referralData, meData] = await Promise.all([
+          request('/api/chats'),
+          request('/api/likes').catch(() => null),
+          request('/api/referrals').catch(() => null),
+          request('/api/me').catch(() => null)
+        ]);
+        setChats(chatData.chats || []);
+        if (likesDataFresh) {
+          const incoming = likesDataFresh.incoming || [], outgoing = likesDataFresh.outgoing || [];
+          setLikesData({incoming, outgoing});
+          setMutualIds(incoming.filter(person => outgoing.some(other => String(other.id) === String(person.id))).map(person => String(person.id)));
+        }
+        if (referralData) setReferralCount(Number(referralData.count) || 0);
+        if (meData?.user) setUser(current => ({...current, ...meData.user}));
+      } catch { /* Inbox refresh is best-effort; keep the current screen usable. */ }
     };
     const timer = window.setInterval(refreshInbox, 15000);
     return () => window.clearInterval(timer);
@@ -333,7 +347,8 @@ function App() {
           interests: profile.interests.split(',').map(x => x.trim()).filter(Boolean).slice(0, 20)
         })
       });
-      setUser(result.user);
+      const refreshedUser = await request('/api/me');
+      setUser(refreshedUser.user);
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
       setNotice('Профиль сохранён.');
