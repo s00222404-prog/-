@@ -68,3 +68,37 @@ body{background:radial-gradient(ellipse at 50% -20%,#38244f 0,transparent 48%),v
 /* Dedicated application settings */
 .settings-mini{display:flex;align-items:center;gap:10px;width:100%;margin-top:10px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#ffffff08;color:var(--muted);text-align:left;font-size:12px}.settings-mini span{flex:1}.settings-mini:hover{background:#ffffff12;color:#fff}.settings-modal{width:min(560px,100%)}.settings-section{padding:17px 0;border-bottom:1px solid var(--line)}.settings-section h3{display:flex;align-items:center;gap:9px;margin:0 0 14px;font-size:14px}.settings-section-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:11px;background:#9a7cff20;color:#cbb8ff}.settings-note{display:block;margin-top:8px;color:var(--muted);font-size:11px;line-height:1.5}.settings-toggle{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;cursor:pointer}.settings-toggle+ .settings-toggle{border-top:1px solid #ffffff0b}.settings-toggle>span{display:grid;gap:4px}.settings-toggle b{font-size:12px;font-weight:650}.settings-toggle small{font-size:11px;color:var(--muted);line-height:1.4}.settings-toggle input{appearance:none;flex:0 0 42px;width:42px;height:24px;border:1px solid #ffffff2a;border-radius:99px;background:#ffffff16;position:relative;cursor:pointer;transition:background .18s}.settings-toggle input:before{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#e7e0f7;transition:transform .18s}.settings-toggle input:checked{background:linear-gradient(100deg,var(--pink),var(--violet));border-color:transparent}.settings-toggle input:checked:before{transform:translateX(18px);background:#fff}.reduce-motion *, .reduce-motion *:before, .reduce-motion *:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 @media(max-width:650px){.settings-modal{max-height:90dvh;overflow:auto}.settings-mini{display:none}}
+
+
+/* Fit media and keep discovery controls visible on every viewport */
+.feed-card{background:#0c0913;}
+.hero-img{object-fit:contain;background:#0c0913;}
+.feed-card:after{z-index:0;pointer-events:none;background:linear-gradient(180deg,#09061008 0%,#09061000 35%,#090610c9 100%)}
+.profile-info,.actions,.card-top{z-index:2}
+.feed-controls{position:relative;z-index:3;gap:9px;padding:10px 0 4px;flex-wrap:nowrap}
+.round-control{transition:background-color .28s ease,transform .28s cubic-bezier(.2,.75,.25,1),box-shadow .28s ease}
+.round-control:hover,.action:hover{transform:translateY(-1px)}
+.iconbtn,.action,.settings-toggle input,.settings-toggle input:before,.sidebar-toggle svg{transition-duration:.28s;transition-timing-function:cubic-bezier(.2,.75,.25,1)}
+.app-frame.sidebar-collapsed .feed-card{height:calc(100dvh - 190px);min-height:360px;max-height:none}
+.app-frame.sidebar-collapsed .feed-shell{max-width:900px}
+.app-frame.sidebar-collapsed .feed-controls{padding:10px 0 2px}
+@media(max-width:650px){
+ .hero-img{object-fit:contain;background:#0c0913}
+ .app-frame.sidebar-collapsed{padding:8px 8px 82px}
+ .app-frame.sidebar-collapsed .feed-card{height:calc(100dvh - 225px);min-height:300px;max-height:none;border-radius:19px}
+ .app-frame.sidebar-collapsed .feed-controls{padding:8px 0 0;gap:7px}
+ .app-frame.sidebar-collapsed .round-control{height:42px;min-width:42px;border-radius:14px}
+ .app-frame.sidebar-collapsed .round-control.primary{padding:0 12px;white-space:nowrap;font-size:11px}
+ .app-frame.sidebar-collapsed .hint{margin:4px 0 0;font-size:9px;line-height:1.3}
+ .app-frame.sidebar-collapsed .profile-info{bottom:12px;left:12px;right:65px}
+ .app-frame.sidebar-collapsed .name-line h2{font-size:22px}
+ .app-frame.sidebar-collapsed .bio{font-size:12px;line-height:1.35;margin-bottom:8px}
+ .app-frame.sidebar-collapsed .meta{margin:5px 0 7px;font-size:11px}
+ .app-frame.sidebar-collapsed .actions{right:8px;bottom:14px;gap:8px}
+ .app-frame.sidebar-collapsed .action{width:40px;height:40px;border-radius:13px}
+ .app-frame.sidebar-collapsed .action-label{font-size:8px;margin-top:3px}
+ .app-frame.sidebar-collapsed .card-top{top:10px;left:10px;right:10px}
+ .app-frame.sidebar-collapsed .glass{font-size:10px;padding:6px 9px}
+ .app-frame.sidebar-collapsed .feed-controls .round-control.primary{flex:1;justify-content:center}
+}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
