@@ -27,11 +27,15 @@ function calculateAgeFromBirthDate(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').slice(0, 10));
   if (!match) return null;
   const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
-  const parsed = new Date(year, month - 1, day);
-  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) return null;
   const today = new Date();
-  let age = today.getUTCFullYear() - year;
-  if (today.getUTCMonth() + 1 < month || (today.getUTCMonth() + 1 === month && today.getUTCDate() < day)) age--;
+  const currentYear = today.getUTCFullYear();
+  const currentMonth = today.getUTCMonth();
+  const currentDay = today.getUTCDate();
+  if (parsed > Date.UTC(currentYear, currentMonth, currentDay)) return null;
+  let age = currentYear - year;
+  if (currentMonth < month - 1 || (currentMonth === month - 1 && currentDay < day)) age--;
   return age;
 }
 
@@ -332,10 +336,23 @@ function App() {
         setProfileOpen(true);
         throw new Error('Сначала заполни профиль и укажи дату рождения.');
       }
-      const verifiedAge = calculateAgeFromBirthDate(String(user.birth_date).slice(0, 10));
-      if (verifiedAge === null || verifiedAge < 14) {
+      // Re-read the saved profile before publishing: React state may be stale after profile edits.
+      const freshProfile = await request('/api/me');
+      const currentUser = freshProfile.user;
+      setUser(currentUser);
+      const birthDate = currentUser?.birth_date ? String(currentUser.birth_date).slice(0, 10) : '';
+      if (!birthDate) {
         setProfileOpen(true);
-        throw new Error('VIBE доступен с 14 лет. Проверь дату рождения в профиле.');
+        throw new Error('Сначала сохрани дату рождения в профиле, затем отправь анкету.');
+      }
+      const verifiedAge = calculateAgeFromBirthDate(birthDate);
+      if (verifiedAge === null) {
+        setProfileOpen(true);
+        throw new Error('Не удалось прочитать дату рождения из профиля. Открой профиль, проверь дату и сохрани изменения.');
+      }
+      if (verifiedAge < 14) {
+        setProfileOpen(true);
+        throw new Error('По сохранённой дате рождения тебе меньше 14 лет. Проверь дату в профиле; доступ к VIBE начинается с 14 лет.');
       }
       const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:verifiedAge,mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
       const savedListing={...result.listing,age:String(result.listing.age)};
