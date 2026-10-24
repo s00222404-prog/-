@@ -500,7 +500,7 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Переписка недоступна'});
-  const q=await pool.query(`SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at ASC LIMIT 200`,[req.user.id,other]);
+  const q=await pool.query(`SELECT id,sender_id,body,created_at FROM (SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at DESC LIMIT 200) recent_messages ORDER BY created_at ASC`,[req.user.id,other]);
   res.json({messages:q.rows});
 }));
 app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,res)=>{
