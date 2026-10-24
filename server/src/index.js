@@ -461,8 +461,11 @@ app.post('/api/likes/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(id);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Симпатии доступны только пользователям твоей возрастной стороны VIBE.'});
-  const q=await pool.query(`SELECT id FROM users WHERE id=$1 AND account_status='active'`,[id]);
-  if(!q.rowCount)return res.status(404).json({error:'User unavailable'});
+  const q=await pool.query(`SELECT u.id FROM users u WHERE u.id=$1 AND u.account_status='active'
+    AND EXISTS(SELECT 1 FROM listings l WHERE l.user_id=u.id AND l.status='published')`,[id]);
+  if(!q.rowCount)return res.status(404).json({error:'Пользователь или опубликованная анкета недоступны'});
+  const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,id]);
+  if(blocked.rowCount)return res.status(403).json({error:'Нельзя поставить лайк этому пользователю'});
   await pool.query('INSERT INTO likes(from_user,to_user) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,id]);
   const m=await pool.query('SELECT 1 FROM likes WHERE from_user=$1 AND to_user=$2',[id,req.user.id]); res.json({liked:true,matched:!!m.rowCount});
 }));
