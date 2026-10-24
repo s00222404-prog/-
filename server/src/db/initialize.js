@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 // Keep startup schema changes in one place and fail startup if any migration fails.
 export async function initializeDatabase(pool) {
   try {
-    const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
+    const schema = await readFile(new URL('../../schema.sql', import.meta.url), 'utf8');
     await pool.query(schema);
     await pool.query("CREATE TABLE IF NOT EXISTS service_maintenance (id INTEGER PRIMARY KEY CHECK (id=1), enabled BOOLEAN NOT NULL DEFAULT FALSE, reason TEXT NOT NULL DEFAULT '', updated_by TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     await pool.query("INSERT INTO service_maintenance(id,enabled,reason) VALUES(1,FALSE,'') ON CONFLICT(id) DO NOTHING");
