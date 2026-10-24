@@ -81,6 +81,24 @@ CREATE INDEX IF NOT EXISTS users_discovery_idx ON users (discoverable, created_a
 CREATE INDEX IF NOT EXISTS likes_to_user_idx ON likes (to_user);
 CREATE INDEX IF NOT EXISTS reports_status_idx ON reports (status, created_at);
 
+-- Keep chat history and inbox queries responsive as message volume grows.
+CREATE INDEX IF NOT EXISTS messages_pair_created_idx
+  ON messages (match_low, match_high, created_at DESC);
+CREATE INDEX IF NOT EXISTS messages_sender_created_idx
+  ON messages (sender_id, created_at DESC);
+
+-- Reverse block lookups are used to exclude users who blocked the viewer.
+CREATE INDEX IF NOT EXISTS blocks_blocked_id_idx
+  ON blocks (blocked_id);
+
+-- User-facing likes lists are sorted by newest first.
+CREATE INDEX IF NOT EXISTS likes_from_created_idx
+  ON likes (from_user, created_at DESC);
+
+-- Profile lookup by owner and publication state.
+CREATE INDEX IF NOT EXISTS listings_user_status_idx
+  ON listings (user_id, status);
+
 -- Store verification metadata only. Passport/document images must be handled by a vetted
 -- age-assurance provider, not uploaded to this API or sent to a general-purpose AI model.
 CREATE TABLE IF NOT EXISTS age_verification_requests (
