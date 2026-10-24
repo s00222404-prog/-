@@ -1972,3 +1972,154 @@ input:focus, textarea:focus, select:focus {
   .app-shell:has(.tiktok-feed) .feed-filter-overlay { top:calc(58px + env(safe-area-inset-top)); }
   .app-shell:has(.tiktok-feed) .mobile-nav { z-index:1300; }
 }
+
+
+/* VIBE 2.0 — prototype-inspired visual system; preserves the existing app logic */
+:root{
+  color-scheme:dark;
+  --vibe-bg:#100d19;
+  --vibe-panel:#1b1727;
+  --vibe-panel-2:#242035;
+  --vibe-text:#f7f4ff;
+  --vibe-muted:#aaa3bf;
+  --vibe-pink:#ff5c9a;
+  --vibe-violet:#9a7cff;
+  --vibe-line:rgba(255,255,255,.095);
+  --vibe-border:rgba(211,180,244,.15);
+  background:var(--vibe-bg);
+}
+html{background:var(--vibe-bg);scroll-behavior:smooth}
+body{
+  color:var(--vibe-text);
+  background:radial-gradient(ellipse at 50% -20%,rgba(88,48,113,.44),transparent 48%),var(--vibe-bg);
+  -webkit-font-smoothing:antialiased;
+}
+button,input,textarea,select{font-family:inherit}
+button{transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{
+  outline:2px solid var(--vibe-violet)!important;outline-offset:3px
+}
+.app-shell{
+  width:min(100% - 36px,1000px);
+  padding:24px 0 calc(36px + env(safe-area-inset-bottom));
+}
+.topbar{
+  border-bottom-color:var(--vibe-line);
+  padding-bottom:17px;
+  gap:14px;
+}
+.brand{font-size:25px;letter-spacing:-1.2px}
+.brand-mark{
+  width:40px;height:40px;border-radius:14px;color:#fff;
+  background:linear-gradient(135deg,var(--vibe-pink),var(--vibe-violet));
+  box-shadow:0 8px 28px rgba(190,77,185,.25)
+}
+.dot{color:var(--vibe-pink)}
+.online{color:#c3b8d5}
+.avatar{border-color:var(--vibe-border);background:var(--vibe-panel-2);color:#f2dfff}
+.hero{padding:40px 0 25px}
+.hero h1{letter-spacing:-2.5px}
+.hero h1 span{color:var(--vibe-pink)}
+.eyebrow{color:#cbb9ee;letter-spacing:1.8px}
+.tabs{
+  border:1px solid var(--vibe-line);border-radius:17px;padding:7px;margin:0 0 20px;
+  background:rgba(23,18,33,.88);backdrop-filter:blur(18px);gap:5px
+}
+.tabs button{
+  border:1px solid transparent;background:transparent;color:var(--vibe-muted);
+  border-radius:12px;padding:11px 13px;min-height:43px
+}
+.tabs button:hover{background:rgba(255,255,255,.055);color:#fff}
+.tabs button.active{
+  background:linear-gradient(125deg,rgba(255,92,154,.16),rgba(154,124,255,.19));
+  border-color:rgba(192,148,255,.25);color:#fff;box-shadow:0 5px 20px rgba(0,0,0,.12)
+}
+.tabs b,.tabs .tab-count{background:rgba(154,124,255,.2);color:#e7d9ff}
+.section-heading{gap:12px}
+.section-heading h2,.panel h2{letter-spacing:-.65px}
+.count{background:var(--vibe-panel-2);color:#d7cbe8}
+.person-card,.admin-item,.panel,.profile-card{
+  background:linear-gradient(155deg,rgba(31,25,44,.98),rgba(22,18,31,.98));
+  border:1px solid var(--vibe-border);border-radius:23px;
+  box-shadow:0 16px 46px rgba(0,0,0,.17)
+}
+.person-card{transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.person-card:hover{transform:translateY(-2px);border-color:rgba(255,92,154,.24)}
+.person-art.rose{background:linear-gradient(135deg,#47243c,#b65d87)}
+.person-art.blue{background:linear-gradient(135deg,#202e48,#687fb0)}
+.person-art.violet{background:linear-gradient(135deg,#302247,#8969b8)}
+.person-info{padding:20px}
+.person-title h3{letter-spacing:-.4px}
+.match-score{border-color:rgba(255,92,154,.25);background:rgba(255,92,154,.09);color:#ffb5d1}
+.chips span{
+  background:rgba(255,255,255,.045);border-color:var(--vibe-line);color:#d9cde9;border-radius:999px;padding:7px 10px
+}
+.card-actions button,.save{
+  min-height:44px;border-radius:13px;font-size:12px;font-weight:800;
+  transition:transform .16s ease,filter .16s ease,background .16s ease
+}
+.card-actions button:hover,.save:hover{filter:brightness(1.09);transform:translateY(-1px)}
+.like,.save{
+  color:#fff;border:1px solid rgba(255,92,154,.34);
+  background:linear-gradient(120deg,#ff5c9a,#a678ff);
+  box-shadow:0 8px 22px rgba(191,78,168,.13)
+}
+.skip{background:rgba(255,255,255,.045);border-color:var(--vibe-line);color:#e0d6ee}
+.panel{padding:clamp(19px,3.4vw,28px)}
+.panel-icon{background:linear-gradient(135deg,rgba(255,92,154,.16),rgba(154,124,255,.2));color:#f0c2ff;border:1px solid rgba(210,170,255,.1)}
+.profile-panel input,.profile-panel textarea,.profile-panel select,
+input,textarea,select{
+  background-color:#15111f;color:#f7f4ff;border-color:var(--vibe-border)!important;border-radius:13px
+}
+input::placeholder,textarea::placeholder{color:#847a98}
+.notice{background:rgba(154,124,255,.09);border-color:rgba(154,124,255,.22);color:#e8dbff;border-radius:14px}
+.empty{color:var(--vibe-muted)}
+.empty h3{color:var(--vibe-text)}
+footer{border-top-color:var(--vibe-line)}
+a{color:#e0b5ff}
+.language-picker{border-color:var(--vibe-border)!important;border-radius:12px}
+.feed-filter-trigger{border-color:rgba(255,255,255,.16)!important;background:rgba(27,20,39,.84)!important}
+.feed-filter-overlay{border-color:rgba(211,180,244,.2)!important;background:rgba(24,18,35,.98)!important}
+.feed-post{background:#211b2a}
+.feed-post-footer>span:first-child,.feed-post-footer button{border-radius:999px!important}
+.feed-action-rail button{border-radius:18px!important}
+.feed-action-rail button:hover{border-color:rgba(255,92,154,.4);box-shadow:0 10px 28px rgba(0,0,0,.25),0 0 0 3px rgba(255,92,154,.06)}
+.profile-fullscreen-dialog,.report-dialog{background:#1b1727!important;border-color:var(--vibe-border)!important;border-radius:24px!important}
+.chat-row{border-radius:16px!important}
+.chat-compose{background:rgba(27,23,39,.92);border-radius:17px}
+.mobile-nav{
+  background:rgba(17,13,25,.94)!important;
+  border-top:1px solid rgba(255,255,255,.09)!important;
+  backdrop-filter:blur(22px)!important
+}
+.landing-shell{max-width:1040px}
+.landing-topbar{border-bottom-color:var(--vibe-line)}
+.landing-menu{background:rgba(255,255,255,.045);border-color:var(--vibe-line);color:#e4d5f5}
+.landing-hero{padding-top:35px}
+.landing-hero h1 span{background:linear-gradient(100deg,#ff9cbe,#bca1ff 75%);-webkit-background-clip:text;background-clip:text}
+.landing-demo-card{border-color:rgba(255,255,255,.15);box-shadow:0 24px 75px rgba(0,0,0,.32)}
+.landing-feature-card{background:linear-gradient(145deg,rgba(35,27,49,.96),rgba(22,18,31,.96));border-color:var(--vibe-border);border-radius:22px}
+.register-button{background:linear-gradient(120deg,#ff5c9a,#9a7cff);box-shadow:0 12px 30px rgba(191,78,168,.2)}
+@media(min-width:681px){
+  .app-shell:has(.tiktok-feed) .topbar{margin-bottom:14px}
+  .app-shell:has(.tiktok-feed) .tabs{margin-bottom:14px}
+  .app-shell:has(.tiktok-feed) .feed-scroll{width:min(100% - 24px,780px);border-radius:28px}
+  .app-shell:has(.tiktok-feed) .feed-post{border-radius:28px}
+}
+@media(max-width:680px){
+  .app-shell{width:100%;padding-top:calc(12px + env(safe-area-inset-top))}
+  .app-shell:has(.tiktok-feed){padding-top:0}
+  .app-shell:not(:has(.tiktok-feed)){padding-left:16px;padding-right:16px}
+  .topbar{padding-bottom:13px}
+  .hero{padding:30px 0 20px}
+  .tabs{border-radius:15px}
+  .panel{border-radius:22px!important}
+  .landing-shell{padding-left:16px;padding-right:16px}
+  .landing-hero{padding-left:0;padding-right:0}
+  .landing-hero h1{letter-spacing:-2.4px}
+  .person-card{border-radius:21px}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  button,.person-card{transition:none}
+}
