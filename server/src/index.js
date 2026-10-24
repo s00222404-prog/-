@@ -977,6 +977,7 @@ app.post('/telegram/webhook', (req,res) => {
         if(String(target.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await answer('Аккаунт разработчика защищён');return;}
         const actorRole=await getRole(String(from.id));
         const targetRole=await getRole(String(target.rows[0].telegram_id));
+        if((roleRank[actorRole]??0)<roleRank.moderator){await answer('Блокировать аккаунты может только модератор или роль выше.');return;}
         if((roleRank[targetRole]??0)>=(roleRank[actorRole]??0)){await answer('Нельзя банить пользователя с равным или более высоким рангом');return;}
         await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3",[selected.reason,actorRole==='developer'?'developer':'moderator',targetId]);
         await answer('Аккаунт заблокирован: '+selected.label);
@@ -997,6 +998,11 @@ app.post('/telegram/webhook', (req,res) => {
         return;
       }
       const actorRole=await getRole(String(from.id));
+      const requiredRole=act==='account'?'admin':(['ban','unban','profile'].includes(act)?'moderator':null);
+      if(requiredRole && (roleRank[actorRole]??0)<roleRank[requiredRole]){
+        await answer('Для этого действия нужна роль «'+({moderator:'Модератор',admin:'Администратор'}[requiredRole])+'» или выше.');
+        return;
+      }
       if(['unban','profile','account'].includes(act) && !await ensureTargetBelowActor(String(q.rows[0].telegram_id),actorRole)){
         if(String(q.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID)await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:({unban:'Изменение блокировки разработчика',profile:'Удаление анкеты разработчика',account:'Удаление аккаунта разработчика'})[act],source:'Telegram-кнопка модерации'});
         await answer('Нельзя изменять аккаунт сотрудника с равной или более высокой ролью.');
