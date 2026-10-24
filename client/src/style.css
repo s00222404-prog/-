@@ -819,3 +819,55 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
   .profile-actions > button:last-child:nth-child(odd) { grid-column: auto; }
   .full-profile-details p { padding: 11px; }
 }
+
+
+/* VIBE 2.0 — guided listing creation and polished responsive surfaces */
+.listing-wizard{padding:clamp(20px,4vw,34px);overflow:hidden}
+.listing-wizard-heading{display:flex;align-items:flex-start;gap:15px;margin-bottom:25px}
+.listing-wizard-icon{display:grid;place-items:center;flex:0 0 48px;height:48px;border-radius:16px;background:linear-gradient(145deg,#d9c4ee,#b99bd8);color:#33243e}
+.listing-wizard-heading h2{margin:5px 0 7px;font-size:clamp(23px,4vw,29px);letter-spacing:-.8px}
+.listing-wizard-heading p{margin:0;color:var(--muted,#b5adbf);font-size:13px;line-height:1.65}
+.listing-stepper{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 28px}
+.listing-step{display:flex;align-items:center;gap:9px;min-width:0;padding:10px 11px;border:1px solid var(--line,rgba(208,188,235,.12));border-radius:14px;background:#15121c;color:#9f96ad}
+.listing-step>span{display:grid;place-items:center;flex:0 0 27px;width:27px;height:27px;border-radius:50%;background:#292332;font-size:12px;font-weight:800}
+.listing-step small{font-size:11px;font-weight:650;white-space:normal;line-height:1.3}
+.listing-step.current{background:#2a2135;border-color:#b99bd777;color:#f1e8f8}
+.listing-step.current>span,.listing-step.complete>span{background:#c9b0e4;color:#30223d}
+.listing-step.complete{border-color:#b99bd744;color:#d7c5e8}
+.listing-step-content{animation:listing-step-in .22s ease both}
+@keyframes listing-step-in{from{opacity:.4;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.listing-wizard label{display:grid;gap:9px;color:#d4cada;font-size:12px;font-weight:650;margin:18px 0}
+.listing-wizard input:not([type=file]),.listing-wizard textarea{width:100%;min-width:0;background:#121019;border:1px solid #ffffff18;border-radius:13px;padding:14px;color:#f7f1fb;outline:none;font-size:14px;font-weight:450}
+.listing-wizard textarea{min-height:118px;resize:vertical;line-height:1.65}
+.listing-wizard input:focus,.listing-wizard textarea:focus{border-color:#b99bd7;box-shadow:0 0 0 3px #b99bd71b}
+.listing-two-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.listing-info-note,.listing-age-summary,.listing-review-card{display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:14px;border:1px solid #b99bd72b;background:#221c2b;color:#d5c9e0;font-size:12px;line-height:1.6}
+.listing-info-note svg{flex:0 0 auto;color:#c8ace5;margin-top:1px}
+.listing-age-summary{align-items:center;margin:4px 0 18px}
+.listing-age-icon,.listing-review-check{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border-radius:12px;background:#3a2e48;color:#d5b9ef}
+.listing-age-summary b,.listing-review-card b{display:block;color:#f1e9f7;font-size:13px}
+.listing-age-summary p,.listing-review-card p{margin:4px 0 0;color:#bcb1c9;font-size:12px;line-height:1.6}
+.listing-next{margin-top:22px}
+.listing-wizard-actions{display:flex;gap:10px;margin-top:24px}
+.listing-wizard-actions button{flex:1;min-height:46px;width:auto;margin:0}
+.listing-media-preview{display:grid;gap:10px;margin:14px 0;padding:12px;border:1px solid var(--line,rgba(208,188,235,.12));border-radius:15px;background:#121019}
+.listing-media-preview img,.listing-media-preview video{display:block;width:100%;max-height:360px;object-fit:contain;border-radius:10px;background:#09080d}
+.listing-media-preview button{width:100%}
+.listing-wizard .field-hint{line-height:1.65}
+.listing-wizard button:disabled{opacity:.58;cursor:wait;transform:none}
+.feed-post{box-shadow:0 16px 48px #0000001a}
+.feed-media{border:1px solid #ffffff0b}
+.feed-post-footer{border-color:#ffffff0b}
+.profile-modal,.report-dialog{border-color:#ffffff18;box-shadow:0 28px 90px #0008}
+@media(max-width:520px){
+ .listing-wizard{padding:19px 16px}
+ .listing-wizard-heading{gap:12px}
+ .listing-wizard-icon{flex-basis:42px;height:42px}
+ .listing-stepper{gap:6px}
+ .listing-step{display:grid;justify-items:center;gap:6px;padding:9px 4px;text-align:center}
+ .listing-step>span{width:25px;height:25px;flex-basis:25px}
+ .listing-step small{font-size:10px}
+ .listing-two-columns{grid-template-columns:1fr;gap:0}
+ .listing-wizard-actions{gap:8px}
+ .listing-wizard-actions button{padding:11px 8px;font-size:12px}
+}
