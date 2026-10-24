@@ -1125,7 +1125,7 @@ app.post('/telegram/webhook', (req,res) => {
         const existing = await pool.query('SELECT 1 FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]);
         firstVisit = existing.rowCount === 0;
         const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING id,account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
-        const referralMatch = /^ref_(\\d{6})$/.exec(parts[1] || '');
+        const referralMatch = /^ref_(\d{6})$/.exec(parts[1] || '');
         if (firstVisit && referralMatch) {
           const referrer = await pool.query("SELECT id FROM users WHERE lpad(id::text,6,'0')=$1 AND account_status='active'", [referralMatch[1]]);
           if (referrer.rowCount && Number(referrer.rows[0].id) !== Number(u.rows[0]?.id)) {
