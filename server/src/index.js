@@ -353,6 +353,20 @@ app.get('/api/age-status',auth,wrap(async(req,res)=>{
   res.json({route,ageBand,adultAccess,status:u.age_verification_status});
 }));
 
+app.get('/api/stories',auth,wrap(async(req,res)=>{
+ await pool.query('DELETE FROM stories WHERE expires_at <= NOW()');
+ const q=await pool.query("SELECT s.id,s.user_id AS author_id,s.media_url,s.media_type,s.caption,s.created_at,s.expires_at,u.first_name AS name FROM stories s JOIN users u ON u.id=s.user_id WHERE s.expires_at>NOW() ORDER BY s.created_at DESC LIMIT 100");
+ res.json({stories:q.rows.map(s=>({...s,is_mine:String(s.author_id)===String(req.user.id)}))});
+}));
+app.post('/api/stories',auth,userActionRateLimit,wrap(async(req,res)=>{
+ const {mediaUrl,mediaType='image',caption=''}=req.body||{};
+ if(typeof mediaUrl!=='string'||mediaUrl.length>4_300_000||!/^data:(image\\/(jpeg|png|webp)|video\\/(mp4|webm));base64,/.test(mediaUrl))return res.status(400).json({error:'Выбери фото или видео подходящего формата размером до 3 МБ.'});
+ if(!['image','video'].includes(mediaType)||((mediaUrl.startsWith('data:video/')?'video':'image')!==mediaType))return res.status(400).json({error:'Тип файла не совпадает с медиа.'});
+ if(typeof caption!=='string'||caption.length>180)return res.status(400).json({error:'Подпись должна быть не длиннее 180 символов.'});
+ if(profileTextProblem([caption]))return res.status(400).json({error:'В подписи найдены запрещённые слова. Исправь текст.'});
+ const q=await pool.query("INSERT INTO stories(user_id,media_url,media_type,caption,expires_at) VALUES($1,$2,$3,$4,NOW()+INTERVAL '24 hours') RETURNING id,user_id AS author_id,media_url,media_type,caption,created_at,expires_at",[req.user.id,mediaUrl,mediaType,caption.trim()]);
+ const s=q.rows[0];res.status(201).json({story:{...s,name:req.user.first_name||'Ты',is_mine:true}});
+}));
 app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
  const q=await pool.query(`SELECT l.user_id AS id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,l.updated_at,l.id AS listing_id FROM listings l WHERE l.user_id=$1`,[req.user.id]);
  res.json({listing:q.rows[0]||null});
