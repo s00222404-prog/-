@@ -1485,3 +1485,69 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 .app-shell.feed-mode .feed-post .feed-profile-copy {z-index:5!important;pointer-events:auto!important}
 .app-shell.feed-mode .feed-post .feed-action-rail {z-index:100!important;position:absolute!important;pointer-events:auto!important;isolation:isolate!important}
 .app-shell.feed-mode .feed-post .feed-action-rail button {position:relative!important;z-index:101!important;pointer-events:auto!important;visibility:visible!important;opacity:1!important}
+
+
+/* Smooth, calm VIBE feed interactions */
+.app-shell.feed-mode .feed-scroll {
+  scroll-behavior:smooth!important;
+  scroll-snap-type:y proximity!important;
+  -webkit-overflow-scrolling:touch;
+}
+.app-shell.feed-mode .feed-post {
+  scroll-snap-stop:normal!important;
+  transition:opacity .22s ease,filter .22s ease;
+}
+.feed-action-rail button,
+.app-shell.feed-mode .feed-post .feed-action-rail button {
+  transition:color .2s ease,background .2s ease,transform .2s ease,box-shadow .2s ease!important;
+  -webkit-tap-highlight-color:transparent;
+}
+.feed-action-rail button.already-liked,
+.app-shell.feed-mode .feed-post .feed-action-rail button.already-liked {
+  color:#d9b8ff!important;
+  background:rgba(174,119,235,.24)!important;
+  border:1px solid rgba(210,177,255,.52)!important;
+  border-radius:14px!important;
+  box-shadow:0 0 18px rgba(169,105,231,.2)!important;
+}
+.feed-action-rail button.already-liked svg {
+  color:#cda2ff!important;
+  fill:#cda2ff!important;
+}
+.feed-action-rail button:active {transform:scale(.94)}
+/* The full-screen feed uses overflow clipping; let the report sheet escape it. */
+.app-shell.feed-mode:has(.report-overlay:not(.profile-fullscreen-overlay)) {
+  overflow:visible!important;
+  z-index:2000!important;
+}
+.app-shell.feed-mode:has(.report-overlay:not(.profile-fullscreen-overlay)) .report-overlay {
+  position:fixed!important;
+  inset:0!important;
+  z-index:99999!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:18px!important;
+  overflow-y:auto!important;
+  background:rgba(8,6,15,.86)!important;
+  backdrop-filter:blur(10px);
+}
+.app-shell.feed-mode:has(.report-overlay:not(.profile-fullscreen-overlay)) .report-dialog {
+  position:relative!important;
+  flex:0 1 520px!important;
+  width:min(520px,100%)!important;
+  max-width:calc(100vw - 24px)!important;
+  max-height:calc(100dvh - 32px)!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain;
+  margin:auto!important;
+  border:1px solid rgba(207,174,240,.22)!important;
+  border-radius:24px!important;
+  padding:22px 18px calc(22px + env(safe-area-inset-bottom))!important;
+  background:linear-gradient(155deg,#21192d,#14111c)!important;
+  box-shadow:0 24px 80px rgba(0,0,0,.6),0 0 30px rgba(151,93,206,.12)!important;
+}
+@media(prefers-reduced-motion:reduce) {
+  .app-shell.feed-mode .feed-scroll {scroll-behavior:auto!important}
+  .feed-action-rail button {transition:none!important}
+}
