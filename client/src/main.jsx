@@ -459,9 +459,9 @@ function App() {
       <p>Посмотри, кто поставил тебе лайк, и управляй своими симпатиями.</p>
       <h3>Тебе поставили лайк · {likesData.incoming.length}</h3>
       {likesData.incoming.length===0 ? <p className="field-hint">Пока нет новых симпатий. Продолжай знакомиться в ленте.</p> : likesData.incoming.map(person=><div className="chat-row" key={'in-'+person.id}>
-        <span className="chat-avatar">{person.photo_url?<img src={person.photo_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>:(person.name||'?').slice(0,1)}</span>
+        <span className="chat-avatar">{person.photo_url?<img src={person.photo_url} alt="" loading="lazy"/>:(person.name||'?').slice(0,1)}</span>
         <span className="chat-row-copy"><b>{person.name}{person.age?', '+person.age:''}</b><small>{[person.city,person.country].filter(Boolean).join(', ')||'VIBE'}</small></span>
-        <button className="like" disabled={likingIds.includes(String(person.id))} onClick={()=>like(person)}><Heart size={15} fill="currentColor"/> {likingIds.includes(String(person.id))?'Отправляем…':'Взаимно'}</button>
+        {mutualIds.includes(String(person.id)) ? <span className="mutual-status"><Heart size={14} fill="currentColor"/> Взаимно</span> : <button className="like" disabled={likingIds.includes(String(person.id))} onClick={()=>like(person)}><Heart size={15} fill="currentColor"/> {likingIds.includes(String(person.id))?'Отправляем…':'Ответить'}</button>}
       </div>)}
       <h3 style={{marginTop:24}}>Ты поставил лайк · {likesData.outgoing.length}</h3>
       {likesData.outgoing.length===0 ? <p className="field-hint">Здесь появятся анкеты, которым ты поставишь лайк.</p> : likesData.outgoing.map(person=><div className="chat-row" key={'out-'+person.id}>
