@@ -997,7 +997,6 @@ app.post('/telegram/webhook', (req,res) => {
         return;
       }
       const actorRole=await getRole(String(from.id));
-      const targetRole=await getAssignedRole(String(q.rows[0].telegram_id));
       if(['unban','profile','account'].includes(act) && !await ensureTargetBelowActor(String(q.rows[0].telegram_id),actorRole)){
         if(String(q.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID)await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:({unban:'Изменение блокировки разработчика',profile:'Удаление анкеты разработчика',account:'Удаление аккаунта разработчика'})[act],source:'Telegram-кнопка модерации'});
         await answer('Нельзя изменять аккаунт сотрудника с равной или более высокой ролью.');
