@@ -563,22 +563,33 @@ function Landing() {
 
 function LegalPage() {
   const privacy = window.location.pathname === '/privacy';
-  const title = privacy ? 'Политика конфиденциальности' : 'Правила проекта';
+  const [legalLanguage, setLegalLanguage] = useState(() => {
+    try { return localStorage.getItem('vibe-language') || 'en'; } catch { return 'en'; }
+  });
+  const changeLegalLanguage = value => {
+    if (!['en','de','ru'].includes(value)) return;
+    setLegalLanguage(value);
+    try { localStorage.setItem('vibe-language', value); } catch {}
+    document.documentElement.lang = value;
+    window.dispatchEvent(new CustomEvent('vibe-language-change',{detail:value}));
+  };
+  const title = privacy ? (legalLanguage === 'de' ? 'Datenschutzerklärung' : legalLanguage === 'ru' ? 'Политика конфиденциальности' : 'Privacy Policy') : 'Правила проекта';
   return <main className="app-shell legal-shell">
     <header className="topbar">
       <a className="brand" href="/" aria-label="VIBE — главная"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></a>
-      <a className="landing-menu" href="/">На главную <ArrowRight size={14}/></a>
+      {privacy ? <label className="language-picker legal-language-picker" aria-label="Choose language"><select value={legalLanguage} onChange={e=>changeLegalLanguage(e.target.value)} aria-label="Language"><option value="en">English</option><option value="de">Deutsch</option><option value="ru">Русский</option></select></label> : null}
+      <a className="landing-menu" href="/">{privacy ? (legalLanguage === 'de' ? 'Zur Startseite' : legalLanguage === 'ru' ? 'На главную' : 'Home') : 'На главную'} <ArrowRight size={14}/></a>
     </header>
     <section className="legal-hero">
-      <div className="eyebrow"><Lock size={14}/> ОФИЦИАЛЬНЫЕ ДОКУМЕНТЫ VIBE</div>
+      <div className="eyebrow"><Lock size={14}/> {privacy ? (legalLanguage === 'de' ? 'VIBE — OFFIZIELLE DOKUMENTE' : legalLanguage === 'ru' ? 'ОФИЦИАЛЬНЫЕ ДОКУМЕНТЫ VIBE' : 'VIBE OFFICIAL DOCUMENTS') : 'ОФИЦИАЛЬНЫЕ ДОКУМЕНТЫ VIBE'}</div>
       <h1>{title}</h1>
-      <p>Действующая редакция от 23 октября 2026 года</p>
-      <nav className="legal-switch" aria-label="Юридические документы">
-        <a className={!privacy ? 'selected' : ''} href="/rules">Правила проекта</a>
-        <a className={privacy ? 'selected' : ''} href="/privacy">Конфиденциальность</a>
+      <p>{privacy ? (legalLanguage === 'de' ? 'Aktuelle Fassung vom 23. Oktober 2026' : legalLanguage === 'ru' ? 'Действующая редакция от 23 октября 2026 года' : 'Current version dated 23 October 2026') : 'Действующая редакция от 23 октября 2026 года'}</p>
+      <nav className="legal-switch" aria-label="Legal documents">
+        <a className={!privacy ? 'selected' : ''} href="/rules">{privacy ? (legalLanguage === 'de' ? 'Nutzungsregeln' : legalLanguage === 'ru' ? 'Правила проекта' : 'Community Rules') : 'Правила проекта'}</a>
+        <a className={privacy ? 'selected' : ''} href="/privacy">{privacy ? (legalLanguage === 'de' ? 'Datenschutz' : legalLanguage === 'ru' ? 'Конфиденциальность' : 'Privacy Policy') : 'Конфиденциальность'}</a>
       </nav>
     </section>
-    {privacy ? <article className="legal-document">
+    {privacy ? (legalLanguage === 'ru' ? <article className="legal-document">
       <p className="legal-lead">Настоящая Политика описывает, какие сведения обрабатываются при использовании VIBE, для каких целей они используются и какие меры применяются для их защиты.</p>
       <h2>1. Общие положения</h2>
       <p>VIBE — сервис для знакомств и общения, доступный через Telegram. Используя сервис, пользователь подтверждает, что ознакомился с настоящей Политикой. Если пользователь не согласен с её условиями, он должен прекратить использование VIBE.</p>
@@ -614,7 +625,79 @@ function LegalPage() {
       <h2>12. Контакт и обращения</h2>
       <p>Вопросы, запросы и обращения, связанные с обработкой персональных данных, можно направить администрации через официальный Telegram-бот VIBE. В обращении укажите, какое право вы хотите реализовать, и предоставьте сведения, необходимые для проверки запроса.</p>
       <p className="legal-note">Настоящий документ описывает общие правила обработки данных в сервисе. Перед коммерческим запуском следует дополнить его юридическими реквизитами оператора, контактами ответственного лица и конкретными сроками хранения, соответствующими фактической инфраструктуре VIBE.</p>
+    </article> : legalLanguage === 'de' ? <article className="legal-document">
+      <p className="legal-lead">Diese Datenschutzerklärung erläutert, welche Informationen bei der Nutzung von VIBE verarbeitet werden, zu welchen Zwecken dies geschieht und welche Schutzmaßnahmen vorgesehen sind.</p>
+      <h2>1. Allgemeine Bestimmungen</h2>
+      <p>VIBE ist ein über Telegram zugänglicher Dienst zum Kennenlernen und Kommunizieren. Mit der Nutzung bestätigt die Person, diese Datenschutzerklärung gelesen zu haben. Wer ihren Bedingungen nicht zustimmt, muss die Nutzung von VIBE beenden.</p>
+      <p>Die Datenverarbeitung erfolgt nach den anwendbaren Datenschutzgesetzen, einschließlich der Datenschutz-Grundverordnung (DSGVO), soweit diese gilt.</p>
+      <h2>2. Welche Informationen verarbeitet werden können</h2>
+      <ul><li>Telegram-Kennungen, Name und Benutzername, soweit sie für Anmeldung und Betrieb erforderlich sind;</li><li>Profilangaben: Geburtsdatum oder Altersstatus, Stadt, Beschreibung, Interessen, Kennenlernziel und Foto;</li><li>Beiträge, Bilder und Videos, die in VIBE hochgeladen werden;</li><li>Angaben zu Likes, gegenseitigem Interesse, Nachrichten und Interaktionen;</li><li>Meldungen, Supportanfragen, Hinweise auf Regelverstöße und Moderationsmaßnahmen;</li><li>technische Daten und Ereignisprotokolle zur Sicherheit, Fehlerdiagnose und Verhinderung von Missbrauch.</li></ul>
+      <p>VIBE fragt nicht nach dem Telegram-Passwort. Veröffentlichen Sie in Ihrem Profil oder in Nachrichten keine Informationen, die Sie anderen Nutzern nicht offenlegen möchten.</p>
+      <h2>3. Zwecke und Rechtsgrundlagen</h2>
+      <p>Daten werden verwendet, um VIBE bereitzustellen, Anmeldungen zu ermöglichen, Profile anzuzeigen, Chats zu betreiben, die Sicherheit zu gewährleisten, Meldungen zu bearbeiten, Betrug zu verhindern, gesetzliche Pflichten zu erfüllen und berechtigte Interessen des Dienstes und seiner Nutzer zu schützen.</p>
+      <p>Je nach Situation beruht die Verarbeitung auf der Erfüllung der Nutzungsbedingungen, einer Einwilligung, einer gesetzlichen Pflicht oder berechtigten Interessen, sofern diese nicht gegenüber den Rechten und Freiheiten der betroffenen Person überwiegen.</p>
+      <h2>4. Sichtbarkeit von Informationen</h2>
+      <p>Angaben in öffentlichen Profilen und Beiträgen können für andere VIBE-Nutzer sichtbar sein. Nachrichten sind für die jeweiligen Chat-Teilnehmer und für autorisierte Personen zugänglich, soweit dies zur Prüfung von Meldungen und zur Sicherheit erforderlich ist. Veröffentlichen Sie keine Wohnadresse, Ausweisdokumente, Finanzdaten oder andere sensible Informationen.</p>
+      <h2>4.1. Prüfung von Fotos, Videos und Nachrichten</h2>
+      <p>Hochgeladene Fotos und Videos können durch automatisierte Systeme und autorisierte Moderatoren geprüft werden, um verbotene Inhalte, gefälschte Profile, Betrug, Bildrechtsverletzungen und Sicherheitsrisiken zu erkennen. Bei der Bearbeitung einer Meldung können Moderatoren die dazugehörigen Inhalte und Nachrichten einsehen, soweit dies zur Klärung erforderlich ist. Laden Sie keine Inhalte hoch, die Sie einer solchen Prüfung nicht zugänglich machen möchten.</p>
+      <p>Zugriff auf Moderationsmaterial ist auf Personen zu beschränken, die ihn für Sicherheit und die Bearbeitung von Meldungen benötigen. Eine Prüfung kann zur Ablehnung oder Entfernung eines Beitrags, zur Einschränkung von Funktionen oder zur Sperrung eines Kontos führen. Automatisierte Systeme können Fehler machen und beweisen für sich allein nicht immer, dass ein Bild gefälscht ist; Entscheidungen werden, soweit möglich, im Kontext und unter Berücksichtigung von Rückmeldungen geprüft.</p>
+      <p>Medien und meldungsbezogene Informationen werden so lange aufbewahrt, wie es für Prüfung, Betrieb und die Verhinderung wiederholter Verstöße erforderlich ist. Danach werden sie gelöscht oder anonymisiert, sofern keine gesetzliche Pflicht oder Streitbeilegung eine weitere Speicherung erfordert. Die konkrete Dauer hängt von der Datenart und den technischen Möglichkeiten ab. Nutzer können sich über den offiziellen VIBE-Telegram-Bot zu Prüfung, Löschung oder einer erneuten Überprüfung einer Moderationsentscheidung erkundigen.</p>
+      <h2>5. Weitergabe an Dritte</h2>
+      <p>Daten können im Rahmen des Plattformbetriebs von Telegram sowie von Infrastruktur- und technischen Dienstleistern verarbeitet werden, die Hosting, Speicherung und Betrieb von VIBE ermöglichen. Eine Weitergabe kann außerdem erfolgen, wenn eine rechtmäßige Anordnung einer zuständigen Behörde vorliegt oder sie zum Schutz von Rechten, der Nutzersicherheit oder zur Verhinderung rechtswidriger Handlungen erforderlich ist.</p>
+      <p>Daten werden nicht an Dritte für deren eigene Marketingzwecke verkauft. Dienstleister erhalten nur die Informationen, die zur Erfüllung ihrer Aufgaben erforderlich sind.</p>
+      <h2>6. Speicherdauer</h2>
+      <p>Informationen werden so lange gespeichert, wie es für den Betrieb, die Sicherheit, die Klärung von Streitigkeiten und die Erfüllung gesetzlicher Pflichten erforderlich ist. Bestimmte Angaben können nach einer Kontolöschung für begrenzte Zeit erhalten bleiben, wenn dies zur Verhinderung wiederholter Verstöße, zur Untersuchung von Vorfällen oder zur Einhaltung des Gesetzes notwendig ist.</p>
+      <h2>7. Datensicherheit</h2>
+      <p>Es werden angemessene technische und organisatorische Schutzmaßnahmen eingesetzt, darunter Zugriffsbeschränkungen und Maßnahmen gegen unbefugte Nutzung. Keine Methode der Übertragung oder Speicherung kann absolute Sicherheit garantieren.</p>
+      <h2>8. Rechte der Nutzer</h2>
+      <p>Soweit das anwendbare Recht dies vorsieht, können Nutzer Auskunft über ihre personenbezogenen Daten, Berichtigung unrichtiger Angaben, Löschung, Einschränkung der Verarbeitung, Widerspruch oder Datenübertragbarkeit verlangen. Beruht die Verarbeitung auf einer Einwilligung, kann diese widerrufen werden; die Rechtmäßigkeit der Verarbeitung vor dem Widerruf bleibt davon unberührt.</p>
+      <p>Für die Ausübung dieser Rechte oder Fragen zum Datenschutz wenden Sie sich über den offiziellen VIBE-Telegram-Bot an die Administration. Zum Schutz des Kontos kann ein Identitätsnachweis erforderlich sein.</p>
+      <h2>9. Daten Minderjähriger</h2>
+      <p>VIBE ist in einen Jugendbereich für Nutzer von 14 bis einschließlich 17 Jahren und einen Erwachsenenbereich ab 18 Jahren getrennt. Beide Bereiche sind voneinander isoliert: Profile, Likes und private Nachrichten sind nur innerhalb des jeweiligen Altersbereichs verfügbar. Personen unter 14 Jahren dürfen den Dienst nicht nutzen. Bei Hinweisen auf ein falsches Alter kann der Zugang eingeschränkt werden.</p>
+      <h2>10. Cookies und externe Dienste</h2>
+      <p>VIBE funktioniert über Telegram und kann technische Mechanismen verwenden, die für die Weboberfläche erforderlich sind. Telegram und andere externe Anbieter können eigene Technologien und Datenschutzerklärungen einsetzen. Bitte lesen Sie die Datenschutzinformationen der jeweiligen Plattformen.</p>
+      <h2>11. Änderungen dieser Erklärung</h2>
+      <p>Diese Datenschutzerklärung kann bei Änderungen der Funktionen, der Datenverarbeitung oder der geltenden Gesetze aktualisiert werden. Die aktuelle Fassung wird auf dieser Seite veröffentlicht. Wesentliche Änderungen können zusätzlich über verfügbare Kommunikationswege mitgeteilt werden.</p>
+      <h2>12. Kontakt</h2>
+      <p>Fragen und Anfragen zur Verarbeitung personenbezogener Daten können über den offiziellen VIBE-Telegram-Bot an die Administration gerichtet werden. Beschreiben Sie, welches Recht Sie ausüben möchten, und geben Sie die zur Prüfung erforderlichen Informationen an.</p>
+      <p className="legal-note">Dieses Dokument beschreibt allgemeine Grundsätze der Datenverarbeitung. Vor einem kommerziellen Start sollten die rechtlichen Angaben zum Verantwortlichen, Kontaktinformationen und konkrete Speicherfristen entsprechend der tatsächlichen VIBE-Infrastruktur ergänzt werden.</p>
     </article> : <article className="legal-document">
+      <p className="legal-lead">This Privacy Policy explains what information is processed when using VIBE, why it is used, and what measures are applied to protect it.</p>
+      <h2>1. General provisions</h2>
+      <p>VIBE is a service for meeting and communicating with others, available through Telegram. By using the service, users confirm that they have read this Policy. If a user disagrees with its terms, they must stop using VIBE.</p>
+      <p>Data is processed in accordance with applicable data protection laws, including the General Data Protection Regulation (GDPR) where it applies.</p>
+      <h2>2. Information that may be processed</h2>
+      <ul><li>Telegram identifiers, name and username required for authentication and service operation;</li><li>profile details: date of birth or age-status confirmation, city, description, interests, dating goal and photo;</li><li>posts, images and videos uploaded to the service;</li><li>information about likes, matches, messages and interactions with other users;</li><li>reports, support requests, suspected violations and moderation actions;</li><li>technical data and event logs needed for security, troubleshooting and abuse prevention.</li></ul>
+      <p>VIBE does not ask for a Telegram password. Do not include profile or chat information that you do not want other users to see.</p>
+      <h2>3. Purposes and legal bases</h2>
+      <p>Data is used to provide VIBE features, authenticate users, display profiles, operate chats, maintain safety, review reports, prevent fraud, meet legal obligations and protect the legitimate interests of the service and its users.</p>
+      <p>Depending on the circumstances, processing may be based on performance of the terms of use, user consent, a legal obligation or legitimate interests, provided those interests do not override the user's rights and freedoms.</p>
+      <h2>4. Visibility of information</h2>
+      <p>Information added to a public profile or post may be visible to other VIBE users. Messages are accessible to the participants in the relevant chat and authorised personnel to the extent needed to review reports and maintain safety. Do not publish your home address, identity documents, financial details or other sensitive information.</p>
+      <h2>4.1. Review of photos, videos and messages</h2>
+      <p>Photos and videos uploaded to profiles and posts may be reviewed by automated tools and authorised moderators to identify prohibited content, fake profiles, fraud, image-rights violations and safety risks. When reviewing a report, moderators may view related content and messages to the extent necessary to assess the circumstances. Do not upload material that you are unwilling to make available for such review.</p>
+      <p>Access to moderation materials should be limited to people who need it for safety and report handling. A review may result in a post being rejected or removed, features being restricted, or an account being suspended. Automated tools can make mistakes and do not always establish on their own that an image is fake; where possible, decisions are considered in context and in light of user feedback.</p>
+      <p>Media and report-related information are retained for the period needed for review, service operation and prevention of repeated violations, then deleted or anonymised unless further storage is required by law or to resolve a dispute. The exact period depends on the type of data and technical capabilities. Users may contact VIBE through its official Telegram bot to ask about review, data deletion or reconsideration of a moderation decision.</p>
+      <h2>5. Sharing data with third parties</h2>
+      <p>Data may be processed by Telegram as part of its platform, and by infrastructure and technical service providers that host, store and operate VIBE. Data may also be disclosed in response to a lawful request from a competent authority or when necessary to protect rights, user safety or prevent unlawful conduct.</p>
+      <p>Data is not sold to third parties for their own marketing purposes. Service providers receive only the information needed to perform their tasks.</p>
+      <h2>6. Data retention</h2>
+      <p>Information is kept for as long as necessary to operate the service, maintain safety, resolve disputes and meet legal obligations. Some information may be retained for a limited period after account deletion when needed to prevent repeated violations, investigate incidents or comply with law.</p>
+      <h2>7. Information security</h2>
+      <p>Reasonable technical and organisational safeguards are used, including access controls and measures to prevent unauthorised use. No method of transmission or storage can guarantee absolute security.</p>
+      <h2>8. User rights</h2>
+      <p>Where applicable law provides, users may request access to their personal data, correction of inaccurate information, deletion, restriction of processing, object to processing or request data portability. If processing is based on consent, it may be withdrawn; this does not affect the lawfulness of processing before withdrawal.</p>
+      <p>To exercise these rights or ask privacy questions, contact VIBE administration through the official service Telegram bot. Identity confirmation may be required to protect the account.</p>
+      <h2>9. Information about minors</h2>
+      <p>VIBE separates users into a teen area for ages 14 through 17 and an adult area for users aged 18 and over. The two areas are isolated: profiles, likes and private messages are available only within the corresponding age group. People under 14 may not use the service. Access may be restricted if an age appears to be inaccurate.</p>
+      <h2>10. Cookies and external services</h2>
+      <p>VIBE operates through Telegram and may use technical mechanisms required for the web interface. Telegram and other external providers may use their own technologies and privacy policies. Please review the documents of the relevant platforms.</p>
+      <h2>11. Changes to this Policy</h2>
+      <p>This Policy may be updated when VIBE features, data-processing practices or applicable law change. The current version is published on this page. Significant changes may also be communicated through available channels.</p>
+      <h2>12. Contact and requests</h2>
+      <p>Questions and requests concerning personal-data processing may be sent to VIBE administration through the official Telegram bot. State which right you wish to exercise and provide the information needed to verify the request.</p>
+      <p className="legal-note">This document describes general data-processing practices. Before a commercial launch, it should be supplemented with the controller's legal details, responsible contact information and specific retention periods that reflect VIBE's actual infrastructure.</p>
+    </article>)} : <article className="legal-document">
       <p className="legal-lead">Настоящие Правила определяют условия безопасного использования VIBE, требования к анкетам, публикациям и общению, а также основания для применения мер модерации.</p>
       <h2>1. Общие условия</h2>
       <p>Используя VIBE, пользователь обязуется соблюдать настоящие Правила, применимое законодательство и требования платформы Telegram. Пользователь несёт ответственность за содержание размещаемой информации и свои действия в сервисе.</p>
@@ -657,7 +740,7 @@ function LegalPage() {
       <p>Вопросы по Правилам, сообщения о нарушениях и обращения по решениям модерации направляйте через официальный Telegram-бот VIBE.</p>
       <p className="legal-note">Правила применяются совместно с Политикой конфиденциальности VIBE. Если отдельное положение признаётся неприменимым, остальные положения сохраняют силу в допустимых законом пределах.</p>
     </article>}
-    <footer className="legal-footer"><span>vibe. © 2026</span><span><a href="/rules">Правила</a><a href="/privacy">Конфиденциальность</a></span></footer>
+    <footer className="legal-footer"><span>vibe. © 2026</span><span><a href="/rules">{privacy && legalLanguage === 'en' ? 'Community Rules' : privacy && legalLanguage === 'de' ? 'Nutzungsregeln' : 'Правила'}</a><a href="/privacy">{privacy && legalLanguage === 'en' ? 'Privacy Policy' : privacy && legalLanguage === 'de' ? 'Datenschutz' : 'Конфиденциальность'}</a></span></footer>
   </main>;
 }
 
