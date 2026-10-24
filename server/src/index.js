@@ -1122,10 +1122,12 @@ app.post('/telegram/webhook', (req,res) => {
       reply=maintenance?'VIBE | SERVICE STATUS\nStatus: maintenance\n'+(process.env.MAINTENANCE_MESSAGE||'Maintenance is in progress. Please try again later.'):'VIBE | SERVICE STATUS\nStatus: operational\nThe app is available.';
     }else if(cmd==='/start'){
       let firstVisit = false;
+      let needsLanguage = true;
       let firstName = (from?.first_name || '').trim();
       if(from?.id&&from?.first_name) {
-        const existing = await pool.query('SELECT 1 FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]);
+        const existing = await pool.query('SELECT language FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]);
         firstVisit = existing.rowCount === 0;
+        needsLanguage = firstVisit || !existing.rows[0]?.language;
         const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING id,account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
         const referralMatch = /^ref_(\d{6})$/.exec(parts[1] || '');
         if (firstVisit && referralMatch) {
@@ -1143,15 +1145,13 @@ app.post('/telegram/webhook', (req,res) => {
           await send(reply); return;
         }
       }
-      if (firstVisit) {
+      if (needsLanguage) {
         reply='✨ Welcome to VIBE! Please choose your language:';
         markup={inline_keyboard:[[{text:'🇬🇧 English',callback_data:'lang:set:en'},{text:'🇩🇪 Deutsch',callback_data:'lang:set:de'},{text:'🇷🇺 Русский',callback_data:'lang:set:ru'}]]};
-      } else if (firstVisit) {
-        reply='✨ Привет'+(firstName ? ', '+firstName : '')+'! Добро пожаловать в VIBE 💜\n\nЯ — помощник VIBE. Можешь не только нажимать кнопки, но и писать мне обычными словами: например, «как создать анкету», «не работает чат» или «хочу пожаловаться». Я подскажу, что делать, а вопросы безопасности помогу передать модерации.\n\n🌟 Для начала открой VIBE, создай анкету и добавь интересы. Возрастные стороны разделены: 14–17 лет и 18+.\n\nЧто тебе нужно? Напиши вопрос или выбери действие ниже 👇';
       } else {
         reply='С возвращением'+(firstName ? ', '+firstName : '')+'! 💜\n\nЯ могу помочь с анкетой, чатами, правилами или жалобой. Напиши вопрос обычным сообщением или выбери действие ниже.';
+        markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'},{text:'✉️ Написать в поддержку',callback_data:'support:new'}],[{text:'🛡 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}],[{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
       }
-      markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'},{text:'✉️ Написать в поддержку',callback_data:'support:new'}],[{text:'🛡 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}],[{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
       const adminAllowed=(roleRank[role]??0)>=roleRank.admin && (isDeveloper || await isAdminUnlocked(from.id));
       reply=adminAllowed?'🛡 VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'🔒 Админ-меню недоступно. Проверь назначенную роль и введи пароль ещё раз.';
