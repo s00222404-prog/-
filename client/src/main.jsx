@@ -23,6 +23,18 @@ function getStoredLanguage() {
   }
 }
 
+function calculateAgeFromBirthDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').slice(0, 10));
+  if (!match) return null;
+  const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) age--;
+  return age;
+}
+
 function LanguagePicker({className=''}) {
   const [language,setLanguage] = useState(getStoredLanguage);
   function changeLanguage(value) {
@@ -120,6 +132,7 @@ function App() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [listing, setListing] = useState({name:'',age:'',city:'',country:'',hobbies:'',description:''});
   const [publishing, setPublishing] = useState(false);
+  const [listingStep, setListingStep] = useState(1);
 
   async function request(path, options = {}) {
     const response = await fetch(API + path, {
@@ -315,16 +328,44 @@ function App() {
     e.preventDefault();
     setPublishing(true); setError(''); setNotice('');
     try {
-      if (!user?.birth_date) { setProfileOpen(true); throw new Error('Сначала заполни профиль и укажи дату рождения.'); }
-      const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:Number(listing.age),mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
+      if (!user?.birth_date) {
+        setProfileOpen(true);
+        throw new Error('Сначала заполни профиль и укажи дату рождения.');
+      }
+      const verifiedAge = calculateAgeFromBirthDate(String(user.birth_date).slice(0, 10));
+      if (verifiedAge === null || verifiedAge < 14) {
+        setProfileOpen(true);
+        throw new Error('VIBE доступен с 14 лет. Проверь дату рождения в профиле.');
+      }
+      const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:verifiedAge,mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
       const savedListing={...result.listing,age:String(result.listing.age)};
-      setListing(savedListing);
+      setListing({name:savedListing.name,age:String(savedListing.age),city:savedListing.city,country:savedListing.country,hobbies:savedListing.hobbies||'',description:savedListing.description||''});
       setListingMediaUrl(savedListing.media_url || ''); setListingMediaType(savedListing.media_type || 'image');
+      setListingStep(1);
       const discovery=await request('/api/discover'); setPeople(discovery.people||[]);
       setNotice('Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.');
       setTab('discover');
-    } catch(e) { setError(e.message||'Не удалось опубликовать анкету.'); }
+    } catch(e) { setError(e.message||'Не удалось отправить анкету.'); }
     finally { setPublishing(false); }
+  }
+
+  function continueListingWizard() {
+    setError('');
+    if (listingStep === 1) {
+      if (listing.name.trim().length < 2 || listing.city.trim().length < 2 || listing.country.trim().length < 2) {
+        setError('Укажи имя, город и страну. Имя — не короче 2 символов.');
+        return;
+      }
+      setListingStep(2);
+      return;
+    }
+    if (listingStep === 2) {
+      if (listing.description.trim().length < 5) {
+        setError('Добавь описание о себе (минимум 5 символов).');
+        return;
+      }
+      setListingStep(3);
+    }
   }
 
   async function skip(person) {
@@ -401,17 +442,39 @@ function App() {
     </section>}
     {!loading && tab === 'chats' && <section className="panel"><div className="panel-icon"><MessageCircle/></div><h2>Твои чаты</h2><p>Переписывайся напрямую с людьми из ленты VIBE.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{(chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
     {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required disabled={sendingMessage}/><button className="like" type="submit" disabled={sendingMessage || !draft.trim()} aria-label="Отправить сообщение">{sendingMessage ? <RefreshCw size={17} className="spin"/> : <ArrowRight size={17}/>}</button></form></section>}
-    {!loading && tab === 'listing' && <section className="panel profile-panel"><div className="panel-icon"><PlusCircle/></div><h2>Добавить анкету</h2><p>Это отдельная публичная анкета для рекомендаций. Она не меняет данные твоего профиля Telegram.</p><form onSubmit={publishListing}>
-      <label>Имя<input value={listing.name} onChange={e=>setListing({...listing,name:e.target.value})} minLength={2} maxLength={60} placeholder="Как тебя показывать" required/></label>
-      <label>Возраст (14–100 лет)<input type="number" inputMode="numeric" min="14" max="100" step="1" value={listing.age} onChange={e=>setListing({...listing,age:e.target.value})} placeholder="Например, 22" required/></label>
-      <label>Город<input value={listing.city} onChange={e=>setListing({...listing,city:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Берлин" required/></label>
-      <label>Страна<input value={listing.country} onChange={e=>setListing({...listing,country:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Германия" required/></label>
-      <label>Фото или видео для ленты<span className="media-picker"><ImagePlus size={17}/>{listingMediaUrl ? 'Медиа выбрано · '+(listingMediaType==='video'?'видео':'фото') : 'Выбрать фото или видео'}<input type="file" accept="image/*,video/*" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;const isVideo=file.type.startsWith('video/');if(!file.type.startsWith('image/')&&!isVideo){setError('Выбери фото или видео.');e.target.value='';return;}if(file.size>3*1024*1024){setError('Медиа должно быть не больше 3 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать медиа'));reader.readAsDataURL(file);});setListingMediaUrl(data);setListingMediaType(isVideo?'video':'image');setError('');setNotice('Медиа готово к публикации.');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>{listingMediaUrl && <div className="listing-media-preview">{listingMediaType==='video'?<video src={listingMediaUrl} controls playsInline/>:<img src={listingMediaUrl} alt="Предпросмотр публикации"/>}<button className="skip" type="button" onClick={()=>{setListingMediaUrl('');setListingMediaType('image');}}>Убрать медиа</button></div>}
-      <label>Хобби и занятия<textarea value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, прогулки…"/></label>
-      <label>Описание<textarea value={listing.description} onChange={e=>setListing({...listing,description:e.target.value})} maxLength={1000} placeholder="Расскажи о себе без мата и пошлостей" required/></label>
-      <p className="field-hint">Текст проверяется перед отправкой. Возрастные группы VIBE разделены на стороне сервера; взрослый доступ требует подтверждения возраста.</p>
-      <button className="save" type="submit" disabled={publishing}><PlusCircle size={16}/>{publishing?'Публикуем…':'Опубликовать анкету'}<ArrowRight size={16}/></button>
-    </form></section>}
+    {!loading && tab === 'listing' && <section className="panel profile-panel listing-wizard">
+      <div className="listing-wizard-heading">
+        <span className="listing-wizard-icon"><PlusCircle size={22}/></span>
+        <div><span className="feed-kicker">ТВОЯ ИСТОРИЯ</span><h2>{listingStep===1?'Начнём с основ':listingStep===2?'Расскажи о себе':'Последний шаг'}</h2><p>Создай понятную, настоящую анкету. Перед публикацией её проверит модерация.</p></div>
+      </div>
+      <div className="listing-stepper" aria-label="Шаг создания анкеты">
+        {[{n:1,label:'Основное'},{n:2,label:'О тебе'},{n:3,label:'Медиа и отправка'}].map(step=><div key={step.n} className={'listing-step '+(listingStep===step.n?'current':listingStep>step.n?'complete':'')}><span>{listingStep>step.n?'✓':step.n}</span><small>{step.label}</small></div>)}
+      </div>
+      <form onSubmit={listingStep===3?publishListing:e=>{e.preventDefault();continueListingWizard();}}>
+        {listingStep===1 && <div className="listing-step-content">
+          <label>Как тебя показывать?<input autoFocus value={listing.name} onChange={e=>setListing({...listing,name:e.target.value})} minLength={2} maxLength={60} placeholder="Имя или никнейм" required/></label>
+          <div className="listing-two-columns">
+            <label>Город<input value={listing.city} onChange={e=>setListing({...listing,city:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Берлин" required/></label>
+            <label>Страна<input value={listing.country} onChange={e=>setListing({...listing,country:e.target.value})} minLength={2} maxLength={80} placeholder="Германия" required/></label>
+          </div>
+          <div className="listing-info-note"><MapPin size={17}/><span>Указывай только город и страну — не публикуй адрес, школу или другие точные данные о местоположении.</span></div>
+          <button className="save listing-next" type="submit">Продолжить <ArrowRight size={17}/></button>
+        </div>}
+        {listingStep===2 && <div className="listing-step-content">
+          <label>Хобби и занятия<textarea autoFocus value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, рисование, прогулки…"/></label>
+          <label>Немного о тебе<textarea value={listing.description} onChange={e=>setListing({...listing,description:e.target.value})} minLength={5} maxLength={1000} placeholder="Что тебе нравится? О чём интересно поговорить?" required/></label>
+          <p className="field-hint">Не добавляй телефон, адрес, пароли или чужие личные данные. Оскорбления и сексуализированный контент запрещены.</p>
+          <div className="listing-wizard-actions"><button className="skip" type="button" onClick={()=>{setListingStep(1);setError('');}}>Назад</button><button className="save" type="submit">К медиа <ArrowRight size={17}/></button></div>
+        </div>}
+        {listingStep===3 && <div className="listing-step-content">
+          <div className="listing-age-summary"><span className="listing-age-icon"><ShieldCheck size={20}/></span><div><b>Возраст из профиля</b><p>{calculateAgeFromBirthDate(String(user?.birth_date||'').slice(0,10)) ?? '—'} лет · возраст не вводится вручную</p></div></div>
+          <label>Фото или видео для ленты<span className="media-picker"><ImagePlus size={17}/>{listingMediaUrl ? 'Медиа выбрано · '+(listingMediaType==='video'?'видео':'фото') : 'Выбрать фото или видео'}<input type="file" accept="image/*,video/*" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;const isVideo=file.type.startsWith('video/');if(!file.type.startsWith('image/')&&!isVideo){setError('Выбери фото или видео.');e.target.value='';return;}if(file.size>3*1024*1024){setError('Медиа должно быть не больше 3 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать медиа'));reader.readAsDataURL(file);});setListingMediaUrl(data);setListingMediaType(isVideo?'video':'image');setError('');setNotice('Медиа готово к отправке.');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>
+          {listingMediaUrl && <div className="listing-media-preview">{listingMediaType==='video'?<video src={listingMediaUrl} controls playsInline/>:<img src={listingMediaUrl} alt="Предпросмотр анкеты"/>}<button className="skip" type="button" onClick={()=>{setListingMediaUrl('');setListingMediaType('image');}}>Убрать медиа</button></div>}
+          <div className="listing-review-card"><span className="listing-review-check"><ShieldCheck size={18}/></span><div><b>Что будет дальше?</b><p>Анкета уйдёт на проверку. Она появится в ленте других пользователей только после одобрения.</p></div></div>
+          <div className="listing-wizard-actions"><button className="skip" type="button" onClick={()=>{setListingStep(2);setError('');}}>Назад</button><button className="save" type="submit" disabled={publishing}>{publishing?'Отправляем…':'Отправить на проверку'} <ArrowRight size={17}/></button></div>
+        </div>}
+      </form>
+    </section>}
     {profileOpen && <div className="report-overlay" onClick={e => { if (e.target === e.currentTarget && user?.birth_date) setProfileOpen(false); }}><section className="panel report-dialog profile-modal account-profile-modal">{user?.birth_date && <button className="back-chat" type="button" onClick={() => setProfileOpen(false)}>← Закрыть профиль</button>}{!user?.birth_date && <p className="field-hint">Сначала заполни обязательные данные профиля. Без даты рождения продолжить нельзя.</p>}<div className="account-avatar">{user?.photo_url ? <img src={user.photo_url} alt="Аватар" /> : <UserRound size={42}/>}</div><h2>{user?.username ? '@' + user.username : (user?.first_name || 'Пользователь')}</h2><RoleBadge role={user?.public_role} label={user?.role_label}/><div className="account-profile-stats"><div><span>Код аккаунта</span><strong>{user?.account_code || String(user?.id || '').padStart(6,'0')}</strong></div><div><span>Симпатии</span><strong><Heart size={17} fill="currentColor"/> {user?.likes_received || 0}</strong></div></div>
       <form className="profile-panel profile-editor-form" onSubmit={saveProfile}>
         <h3>Настроить анкету</h3>
