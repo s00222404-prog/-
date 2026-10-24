@@ -53,3 +53,4 @@ export async function initializeDatabase(pool) {
     console.error('VIBE database schema initialization failed:', error.message);
     throw error;
   }
+}
