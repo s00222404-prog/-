@@ -933,7 +933,8 @@ app.post('/telegram/webhook', (req,res) => {
         return;
       }
       if(prefix==='l') {
-        if(!ok){await answer('Доступ разрешён только администраторам.');return;}
+        const actorRole=await getRole(String(from.id));
+        if((roleRank[actorRole]??0)<roleRank.moderator){await answer('Проверять и публиковать анкеты может только модератор или роль выше.');return;}
         if(!Number.isSafeInteger(id)||id<=0||!['approve','reject'].includes(act)){await answer('Некорректное действие');return;}
         const found=await pool.query('SELECT l.id,l.user_id,l.name,u.telegram_id FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=$1',[id]);
         if(!found.rowCount){await answer('Анкета не найдена');await edit('Анкета уже удалена или не найдена.');return;}
