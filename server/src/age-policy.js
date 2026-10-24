@@ -1,6 +1,10 @@
 export function ageOnDate(value, now = new Date()) {
   if (!value) return null;
-  const iso = String(value).slice(0, 10);
+  // PostgreSQL drivers/configurations may return DATE columns as Date objects
+  // instead of YYYY-MM-DD strings. Normalize both forms to the same UTC date.
+  const iso = value instanceof Date && !Number.isNaN(value.getTime())
+    ? value.toISOString().slice(0, 10)
+    : String(value).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
 
   const [year, month, day] = iso.split('-').map(Number);
