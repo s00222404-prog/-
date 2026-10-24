@@ -30,8 +30,8 @@ function calculateAgeFromBirthDate(value) {
   const parsed = new Date(year, month - 1, day);
   if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
   const today = new Date();
-  let age = today.getFullYear() - year;
-  if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) age--;
+  let age = today.getUTCFullYear() - year;
+  if (today.getUTCMonth() + 1 < month || (today.getUTCMonth() + 1 === month && today.getUTCDate() < day)) age--;
   return age;
 }
 
