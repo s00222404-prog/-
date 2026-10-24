@@ -1438,3 +1438,16 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 .app-shell.feed-mode .feed-profile-copy {left:18px!important;right:92px!important;bottom:calc(24px + env(safe-area-inset-bottom))!important}
 .app-shell.feed-mode .feed-action-rail {right:10px!important;left:auto!important;bottom:calc(90px + env(safe-area-inset-bottom))!important}
 .app-shell.feed-mode .feed-post-footer {display:none!important}
+
+/* TikTok portrait canvas: 9:16 video frame, centered on landscape screens */
+.app-shell.feed-mode {background:#000!important;display:flex!important;align-items:center!important;justify-content:center!important}
+.app-shell.feed-mode>.people.tiktok-feed {position:relative!important;width:100%!important;height:100dvh!important;max-width:none!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#000!important}
+.app-shell.feed-mode .feed-scroll {position:relative!important;width:min(100vw,56.25dvh)!important;height:min(100dvh,177.7778vw)!important;aspect-ratio:9/16!important;flex:none!important;overflow-y:auto!important;scroll-snap-type:y mandatory!important;background:#000!important}
+.app-shell.feed-mode .feed-post {position:relative!important;width:100%!important;height:100%!important;min-height:100%!important;max-height:100%!important;aspect-ratio:9/16!important;overflow:hidden!important;background:#000!important}
+.app-shell.feed-mode .feed-media {position:absolute!important;inset:0!important;width:100%!important;height:100%!important;overflow:hidden!important;background:#000!important}
+.app-shell.feed-mode .feed-media-asset {position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:cover!important;object-position:center!important}
+.app-shell.feed-mode .feed-profile-copy {left:16px!important;right:76px!important;bottom:24px!important}
+.app-shell.feed-mode .feed-action-rail {right:6px!important;bottom:78px!important;gap:14px!important;width:58px!important}
+@media (max-aspect-ratio:9/16) {
+ .app-shell.feed-mode .feed-scroll {width:100vw!important;height:100dvh!important}
+}
