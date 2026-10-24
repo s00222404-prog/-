@@ -294,7 +294,7 @@ app.put('/api/me',auth,wrap(async(req,res)=>{
   const age = ageOnDate(birthDate);
   if (age === null || age < 14) return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
   if (age > 100) return res.status(400).json({error:'Проверь дату рождения в профиле.'});
-  const q=await pool.query(`UPDATE users SET birth_date=$1,age_confirmed=$2,gender=$3,bio=$4,city=$5,photo_url=$6,goal=$7,interests=$8,updated_at=NOW()
+  const q=await pool.query(`UPDATE users SET birth_date=$1,age_confirmed=$2,gender=$3,bio=$4,city=$5,photo_url=COALESCE($6,photo_url),goal=$7,interests=$8,updated_at=NOW()
     WHERE id=$9 RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,
     [birthDate,Boolean(birthDate),gender,bio.trim(),city?.trim()||null,photoUrl,goal,interests.map(value=>value.trim()),req.user.id]);
   res.json({user:q.rows[0],route:age<18?'youth':'adult_verification',adultAccess:false});
