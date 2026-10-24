@@ -1,20 +1,24 @@
 import 'dotenv/config';
-import { readFile } from 'node:fs/promises';
+import { initializeDatabase } from './db/initialize.js';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
-import pg from 'pg';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import { pool } from './db.js';
 import { validateTelegramInitData } from './telegram.js';
 import { EXTRA_ADMIN_COMMANDS, handleExtraAdminCommand } from './admin-commands.js';
 import { profileTextProblem } from './moderation/text-policy.js';
-import { ageOnDate } from './age-policy.js';
+import { validateReportEvidence } from './moderation/evidence-policy.js';
+import { validateListingMedia } from './moderation/media-policy.js';
+import { ageOnDate, ageBandForUser } from './age-policy.js';
 
 const app = express();
-const { Pool } = pg;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined });
+// Render terminates TLS and forwards the original client IP through one trusted proxy.
+app.set('trust proxy', 1);
 const port = Number(process.env.PORT || 3001);
 const DEVELOPER_TELEGRAM_ID = '8745499515';
+// Authenticate Telegram webhook requests even when no stable secret is configured in Render.
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || randomBytes(32).toString('hex');
 const ROLE_LABELS = { developer: 'Разработчик', chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const PUBLIC_STATUS_LABELS = { chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const BAN_REASONS = {
@@ -163,10 +167,10 @@ function adminCommandHelp(role){
     ['/часовойпояс Europe/Berlin','установить личный часовой пояс'], ['/пароль ВАШ_ПАРОЛЬ','задать пароль (от 4 символов)']
   ];
   const developerCore=[['/deleteall','предпросмотр массового удаления'],['/deleteall CONFIRM','подтвердить массовое удаление'],['/пароли','список администраторов'],['/resetadminpass TELEGRAM_ID','сбросить пароль администратора']];
-  const format=items=>items.map(([command,description])=>'• '+command+' — '+description).join('\\n');
+  const format=items=>items.map(([command,description])=>'• '+command+' — '+description).join('\n');
   const visibleCore=core.concat(roleRank[role]>=roleRank.admin?adminCore:[]).concat(role==='developer'?developerCore:[]);
   const extras=EXTRA_ADMIN_COMMANDS.filter(item=>roleCanUseCommand(role,item.command)).map(item=>['/'+item.command,item.description]);
-  return '🛡 VIBE | КОМАНДЫ РОЛИ: '+({helper:'ПОМОЩНИК',moderator:'МОДЕРАТОР',admin:'АДМИНИСТРАТОР',chief_admin:'ГЛАВНЫЙ АДМИНИСТРАТОР',developer:'РАЗРАБОТЧИК'}[role]||'НЕТ ДОСТУПА')+'\\n━━━━━━━━━━━━━━━━━━\\n🔑 ОСНОВНЫЕ КОМАНДЫ\\n'+format(visibleCore)+'\\n\\n📚 ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ('+extras.length+')\\n'+format(extras)+'\\n\\nДоступ зависит от активной роли. Вернуться к максимальной: /switchrole max';
+  return '🛡 VIBE | КОМАНДЫ РОЛИ: '+({helper:'ПОМОЩНИК',moderator:'МОДЕРАТОР',admin:'АДМИНИСТРАТОР',chief_admin:'ГЛАВНЫЙ АДМИНИСТРАТОР',developer:'РАЗРАБОТЧИК'}[role]||'НЕТ ДОСТУПА')+'\n━━━━━━━━━━━━━━━━━━\n🔑 ОСНОВНЫЕ КОМАНДЫ\n'+format(visibleCore)+'\n\n📚 ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ('+extras.length+')\n'+format(extras)+'\n\nДоступ зависит от активной роли. Вернуться к максимальной: /switchrole max';
 }
 async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
   if (!process.env.BOT_TOKEN) return;
@@ -190,9 +194,31 @@ async function getRole(telegramId) {
   const current=active.rows[0]?.role;
   return current && roleRank[current]!==undefined && roleRank[current]<=roleRank[assigned] ? current : assigned;
 }
+async function getAssignedRole(telegramId) {
+  const id = String(telegramId);
+  if (id === DEVELOPER_TELEGRAM_ID) return 'developer';
+  const assigned = await pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1', [id]);
+  if (assigned.rowCount) return assigned.rows[0].role;
+  if ((process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(value => value.trim()).includes(id)) return 'admin';
+  return 'none';
+}
+
+async function ensureTargetBelowActor(targetTelegramId, actorRole) {
+  const targetRole = await getAssignedRole(targetTelegramId);
+  if (targetRole === 'developer' || roleRank[targetRole] >= roleRank[actorRole]) return false;
+  return true;
+}
+
 async function canManage(req,res,next) {
-  try { const role = await getRole(req.user.telegram_id); if (roleRank[role] < roleRank.admin) return res.status(403).json({error:'Admin access denied'}); req.adminRole=role; next(); }
-  catch (e) { next(e); }
+  try {
+    const role = await getRole(req.user.telegram_id);
+    if (roleRank[role] < roleRank.admin) return res.status(403).json({error:'Admin access denied'});
+    if (role !== 'developer' && !await isAdminUnlocked(req.user.telegram_id)) {
+      return res.status(403).json({error:'Admin session is locked. Unlock access in the VIBE Telegram bot first.'});
+    }
+    req.adminRole = role;
+    next();
+  } catch (e) { next(e); }
 }
 app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',') }));
 app.use(express.json({ limit: '5mb' }));
@@ -250,7 +276,7 @@ async function upsertTelegramUser(identity) {
           first_name = EXCLUDED.first_name,
           photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
           updated_at = NOW()
-    RETURNING id, telegram_id, username, first_name, birth_date,
+    RETURNING id, telegram_id, username, first_name, birth_date, verified_birth_date,
       age_verification_status, age_verified_at, gender, profile_review_status,
       account_status, bio, city, photo_url, goal, interests, discoverable,
       moderation_note, public_status, ban_issuer`,
@@ -273,35 +299,55 @@ app.get('/api/me',auth,wrap(async(req,res)=>{const [r,likes]=await Promise.all([
 app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
+  if(interests.some(value=>typeof value!=='string'||value.trim().length>50)) return res.status(400).json({error:'Каждый интерес должен быть текстом не длиннее 50 символов.'});
+  if(city!==null&&(typeof city!=='string'||city.trim().length>80)) return res.status(400).json({error:'Укажи корректный город.'});
+  if(photoUrl!==null){
+    if(typeof photoUrl!=='string'||photoUrl.length>4400000) return res.status(400).json({error:'Фото профиля должно быть безопасной HTTPS-ссылкой или изображением размером до 3 МБ.'});
+    if(!/^https:\/\//i.test(photoUrl)){
+      const photoValidation=validateListingMedia(photoUrl,'image');
+      if(!photoValidation.valid)return res.status(400).json({error:'Фото профиля должно быть безопасной HTTPS-ссылкой или изображением размером до 3 МБ.'});
+    }
+  }
+  if(profileTextProblem([bio,city,...interests])) return res.status(400).json({error:'В профиле найдены запрещённые ругательства, оскорбления или пошлые слова. Исправь текст.'});
   if(gender!==null&&!['woman','man','nonbinary','prefer_not_to_say'].includes(gender)) return res.status(400).json({error:'Invalid gender'});
   const d = typeof birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? new Date(birthDate + 'T00:00:00Z') : null;
   if (!d || Number.isNaN(d.getTime()) || d.toISOString().slice(0,10) !== birthDate || birthDate > new Date().toISOString().slice(0,10)) return res.status(400).json({error:'Укажи корректную дату рождения, чтобы создать профиль.'});
-  const q=await pool.query(`UPDATE users SET birth_date=$1,age_confirmed=$2,gender=$3,bio=$4,city=$5,photo_url=$6,goal=$7,interests=$8,updated_at=NOW()
-    WHERE id=$9 RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,
-    [birthDate||null,Boolean(birthDate),gender,bio,city,photoUrl,goal,interests,req.user.id]);
   const age = ageOnDate(birthDate);
   if (age === null || age < 14) return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
   if (age > 100) return res.status(400).json({error:'Проверь дату рождения в профиле.'});
-  res.json({user:q.rows[0],route:age===null?'age_gate':age<18?'youth':'adult_verification',adultAccess:false});
+  const q=await pool.query(`UPDATE users SET birth_date=$1,age_confirmed=$2,gender=$3,bio=$4,city=$5,photo_url=COALESCE($6,photo_url),goal=$7,interests=$8,updated_at=NOW()
+    WHERE id=$9 RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,
+    [birthDate,Boolean(birthDate),gender,bio.trim(),city?.trim()||null,photoUrl,goal,interests.map(value=>value.trim()),req.user.id]);
+  res.json({user:q.rows[0],route:age<18?'youth':'adult_verification',adultAccess:false});
 }));
 
 async function getUserAgeBand(userId) {
   const q = await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1', [userId]);
   if (!q.rowCount) return 'restricted';
   const u = q.rows[0];
-  const today = new Date();
-  const ageOn = ageOnDate;
-  const selfReportedAge = ageOn(u.birth_date);
-  if (selfReportedAge !== null && selfReportedAge >= 14 && selfReportedAge <= 17) return 'teen';
-  const verifiedAge = ageOn(u.verified_birth_date);
-  if (u.age_verification_status === 'verified' && verifiedAge !== null && verifiedAge >= 18) return 'adult';
-  return 'restricted';
+  return ageBandForUser({
+    birthDate: u.birth_date,
+    verifiedBirthDate: u.verified_birth_date,
+    verificationStatus: u.age_verification_status
+  });
+}
+
+async function hasMutualLike(userId, otherId) {
+  const q = await pool.query(
+    'SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2 LIMIT 1',
+    [userId, otherId]
+  );
+  return q.rowCount > 0;
 }
 
 app.get('/api/age-status',auth,wrap(async(req,res)=>{
   const q=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
-  const u=q.rows[0]; const age=ageOnDate(u.verified_birth_date); const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18; const selfAge=ageOnDate(u.birth_date); const ageBand=selfAge!==null&&selfAge>=14&&selfAge<18?'teen':adultAccess?'adult':'restricted';
-  res.json({route:!u.birth_date?'age_gate':selfAge!==null&&selfAge<14?'underage':ageBand==='teen'?'teen':adultAccess?'adult':'adult_verification',ageBand,adultAccess,status:u.age_verification_status});
+  const u=q.rows[0];
+  const ageBand=ageBandForUser({birthDate:u.birth_date,verifiedBirthDate:u.verified_birth_date,verificationStatus:u.age_verification_status});
+  const adultAccess=ageBand==='adult';
+  const selfAge=ageOnDate(u.birth_date);
+  const route=ageBand==='adult'?'adult':ageBand==='teen'?'teen':!u.birth_date?'age_gate':selfAge!==null&&selfAge<14?'underage':'adult_verification';
+  res.json({route,ageBand,adultAccess,status:u.age_verification_status});
 }));
 
 app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
@@ -310,6 +356,7 @@ app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
 }));
 app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
+ if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя анкеты должно содержать от 2 до 60 символов.'});
  const profileCheck=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
  if(!profileCheck.rows[0]?.birth_date)return res.status(400).json({error:'Сначала заполни профиль и укажи дату рождения.'});
  const ageSource=profileCheck.rows[0].age_verification_status==='verified'&&profileCheck.rows[0].verified_birth_date
@@ -321,9 +368,8 @@ app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
 
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
  if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
- if(mediaUrl!==null&&(typeof mediaUrl!=='string'||mediaUrl.length>4400000||!(mediaUrl.startsWith('data:image/')||mediaUrl.startsWith('data:video/'))))return res.status(400).json({error:'Медиа должно быть фото или видео размером до 3 МБ.'});
- if(!['image','video'].includes(mediaType))return res.status(400).json({error:'Некорректный тип медиа.'});
- if(mediaUrl&&((mediaType==='video'&&!mediaUrl.startsWith('data:video/'))||(mediaType==='image'&&!mediaUrl.startsWith('data:image/'))))return res.status(400).json({error:'Тип файла не совпадает с выбранным типом медиа.'});
+ const mediaValidation=validateListingMedia(mediaUrl,mediaType);
+ if(!mediaValidation.valid)return res.status(400).json({error:'Медиа должно быть корректным фото или видео размером до 3 МБ, а тип файла должен совпадать с выбранным типом.'});
  if(profileTextProblem([name,city,country,hobbies,description]))return res.status(400).json({error:'В анкете найдены запрещённые ругательства или пошлые слова. Исправь текст.'});
  const q=await pool.query(`INSERT INTO listings(user_id,name,age,city,country,hobbies,description,media_url,media_type,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
  ON CONFLICT(user_id) DO UPDATE SET name=EXCLUDED.name,age=EXCLUDED.age,city=EXCLUDED.city,country=EXCLUDED.country,hobbies=EXCLUDED.hobbies,description=EXCLUDED.description,media_url=EXCLUDED.media_url,media_type=EXCLUDED.media_type,status='pending',updated_at=NOW()
@@ -449,8 +495,11 @@ app.post('/api/likes/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(id);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Симпатии доступны только пользователям твоей возрастной стороны VIBE.'});
-  const q=await pool.query(`SELECT id FROM users WHERE id=$1 AND account_status='active'`,[id]);
-  if(!q.rowCount)return res.status(404).json({error:'User unavailable'});
+  const q=await pool.query(`SELECT u.id FROM users u WHERE u.id=$1 AND u.account_status='active'
+    AND EXISTS(SELECT 1 FROM listings l WHERE l.user_id=u.id AND l.status='published')`,[id]);
+  if(!q.rowCount)return res.status(404).json({error:'Пользователь или опубликованная анкета недоступны'});
+  const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,id]);
+  if(blocked.rowCount)return res.status(403).json({error:'Нельзя поставить лайк этому пользователю'});
   await pool.query('INSERT INTO likes(from_user,to_user) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,id]);
   const m=await pool.query('SELECT 1 FROM likes WHERE from_user=$1 AND to_user=$2',[id,req.user.id]); res.json({liked:true,matched:!!m.rowCount});
 }));
@@ -462,14 +511,14 @@ app.get('/api/likes',auth,wrap(async(req,res)=>{
       CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
       FROM likes l JOIN users u ON u.id=l.from_user JOIN listings lst ON lst.user_id=u.id
       WHERE l.to_user=$1 AND lst.status='published' AND u.account_status='active'
-      AND (($3='teen' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($3='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
+      AND (($3='teen' AND COALESCE(u.age_verification_status,'') <> 'verified' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($3='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
       AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
       ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand]),
     pool.query(`SELECT u.id AS id,lst.id AS listing_id,lst.name,lst.age,lst.city,lst.country,lst.hobbies,lst.description,u.photo_url,
       CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
       FROM likes l JOIN users u ON u.id=l.to_user JOIN listings lst ON lst.user_id=u.id
       WHERE l.from_user=$1 AND lst.status='published' AND u.account_status='active'
-      AND (($3='teen' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($3='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
+      AND (($3='teen' AND COALESCE(u.age_verification_status,'') <> 'verified' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($3='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
       AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
       ORDER BY l.created_at DESC LIMIT 50`,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand])
   ]);
@@ -484,9 +533,8 @@ app.get('/api/chats',auth,wrap(async(req,res)=>{
     (SELECT m.created_at FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id) ORDER BY m.created_at DESC LIMIT 1) AS last_message_at
     FROM users u
     WHERE u.id<>$1 AND u.account_status='active'
-      AND (($2='teen' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($2='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
-      AND (EXISTS (SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=u.id)
-        OR EXISTS (SELECT 1 FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id)))
+      AND (($2='teen' AND COALESCE(u.age_verification_status,'') <> 'verified' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($2='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
+      AND EXISTS (SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=u.id)
       AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
     ORDER BY last_message_at DESC NULLS LAST,u.first_name ASC`,[req.user.id,viewerBand]);
   res.json({chats:q.rows});
@@ -500,6 +548,7 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Переписка недоступна'});
+  if(!await hasMutualLike(req.user.id,other))return res.status(403).json({error:'Чат доступен только после взаимной симпатии.'});
   const q=await pool.query(`SELECT id,sender_id,body,created_at FROM (SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at DESC LIMIT 200) recent_messages ORDER BY created_at ASC`,[req.user.id,other]);
   res.json({messages:q.rows});
 }));
@@ -513,13 +562,18 @@ app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,r
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Нельзя отправить сообщение этому пользователю'});
+  if(!await hasMutualLike(req.user.id,other))return res.status(403).json({error:'Чат доступен только после взаимной симпатии.'});
   const q=await pool.query(`INSERT INTO messages(match_low,match_high,sender_id,body) VALUES(LEAST($1,$2),GREATEST($1,$2),$1,$3) RETURNING id,sender_id,body,created_at`,[req.user.id,other,body.trim()]);
   res.status(201).json({message:q.rows[0]});
 }));
 app.post('/api/blocks/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
-  const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
+  const id=Number(req.params.userId);
+  if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
+  const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[id]);
+  if(!target.rowCount)return res.status(404).json({error:'Пользователь не найден или недоступен'});
   await pool.query('INSERT INTO blocks(blocker_id,blocked_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,id]);
-  await pool.query('DELETE FROM likes WHERE (from_user=$1 AND to_user=$2) OR (from_user=$2 AND to_user=$1)',[req.user.id,id]);res.json({blocked:true});
+  await pool.query('DELETE FROM likes WHERE (from_user=$1 AND to_user=$2) OR (from_user=$2 AND to_user=$1)',[req.user.id,id]);
+  res.json({blocked:true});
 }));
 app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
@@ -529,7 +583,8 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
   if(reporterUsername!==undefined && reporterUsername!==null && reporterUsername!=='' && (typeof reporterUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reporterUsername.trim())))return res.status(400).json({error:'Некорректный Telegram-юзернейм отправителя'});
   if(reportedUsername!==undefined && reportedUsername!==null && reportedUsername!=='' && (typeof reportedUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reportedUsername.trim())))return res.status(400).json({error:'Некорректный Telegram-юзернейм пользователя'});  if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
-  if(typeof evidence!=='string'||evidence.length>3000000||(evidence&&!(evidence.startsWith('data:image/')||evidence.startsWith('data:video/')||evidence.startsWith('data:application/pdf;'))))return res.status(400).json({error:'Доказательство должно быть фото, видео или PDF до 2 МБ'});
+  const evidenceValidation=validateReportEvidence(evidence);
+  if(!evidenceValidation.valid)return res.status(400).json({error:'Доказательство должно быть корректным фото, видео или PDF размером не более 2 МиБ.'});
   const targetExists=await pool.query("SELECT id,first_name,username FROM users WHERE id=$1 AND account_status='active'",[id]);
   if(!targetExists.rowCount)return res.status(404).json({error:'Профиль не найден или недоступен'});
   const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Преследование или угрозы безопасности','Другое'];
@@ -580,7 +635,7 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
 app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
   const code=String(req.params.code||'');
   const reason=typeof req.body?.reason==='string'?req.body.reason.trim():'';
-  if(!/^\\d{6}$/.test(code)) return res.status(400).json({error:'Введи ровно 6 цифр кода профиля'});
+  if(!/^\d{6}$/.test(code)) return res.status(400).json({error:'Введи ровно 6 цифр кода профиля'});
   if(!reason||reason.length>500) return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
   const target=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lpad(id::text,6,'0')=$1",[code]);
   if(!target.rowCount) return res.status(404).json({error:'Профиль с таким кодом не найден'});
@@ -590,14 +645,14 @@ app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
     return res.status(403).json({error:'Разработчика нельзя забанить'});
   }
   const actorRole=await getRole(req.user.telegram_id);
-  const targetRole=await getRole(targetUser.telegram_id);
-  if(roleRank[targetRole]>=roleRank[actorRole]) return res.status(403).json({error:'Нельзя банить пользователя с равным или более высоким рангом'});
+  if((roleRank[actorRole]??0)<roleRank.moderator) return res.status(403).json({error:'Для блокировки аккаунтов нужна роль модератора или выше'});
+  if(!await ensureTargetBelowActor(String(targetUser.telegram_id),actorRole)) return res.status(403).json({error:'Нельзя банить пользователя с равным или более высоким назначенным рангом'});
   const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3 RETURNING id,first_name,username,telegram_id",[reason,actorRole==='developer'?'developer':'moderator',targetUser.id]);
   res.json({banned:true,user:{...q.rows[0],profile_code:String(q.rows[0].id).padStart(6,'0')},reason});
 }));
 app.get('/api/admin/users/:code',auth,adminOnly,wrap(async(req,res)=>{
   const code=String(req.params.code||'');
-  if(!/^\\d{6}$/.test(code)) return res.status(400).json({error:'Введи ровно 6 цифр кода профиля'});
+  if(!/^\d{6}$/.test(code)) return res.status(400).json({error:'Введи ровно 6 цифр кода профиля'});
   const q=await pool.query("SELECT id,first_name,username,account_status,moderation_note FROM users WHERE lpad(id::text,6,'0')=$1",[code]);
   if(!q.rowCount) return res.status(404).json({error:'Профиль с таким кодом не найден'});
   res.json({user:{...q.rows[0],profile_code:String(q.rows[0].id).padStart(6,'0')}});
@@ -615,21 +670,52 @@ app.get('/api/admin/queue',auth,adminOnly,wrap(async(_req,res)=>{
 app.patch('/api/admin/reports/:id',auth,adminOnly,wrap(async(req,res)=>{
   const id=Number(req.params.id);const {status,action='none',note=''}=req.body||{};
   if(!Number.isSafeInteger(id)||!['reviewing','resolved','dismissed'].includes(status)||!['none','restrict','suspend','ban','restore'].includes(action))return res.status(400).json({error:'Invalid action'});
-  if(action==='ban'&&(!String(note).trim()||String(note).trim().length>500))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
-  const c=await pool.connect();try{await c.query('BEGIN');const f=await c.query('SELECT r.reported_id,u.telegram_id FROM reports r JOIN users u ON u.id=r.reported_id WHERE r.id=$1 FOR UPDATE OF r,u',[id]);if(!f.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Report not found'});}if(['ban','restrict','suspend'].includes(action)&&String(f.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await c.query('ROLLBACK');await notifyDeveloperAttempt({actorId:req.user.telegram_id,actorName:req.user.first_name,actorUsername:req.user.username,action:'Модерация разработчика ('+action+')',source:'Веб-жалобы'});return res.status(403).json({error:'Разработчика нельзя забанить или ограничить'});}
-  await c.query('UPDATE reports SET status=$1 WHERE id=$2',[status,id]);if(action!=='none'){const s={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];await c.query(`UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3`,[s,note||'Admin action: '+action,f.rows[0].reported_id,req.adminRole==='developer'?'developer':'moderator']);}await c.query('COMMIT');res.json({updated:true});}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
+  if(typeof note!=='string'||(action==='ban'&&(!note.trim()||note.trim().length>500)))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
+  const c=await pool.connect();let targetTelegramId=null;
+  try{
+    await c.query('BEGIN');
+    const f=await c.query('SELECT r.reported_id,u.telegram_id FROM reports r JOIN users u ON u.id=r.reported_id WHERE r.id=$1 FOR UPDATE OF r,u',[id]);
+    if(!f.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Report not found'});}
+    targetTelegramId=String(f.rows[0].telegram_id);
+    if(action!=='none'&&!await ensureTargetBelowActor(targetTelegramId,req.adminRole)){
+      await c.query('ROLLBACK');
+      if(targetTelegramId===DEVELOPER_TELEGRAM_ID)await notifyDeveloperAttempt({actorId:req.user.telegram_id,actorName:req.user.first_name,actorUsername:req.user.username,action:'Модерация разработчика ('+action+')',source:'Веб-жалобы'});
+      return res.status(403).json({error:'Нельзя изменять аккаунт сотрудника с равной или более высокой ролью'});
+    }
+    await c.query('UPDATE reports SET status=$1 WHERE id=$2',[status,id]);
+    if(action!=='none'){
+      const accountStatus={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];
+      await c.query("UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3",[accountStatus,note.trim()||'Admin action: '+action,f.rows[0].reported_id,req.adminRole==='developer'?'developer':'moderator']);
+    }
+    await c.query('COMMIT');res.json({updated:true});
+  }catch(e){try{await c.query('ROLLBACK');}catch{}throw e;}finally{c.release();}
 }));
 app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
   const id=Number(req.params.id);const {status,action='none',note=''}=req.body||{};
   if(!Number.isSafeInteger(id)||!['reviewing','resolved','dismissed'].includes(status)||!['none','restrict','suspend','ban','restore'].includes(action))return res.status(400).json({error:'Invalid action'});
-  if(action==='ban'&&(!String(note).trim()||String(note).trim().length>500))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
-  const f=await pool.query('SELECT mf.user_id,u.telegram_id FROM moderation_flags mf JOIN users u ON u.id=mf.user_id WHERE mf.id=$1',[id]);if(!f.rowCount)return res.status(404).json({error:'Flag not found'});if(action==='ban'&&String(f.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:req.user.telegram_id,actorName:req.user.first_name,actorUsername:req.user.username,action:'Бан разработчика',source:'Веб-флаги модерации'});return res.status(403).json({error:'Разработчика нельзя забанить'});}await pool.query('UPDATE moderation_flags SET status=$1 WHERE id=$2',[status,id]);
-  if(action!=='none'){const s={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];await pool.query('UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1=\'active\' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1=\'banned\' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3',[s,note||'Admin action: '+action,f.rows[0].user_id,req.adminRole==='developer'?'developer':'moderator']);}res.json({updated:true});
+  if(typeof note!=='string'||(action==='ban'&&(!note.trim()||note.trim().length>500)))return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
+  const c=await pool.connect();let targetTelegramId=null;
+  try{
+    await c.query('BEGIN');
+    const f=await c.query('SELECT mf.user_id,u.telegram_id FROM moderation_flags mf JOIN users u ON u.id=mf.user_id WHERE mf.id=$1 FOR UPDATE OF mf,u',[id]);
+    if(!f.rowCount){await c.query('ROLLBACK');return res.status(404).json({error:'Flag not found'});}
+    targetTelegramId=String(f.rows[0].telegram_id);
+    if(action!=='none'&&!await ensureTargetBelowActor(targetTelegramId,req.adminRole)){
+      await c.query('ROLLBACK');
+      if(targetTelegramId===DEVELOPER_TELEGRAM_ID)await notifyDeveloperAttempt({actorId:req.user.telegram_id,actorName:req.user.first_name,actorUsername:req.user.username,action:'Модерация разработчика ('+action+')',source:'Веб-флаги модерации'});
+      return res.status(403).json({error:'Нельзя изменять аккаунт сотрудника с равной или более высокой ролью'});
+    }
+    await c.query('UPDATE moderation_flags SET status=$1 WHERE id=$2',[status,id]);
+    if(action!=='none'){
+      const accountStatus={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];
+      await c.query("UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3",[accountStatus,note.trim()||'Admin action: '+action,f.rows[0].user_id,req.adminRole==='developer'?'developer':'moderator']);
+    }
+    await c.query('COMMIT');res.json({updated:true});
+  }catch(e){try{await c.query('ROLLBACK');}catch{}throw e;}finally{c.release();}
 }));
 
 app.post('/telegram/webhook', (req,res) => {
-  const secret=process.env.TELEGRAM_WEBHOOK_SECRET;
-  if(secret&&req.get('X-Telegram-Bot-Api-Secret-Token')!==secret)return res.sendStatus(401);
+  if(req.get('X-Telegram-Bot-Api-Secret-Token')!==TELEGRAM_WEBHOOK_SECRET)return res.sendStatus(401);
   res.sendStatus(200);
   const m=req.body?.message, cb=req.body?.callback_query, token=process.env.BOT_TOKEN;
   if(!token||(!m?.chat?.id&&!cb?.message?.chat?.id))return;
@@ -686,7 +772,13 @@ app.post('/telegram/webhook', (req,res) => {
       if(['en','ru','de'].includes(chosen) && from?.id) {
         await pool.query("INSERT INTO users(telegram_id,username,first_name,language) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET language=EXCLUDED.language,updated_at=NOW()",[String(from.id),from.username||null,from.first_name||'User',chosen]);
         await answer(chosen==='ru'?'Язык сохранён':chosen==='de'?'Sprache gespeichert':'Language saved');
-        await send(chosen==='ru'?'Язык сохранён. Напиши /start, чтобы открыть меню.':chosen==='de'?'Sprache gespeichert. Sende /start, um das Menü zu öffnen.':'Language saved. Send /start to open the menu.');
+        const greetings={
+          en:'✨ Welcome to VIBE! 💜\n\nI’m your VIBE assistant. I can help with your profile, likes, chats, community rules, and reports.\n\nTeen users (14–17) and verified adults (18+) are kept in separate spaces.\n\nOpen VIBE to get started, or message me anytime if you need help.',
+          de:'✨ Willkommen bei VIBE! 💜\n\nIch bin dein VIBE-Assistent. Ich helfe dir mit deinem Profil, Likes, Chats, den Community-Regeln und Meldungen.\n\nJugendliche (14–17) und verifizierte Erwachsene (18+) nutzen getrennte Bereiche.\n\nÖffne VIBE, um loszulegen, oder schreibe mir, wenn du Hilfe brauchst.',
+          ru:'✨ Добро пожаловать в VIBE! 💜\n\nЯ — помощник VIBE. Я помогу с анкетой, лайками, чатами, правилами и жалобами.\n\nПодростки 14–17 лет и взрослые 18+ с подтверждённым возрастом находятся в разных разделах.\n\nОткрой VIBE, чтобы начать, или напиши мне, если понадобится помощь.'
+        };
+        const labels={en:['💜 Open VIBE','❓ Help','✉️ Support','📜 Rules','🔒 Privacy'],de:['💜 VIBE öffnen','❓ Hilfe','✉️ Support','📜 Regeln','🔒 Datenschutz'],ru:['💜 Открыть VIBE','❓ Помощь','✉️ Поддержка','📜 Правила','🔒 Конфиденциальность']}[chosen];
+        await send(greetings[chosen],{inline_keyboard:[[{text:labels[0],web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:labels[1],callback_data:'help:main'},{text:labels[2],callback_data:'support:new'}],[{text:labels[3],url:'https://vibe-client-sroc.onrender.com/rules'},{text:labels[4],url:'https://vibe-client-sroc.onrender.com/privacy'}]]});
       } else await answer('Unsupported language');
       return;
     }
@@ -841,12 +933,15 @@ app.post('/telegram/webhook', (req,res) => {
         return;
       }
       if(prefix==='l') {
-        if(!ok){await answer('Доступ разрешён только администраторам.');return;}
+        const actorRole=await getRole(String(from.id));
+        if((roleRank[actorRole]??0)<roleRank.moderator){await answer('Проверять и публиковать анкеты может только модератор или роль выше.');return;}
         if(!Number.isSafeInteger(id)||id<=0||!['approve','reject'].includes(act)){await answer('Некорректное действие');return;}
-        const found=await pool.query('SELECT l.id,l.user_id,l.name,u.telegram_id FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=$1',[id]);
+        const found=await pool.query('SELECT l.id,l.user_id,l.name,l.status,u.telegram_id FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=$1',[id]);
         if(!found.rowCount){await answer('Анкета не найдена');await edit('Анкета уже удалена или не найдена.');return;}
+        if(found.rows[0].status!=='pending'){await answer('Эта анкета уже обработана.');await edit('ℹ️ Решение по анкете #'+id+' уже принято: '+found.rows[0].status+'.');return;}
         const status=act==='approve'?'published':'rejected';
-        await pool.query('UPDATE listings SET status=$1,updated_at=NOW() WHERE id=$2',[status,id]);
+        const updated=await pool.query("UPDATE listings SET status=$1,updated_at=NOW() WHERE id=$2 AND status='pending' RETURNING id",[status,id]);
+        if(!updated.rowCount){await answer('Анкета уже обработана другим модератором.');return;}
         const message=act==='approve'?'✅ Твоя анкета VIBE «'+found.rows[0].name+'» прошла проверку и теперь доступна в рекомендациях.':'⚠️ Анкета VIBE «'+found.rows[0].name+'» не прошла проверку. Пожалуйста, исправьте данные и отправьте анкету повторно.';
         await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:found.rows[0].telegram_id,text:message})}).catch(e=>console.error('Listing decision notification failed:',e.message));
         await answer(act==='approve'?'Анкета одобрена и опубликована.':'Анкета отклонена.');
@@ -884,8 +979,8 @@ app.post('/telegram/webhook', (req,res) => {
         if(!target.rowCount){await answer('Пользователь не найден');await edit('Пользователь уже удалён или не найден.');return;}
         if(String(target.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await answer('Аккаунт разработчика защищён');return;}
         const actorRole=await getRole(String(from.id));
-        const targetRole=await getRole(String(target.rows[0].telegram_id));
-        if((roleRank[targetRole]??0)>=(roleRank[actorRole]??0)){await answer('Нельзя банить пользователя с равным или более высоким рангом');return;}
+        if((roleRank[actorRole]??0)<roleRank.moderator){await answer('Блокировать аккаунты может только модератор или роль выше.');return;}
+        if(!await ensureTargetBelowActor(String(target.rows[0].telegram_id),actorRole)){await answer('Нельзя банить пользователя с равным или более высоким назначенным рангом');return;}
         await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3",[selected.reason,actorRole==='developer'?'developer':'moderator',targetId]);
         await answer('Аккаунт заблокирован: '+selected.label);
         await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:target.rows[0].telegram_id,text:'⛔ Ваш аккаунт забанен.\nКем заблокирован: '+(actorRole==='developer'?'разработчиком':'модератором')+'.\nПричина: '+selected.reason+'\nДоступ к VIBE заблокирован.'})}).catch(e=>console.error('Ban notice failed:',e.message));
@@ -894,7 +989,7 @@ app.post('/telegram/webhook', (req,res) => {
       }
       if(!ok){await answer('Доступ разрешён только администраторам.');return;}
       if(prefix!=='u'||!Number.isSafeInteger(id)||id<=0||!['check','ban','unban','profile','account'].includes(act)){await answer('Некорректное действие');return;}
-      const q=await pool.query('SELECT first_name,username,telegram_id FROM users WHERE id=$1',[id]);
+      const q=await pool.query('SELECT first_name,username,telegram_id,account_status FROM users WHERE id=$1',[id]);
       if(!q.rowCount){await answer('Пользователь не найден');await edit('Пользователь не найден или удалён.');return;}
       if(act==='check'){await answer();await card(id,true);return;}
       if(String(q.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID&&['ban','unban','profile','account'].includes(act)){
@@ -904,8 +999,19 @@ app.post('/telegram/webhook', (req,res) => {
         await send('⛔ Разработчика нельзя банить, ограничивать или удалять.');
         return;
       }
+      const actorRole=await getRole(String(from.id));
+      const requiredRole=act==='account'?'admin':(['ban','unban','profile'].includes(act)?'moderator':null);
+      if(requiredRole && (roleRank[actorRole]??0)<roleRank[requiredRole]){
+        await answer('Для этого действия нужна роль «'+({moderator:'Модератор',admin:'Администратор'}[requiredRole])+'» или выше.');
+        return;
+      }
+      if(['unban','profile','account'].includes(act) && !await ensureTargetBelowActor(String(q.rows[0].telegram_id),actorRole)){
+        if(String(q.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID)await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:({unban:'Изменение блокировки разработчика',profile:'Удаление анкеты разработчика',account:'Удаление аккаунта разработчика'})[act],source:'Telegram-кнопка модерации'});
+        await answer('Нельзя изменять аккаунт сотрудника с равной или более высокой ролью.');
+        return;
+      }
       if(act==='ban'){const reasonsKeyboard={inline_keyboard:Object.entries(BAN_REASONS).map(([key,item])=>[{text:item.label,callback_data:'br:'+id+':'+key}])};await answer('Выбери причину бана');await send('⛔ Выберите причину блокировки для '+q.rows[0].first_name+'. После нажатия аккаунт будет заблокирован, а выбранная причина сохранится в системе.',reasonsKeyboard);return;}
-      if(act==='unban'){await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1",[id]);await answer('Блокировка снята.');await edit('✅ Бан снят.');return;}
+      if(act==='unban'){if(q.rows[0].account_status!=='banned'){await answer('Аккаунт не заблокирован. Другие ограничения этой кнопкой не снимаются.');return;}const restored=await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1 AND account_status='banned' RETURNING id",[id]);if(!restored.rowCount){await answer('Аккаунт уже не заблокирован.');return;}await answer('Блокировка снята.');await edit('✅ Бан снят.');return;}
       if(act==='profile'){await pool.query("UPDATE users SET bio='',city=NULL,photo_url=NULL,gender=NULL,goal='friendship',interests='{}',discoverable=FALSE,profile_review_status='restricted',moderation_note='Profile deleted by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await answer('Анкета удалена');await edit('🧹 Анкета удалена. Аккаунт сохранён.');return;}
       if(act==='account'){await pool.query('DELETE FROM users WHERE id=$1',[id]);await answer('Учётная запись удалена.');await edit('🗑 Аккаунт удалён вместе с анкетой, лайками, чатами и жалобами. Пользователь сможет зарегистрироваться снова с тем же Telegram-аккаунтом.');return;}
     }
@@ -989,9 +1095,9 @@ app.post('/telegram/webhook', (req,res) => {
     }else if(cmd==='/адм'||cmd==='/admin'){
       reply=ok?'VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'⛔ This command is available to administrators only.';
       if(ok)markup={remove_keyboard:true};
-    }else if(cmd==='/бан'||cmd==='/ban'){
-      if(!ok){
-        reply='⛔ Доступ разрешён только администраторам.';
+     }else if(cmd==='/бан'||cmd==='/ban'){
+      if(!ok || (roleRank[role]??0)<roleRank.moderator){
+        reply='⛔ Для блокировки нужен ранг модератора или выше.';
       } else {
         const bm=txt.match(/^\/(?:бан|ban)(?:@\S+)?\s+(@?[A-Za-z0-9_]{5,32}|\d{6})$/i);
         if(!bm){
@@ -1004,35 +1110,57 @@ app.post('/telegram/webhook', (req,res) => {
             reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';
           } else if(!found.rowCount){
             reply='Пользователь не найден.';
+          } else if(!(await ensureTargetBelowActor(String(found.rows[0].telegram_id),role))){
+            reply='⛔ Нельзя банить пользователя с равным или более высоким рангом.';
           } else {
-            const targetRole=await getRole(String(found.rows[0].telegram_id));
-            if((roleRank[targetRole]??0)>=(roleRank[role]??0)){
-              reply='⛔ Нельзя банить пользователя с равным или более высоким рангом.';
-            } else {
-              reply='Выбери причину блокировки для '+found.rows[0].first_name+'.';
-              markup={inline_keyboard:Object.entries(BAN_REASONS).map(([reasonKey,item])=>[{text:item.label,callback_data:'br:'+found.rows[0].id+':'+reasonKey}])};
-            }
+            reply='Выбери причину блокировки для '+found.rows[0].first_name+'.';
+            markup={inline_keyboard:Object.entries(BAN_REASONS).map(([reasonKey,item])=>[{text:item.label,callback_data:'br:'+found.rows[0].id+':'+reasonKey}])};
           }
         }
       }
     }else if(cmd==='/разбан'||cmd==='/unban'){
-      if(!ok)reply='⛔ Доступ разрешён только администраторам.';
+      if(!ok || (roleRank[role]??0)<roleRank.moderator)reply='⛔ Для снятия блокировки нужен ранг модератора или выше.';
       else if(!/^(@?[A-Za-z0-9_]{5,32}|\d{6})$/.test(arg))reply='Формат: /разбан @username или /разбан 001234';
       else{
         const targetKey=arg.replace(/^@/,'');
-        const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[targetKey]);
+        const found=await pool.query("SELECT id,first_name,username,telegram_id,account_status FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[targetKey]);
         if(!found.rowCount)reply='Пользователь не найден. Проверь username или 6-значный код.';
-        else if(String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение статуса разработчика командой /разбан',source:'Telegram-команда'});reply='⛔ Статус аккаунта разработчика защищён от изменений.';}
-        else{const target=await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1 RETURNING id,first_name,username",[found.rows[0].id]);reply='✅ Разбанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').'}
+        else if(String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){
+          await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение статуса разработчика командой /разбан',source:'Telegram-команда'});
+          reply='⛔ Статус аккаунта разработчика защищён от изменений.';
+        }else if(!(await ensureTargetBelowActor(String(found.rows[0].telegram_id),role))){
+          reply='⛔ Нельзя снимать блокировку с пользователя равного или более высокого ранга.';
+        }else if(found.rows[0].account_status!=='banned'){
+          reply='ℹ️ Этот аккаунт не заблокирован. Ограничения другого типа этой командой не снимаются.';
+        }else{
+          const target=await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1 AND account_status='banned' RETURNING id,first_name,username",[found.rows[0].id]);
+          reply=target.rowCount?'✅ Разбанен: '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+').' :'ℹ️ Аккаунт уже не заблокирован.';
+        }
       }
     }else if(cmd==='/удалить'||cmd==='/delete'){
-      if(!ok)reply='⛔ Доступ разрешён только администраторам.';
+      if(!ok || (roleRank[role]??0)<roleRank.admin)reply='⛔ Для удаления аккаунта нужен ранг администратора или выше.';
       else if(!/^(@?[A-Za-z0-9_]{5,32}|\d{6})$/.test(arg))reply='Формат: /удалить @username или /удалить 001234';
-      else{const key=arg.replace(/^@/,'');const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')",[key]);if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Удаление аккаунта разработчика (команда /удалить)',source:'Telegram-команда'});reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';}else if(!found.rowCount)reply='Пользователь не найден. Проверь username или 6-значный код.';else{const target=await pool.query('DELETE FROM users WHERE id=$1 RETURNING id,first_name,username',[found.rows[0].id]);reply='🗑 Аккаунт '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+') удалён.';}}
+      else{
+        const key=arg.replace(/^@/,'');
+        const found=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[key]);
+        if(found.rowCount&&String(found.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){
+          await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Удаление аккаунта разработчика (команда /удалить)',source:'Telegram-команда'});
+          reply='⛔ Действие запрещено: аккаунт разработчика защищён системой безопасности VIBE.';
+        }else if(!found.rowCount)reply='Пользователь не найден. Проверь username или 6-значный код.';
+        else if(!(await ensureTargetBelowActor(String(found.rows[0].telegram_id),role)))reply='⛔ Нельзя удалять аккаунт пользователя равного или более высокого ранга.';
+        else{
+          const target=await pool.query('DELETE FROM users WHERE id=$1 RETURNING id,first_name,username',[found.rows[0].id]);
+          reply=target.rowCount?'🗑 Аккаунт '+target.rows[0].first_name+' (код '+String(target.rows[0].id).padStart(6,'0')+(target.rows[0].username?', @'+target.rows[0].username:'')+') удалён.':'⚠️ Аккаунт не удалось удалить.';
+        }
+      }
     }else if(cmd==='/юзер'||cmd==='/user'){
       if(!ok)reply='⛔ Доступ разрешён только администраторам.';
       else if(!arg)reply='Формат: /юзер @username, /юзер 001234 или /юзер Telegram_ID';
-      else{const q=await pool.query(`SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) OR (id::text=$1 AND $1 ~ '^[0-9]{6}$')`,[arg]);if(!q.rowCount)reply='Пользователь не найден. Он должен хотя бы один раз открыть бота или приложение VIBE.';else{await card(q.rows[0].id);return;}}
+      else{
+        const q=await pool.query("SELECT id FROM users WHERE telegram_id::text=$1 OR lower(username)=lower($1) OR (lpad(id::text,6,'0')=$1 AND $1 ~ '^[0-9]{6}$')",[arg]);
+        if(!q.rowCount)reply='Пользователь не найден. Он должен хотя бы один раз открыть бота или приложение VIBE.';
+        else{await card(q.rows[0].id);return;}
+      }
     }else if(cmd==='/помощь'||cmd==='/help'||cmd==='/support'||cmd==='/helpuser'){
       reply='💜 ПОМОЩЬ ПОЛЬЗОВАТЕЛЮ VIBE\n\nЯ помогу с регистрацией и анкетой, фото и интересами, рекомендациями, лайками, чатами, входом, правилами, безопасностью и удалением данных.\n\nНапиши проблему своими словами — например:\n• «Не могу войти»\n• «Почему не вижу анкеты?»\n• «Не отправляются сообщения»\n• «Как поставить лайк?»\n• «Что делать при сексуальных домогательствах?»\n• «Хочу пожаловаться на профиль»\n• «Как удалить анкету?»\n\nЕсли не смогу решить вопрос, нажми «Связаться с поддержкой» — обращение получит команда VIBE. Не отправляй пароли и коды входа.';
       markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'✉️ Связаться с поддержкой',callback_data:'support:new'}],[{text:'📜 Правила',url:'https://vibe-client-sroc.onrender.com/rules'},{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
@@ -1079,42 +1207,8 @@ app.post('/telegram/webhook', (req,res) => {
 });
 app.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
 async function start() {
-  try {
-    // Create VIBE tables in the configured VIBE database; CREATE IF NOT EXISTS preserves existing rows.
-    const schema = await readFile(new URL('../schema.sql', import.meta.url), 'utf8');
-    await pool.query(schema);
-    await pool.query("CREATE TABLE IF NOT EXISTS service_maintenance (id INTEGER PRIMARY KEY CHECK (id=1), enabled BOOLEAN NOT NULL DEFAULT FALSE, reason TEXT NOT NULL DEFAULT '', updated_by TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
-    await pool.query("INSERT INTO service_maintenance(id,enabled,reason) VALUES(1,FALSE,'') ON CONFLICT(id) DO NOTHING");
-    await pool.query("CREATE TABLE IF NOT EXISTS admin_active_roles (telegram_id TEXT PRIMARY KEY, role TEXT NOT NULL CHECK (role IN ('developer','chief_admin','admin','moderator','helper')), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
-    await pool.query('CREATE TABLE IF NOT EXISTS admin_access_passwords (telegram_id TEXT PRIMARY KEY, salt TEXT NOT NULL, password_hash TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
-    await pool.query('CREATE TABLE IF NOT EXISTS admin_access_sessions (telegram_id TEXT PRIMARY KEY, unlocked_until TIMESTAMPTZ NOT NULL)');
-    await pool.query('CREATE TABLE IF NOT EXISTS admin_access_timezones (telegram_id TEXT PRIMARY KEY, time_zone TEXT NOT NULL)');
-    await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_status_check");
-    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
-    // Existing databases retain old CREATE TABLE constraints; migrate listing ages for the teen band.
-    await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_age_check");
-    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_age_check CHECK (age BETWEEN 14 AND 100)");
-    await pool.query(`CREATE TABLE IF NOT EXISTS admin_roles (telegram_id TEXT PRIMARY KEY, username TEXT, role TEXT NOT NULL CHECK (role IN ('chief_admin','admin','moderator','helper')), assigned_by TEXT NOT NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-      await pool.query('ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE');
-      await pool.query('ALTER TABLE listings ADD COLUMN IF NOT EXISTS media_url TEXT');
-      await pool.query("ALTER TABLE listings ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'image'");
-      await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS reporter_telegram_username TEXT');
-      await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS reported_telegram_username TEXT');
-      await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS evidence TEXT');
-      await pool.query("ALTER TABLE reports ADD COLUMN IF NOT EXISTS report_type TEXT NOT NULL DEFAULT 'profile'");
-      await pool.query('ALTER TABLE reports ADD COLUMN IF NOT EXISTS listing_id BIGINT');
-      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'");
-      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS public_status TEXT NOT NULL DEFAULT ''");
-      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_issuer TEXT NOT NULL DEFAULT 'moderator'");
-      await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_tickets (id BIGSERIAL PRIMARY KEY, telegram_id TEXT NOT NULL, username TEXT, first_name TEXT NOT NULL DEFAULT 'Пользователь', user_id BIGINT REFERENCES users(id) ON DELETE SET NULL, message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','answered','closed')), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
-      await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_messages (id BIGSERIAL PRIMARY KEY, ticket_id BIGINT NOT NULL REFERENCES telegram_support_tickets(id) ON DELETE CASCADE, sender_telegram_id TEXT NOT NULL, sender_role TEXT NOT NULL, message TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
-      await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_sessions (telegram_id TEXT PRIMARY KEY, mode TEXT NOT NULL CHECK (mode IN ('new_ticket','staff_reply')), ticket_id BIGINT REFERENCES telegram_support_tickets(id) ON DELETE CASCADE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
-
-    console.log('VIBE database schema ready');
-  } catch (err) {
-    console.error('VIBE database schema initialization failed:', err.message);
-  }
-  app.listen(port, () => {
+  await initializeDatabase(pool);
+  const server = app.listen(port, () => {
     console.log('VIBE API listening on ' + port);
     const token = process.env.BOT_TOKEN;
     if (token) {
@@ -1122,12 +1216,29 @@ async function start() {
       fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ url: 'https://znakomstva-824i.onrender.com/telegram/webhook' })
+        body: JSON.stringify({ url: 'https://znakomstva-824i.onrender.com/telegram/webhook', secret_token: TELEGRAM_WEBHOOK_SECRET })
       }).then(r => r.json()).then(result => console.log('Telegram webhook setup:', result.ok ? 'ok' : result.description))
         .catch(err => console.error('Telegram webhook setup failed:', err.message));
     } else {
       console.error('BOT_TOKEN is missing; Telegram bot is disabled');
     }
   });
+
+  let shuttingDown = false;
+  const shutdown = (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log('VIBE API received ' + signal + '; shutting down gracefully.');
+    server.close(() => {
+      pool.end()
+        .then(() => { console.log('VIBE database pool closed.'); })
+        .catch((err) => { console.error('VIBE database pool shutdown failed:', err.message); process.exitCode = 1; });
+    });
+  };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
-start();
+start().catch((err) => {
+  console.error('VIBE startup failed; HTTP server was not started.');
+  process.exitCode = 1;
+});

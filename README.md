@@ -1,6 +1,6 @@
 # VIBE — Telegram Mini App (MVP starter)
 
-VIBE is a social discovery app starter for friendship and dating, designed to run inside Telegram. The current React screens use demo data; connecting the screens to the API, configuring a real Telegram bot, database and age-assurance provider, and performing security testing are still required before real users.
+VIBE is a Telegram Mini App for social discovery, friendship, conversation, and relationships. The client and API include Telegram initData authentication, profile and listing workflows, discovery, likes, chats, blocks, reports, and moderation endpoints. Production readiness still depends on correct configuration, age-assurance integration, and end-to-end testing.
 
 ## Stack
 - `client/`: React + Vite, Telegram WebApp SDK, responsive mobile UI
@@ -8,11 +8,21 @@ VIBE is a social discovery app starter for friendship and dating, designed to ru
 - `server/schema.sql`: starter database schema
 
 ## Important safety defaults
-- Romantic discovery is restricted to adults (18+).
+- Users aged 14–17 and verified adults (18+) are routed into separate server-enforced spaces.
+- Adult access requires a verified birth date; self-reported age alone must never unlock adult access.
 - Do not enable adult/minor matching.
 - Never trust client-supplied Telegram IDs or age; verify Telegram `initData` on the server.
-- This starter does not include production-ready photo moderation, identity/age verification, rate limiting, or abuse review tooling. Add these before public launch.
-- Random chat and direct messaging are not implemented in this first UI scaffold.
+- The codebase has request rate limits and report handling, but production-grade media scanning, an integrated age-assurance provider, audit logs, appeals, and operational abuse review are still release blockers.
+- Chat endpoints exist; random chat matching and end-to-end delivery/notification behavior still require validation.
+
+## Server architecture notes
+
+- `server/src/index.js` wires HTTP routes and Telegram webhook behavior.
+- `server/src/db.js` owns the shared PostgreSQL pool; `server/src/database-config.js` validates the connection URL, pool size, timeouts, and production TLS verification.
+- `server/src/age-policy.js` is the shared age calculation/routing policy.
+- `server/src/moderation/` contains focused validators for profile text and report evidence.
+- On Render, the process handles `SIGTERM` / `SIGINT` by closing the HTTP listener and PostgreSQL pool gracefully.
+- Run `npm test` in `server/` to execute the Node test suite. Keep database credentials in the server environment, never in the client bundle.
 
 ## Run locally
 Requirements: Node.js 20+ and PostgreSQL.
@@ -44,36 +54,36 @@ Requirements: Node.js 20+ and PostgreSQL.
 - Set `VITE_API_URL` to the deployed API URL before building the client.
 
 ## MVP status
-Implemented in this scaffold:
-- Telegram identity verification endpoint
-- Profile read/create/update endpoint
-- Discovery endpoint with age-boundary safety
-- Like / mutual match endpoint
-- Report and block endpoints (basic)
-- Responsive profile/discovery UI with demo mode
+Implemented in the current codebase (still requires production acceptance testing):
+- Telegram identity validation and bot language selection (English, German, Russian)
+- Profile read/update and public listing submission with pending-review state
+- Discovery with separate teen/adult eligibility filters
+- Likes, mutual-match detection, chat list/history/send endpoints
+- Block and report endpoints with rate limits and evidence validation
+- Admin moderation API and Telegram bot moderation commands
+- Responsive React client with a demo fallback outside Telegram
 
-Still needed before real users:
-- connect the client screens to the API and add a secure session/token strategy after Telegram validation
-- comprehensive rate limiting and bot protection
-- image upload/storage and moderation
-- finish and test an age-assurance provider integration appropriate to launch jurisdictions
-- messaging implementation, notifications, admin moderation panel, privacy policy, terms, deletion/export workflow, tests and monitoring
+Still needed before public launch:
+- integrate and verify an age-assurance provider; a manually set status is not a complete provider integration
+- test registration, language, age routing, listing review, likes, chats, blocks, reports, and bans end to end
+- production-grade media storage, content scanning, retention limits, and human moderation operations
+- audit logging, appeals, account deletion/export, privacy notice, terms, and jurisdiction-specific review
+- production smoke tests, dependency monitoring, backups, and alerting
 
 ## Age routing and profile review (starter scaffolding)
 
-- The self-declared date of birth routes users to `age_gate`, `youth`, or `adult_verification`; it never unlocks adult discovery.
-- Adult discovery and likes require `age_verification_status = 'verified'` on the server.
+- Users aged 14–17 are routed to the teen space; users seeking adult access must have a verified birth date of 18 or older. Other or invalid age states remain restricted.
+- The server uses verified birth date as authoritative for adult access; self-reported age alone never unlocks adult discovery.
+- Keep database schema initialization and migrations reviewed: startup must fail rather than serve requests when schema setup fails.
 - Passport/ID images must be handled by a vetted age-assurance provider's hosted flow. This starter intentionally does not accept passport uploads or send identity documents to a general-purpose AI model. Configure a provider adapter and webhook verification before production.
 - Automated photo/profile signals create a moderation flag for human review. Do not auto-ban someone because a model guesses their gender from a photo; gender presentation cannot reliably establish identity and such rules can unfairly target transgender people. Ban only after substantiated impersonation/fraud or other policy violations, with an appeal path.
 - Apply schema changes to an existing database using a reviewed migration; `CREATE TABLE IF NOT EXISTS` does not add new columns to an existing `users` table. For a fresh database, `schema.sql` includes the new columns.
 
-## Admin moderation panel (starter)
+## Moderation access
 
-- Open the deployed client at `/admin` from the Telegram Mini App context.
-- Set `ADMIN_TELEGRAM_IDS` on the API service to a comma-separated list of trusted numeric Telegram user IDs (for example `123456789`). Do not place this value in client-side environment variables or share it publicly.
-- The admin API requires valid Telegram `initData` and checks the allowlist server-side on every request. An unlisted account receives HTTP 403.
-- The queue displays open reports and moderation flags. Admins can mark an item as under review or resolve/dismiss it, and optionally restrict, suspend, ban, or restore the reported account.
-- The current scaffold does not yet provide an audit log, appeals workflow, admin roles, or automated rate limiting. Add these before a public launch; keep the number of admins small and use strong account security.
-- Do not make ban decisions based only on AI guesses about a person's gender or appearance. Use reports as review signals and apply actions to substantiated impersonation, fraud, harassment, or policy violations.
+- VIBE does not expose an admin panel link in the public website UI. Moderation actions are intended to be operated through authorized Telegram bot commands and server-side admin endpoints.
+- Configure `ADMIN_TELEGRAM_IDS` only in the API service environment; never place staff IDs or bot credentials in client-side variables.
+- Keep admin access restricted to trusted accounts, review reports before taking action, and add an audit log and appeals workflow before a public launch.
+- Do not ban users based only on guesses about gender or appearance. Use reports as review signals and act on substantiated impersonation, fraud, harassment, or policy violations.
 
-For Render, configure `ADMIN_TELEGRAM_IDS` under the `vibe-api` service environment. The Blueprint declares it as a secret/manual value. After updating an existing database, apply the schema/migrations reviewed for your deployed version.
+For Render, configure secrets in the `vibe-api` service environment and review schema migrations before applying them to an existing database.

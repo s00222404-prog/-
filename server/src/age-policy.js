@@ -21,3 +21,12 @@ export function ageOnDate(value, now = new Date()) {
   ) age--;
   return age;
 }
+
+export function ageBandForUser({ birthDate, verifiedBirthDate, verificationStatus }, now = new Date()) {
+  if (verificationStatus === 'verified') {
+    const verifiedAge = ageOnDate(verifiedBirthDate, now);
+    return verifiedAge !== null && verifiedAge >= 18 ? 'adult' : 'restricted';
+  }
+  const age = ageOnDate(birthDate, now);
+  return age !== null && age >= 14 && age <= 17 ? 'teen' : 'restricted';
+}

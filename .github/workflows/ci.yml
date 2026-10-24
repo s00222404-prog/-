@@ -12,8 +12,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Check API syntax
+      - name: Install server dependencies
+        working-directory: server
+        run: npm install
+      - name: Check server syntax
         run: node --check server/src/index.js && node --check server/src/telegram.js
+      - name: Run server unit tests
+        working-directory: server
+        run: npm test
       - name: Install client dependencies
         working-directory: client
         run: npm install
