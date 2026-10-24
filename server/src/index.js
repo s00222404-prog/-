@@ -306,6 +306,14 @@ async function getUserAgeBand(userId) {
   });
 }
 
+async function hasMutualLike(userId, otherId) {
+  const q = await pool.query(
+    'SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2 LIMIT 1',
+    [userId, otherId]
+  );
+  return q.rowCount > 0;
+}
+
 app.get('/api/age-status',auth,wrap(async(req,res)=>{
   const q=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
   const u=q.rows[0];
@@ -500,8 +508,7 @@ app.get('/api/chats',auth,wrap(async(req,res)=>{
     FROM users u
     WHERE u.id<>$1 AND u.account_status='active'
       AND (($2='teen' AND COALESCE(u.age_verification_status,'') <> 'verified' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($2='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
-      AND (EXISTS (SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=u.id)
-        OR EXISTS (SELECT 1 FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id)))
+      AND EXISTS (SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=u.id)
       AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
     ORDER BY last_message_at DESC NULLS LAST,u.first_name ASC`,[req.user.id,viewerBand]);
   res.json({chats:q.rows});
@@ -515,6 +522,7 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Переписка недоступна'});
+  if(!await hasMutualLike(req.user.id,other))return res.status(403).json({error:'Чат доступен только после взаимной симпатии.'});
   const q=await pool.query(`SELECT id,sender_id,body,created_at FROM (SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at DESC LIMIT 200) recent_messages ORDER BY created_at ASC`,[req.user.id,other]);
   res.json({messages:q.rows});
 }));
@@ -528,6 +536,7 @@ app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,r
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Нельзя отправить сообщение этому пользователю'});
+  if(!await hasMutualLike(req.user.id,other))return res.status(403).json({error:'Чат доступен только после взаимной симпатии.'});
   const q=await pool.query(`INSERT INTO messages(match_low,match_high,sender_id,body) VALUES(LEAST($1,$2),GREATEST($1,$2),$1,$3) RETURNING id,sender_id,body,created_at`,[req.user.id,other,body.trim()]);
   res.status(201).json({message:q.rows[0]});
 }));
