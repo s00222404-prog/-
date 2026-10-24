@@ -1451,3 +1451,15 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 @media (max-aspect-ratio:9/16) {
  .app-shell.feed-mode .feed-scroll {width:100vw!important;height:100dvh!important}
 }
+
+/* Hotfix: keep the legal footer out of the discovery grid and center the portrait feed */
+.app-shell.feed-mode {display:block!important;position:relative!important;width:100%!important;max-width:none!important;height:100dvh!important;min-height:100dvh!important;padding:0!important;margin:0!important;overflow:hidden!important;background:#000!important}
+.app-shell.feed-mode .people.tiktok-feed {display:block!important;position:relative!important;width:100%!important;height:100dvh!important;max-width:none!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important}
+.app-shell.feed-mode .feed-scroll {position:absolute!important;left:50%!important;top:0!important;transform:translateX(-50%)!important;width:min(100vw,50.625dvh)!important;height:100dvh!important;min-height:0!important;max-height:none!important;margin:0!important;padding:0!important;box-sizing:border-box!important}
+.app-shell.feed-mode .feed-post {display:block!important;position:relative!important;width:100%!important;height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;margin:0!important;padding:0!important;box-sizing:border-box!important}
+.app-shell.feed-mode .feed-media {position:absolute!important;inset:0!important;width:100%!important;height:100%!important}
+.app-shell.feed-mode .feed-media-asset {width:100%!important;height:100%!important;object-fit:cover!important}
+.app-shell.feed-mode .legal-footer,.app-shell.feed-mode>footer {display:none!important}
+@media (max-width:760px) and (orientation:portrait) {
+ .app-shell.feed-mode .feed-scroll {width:100vw!important}
+}
