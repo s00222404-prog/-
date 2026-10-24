@@ -8,6 +8,7 @@ import pg from 'pg';
 import { validateTelegramInitData } from './telegram.js';
 import { EXTRA_ADMIN_COMMANDS, handleExtraAdminCommand } from './admin-commands.js';
 import { profileTextProblem } from './moderation/text-policy.js';
+import { validateReportEvidence } from './moderation/evidence-policy.js';
 import { ageOnDate } from './age-policy.js';
 
 const app = express();
@@ -529,7 +530,8 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
   if(reporterUsername!==undefined && reporterUsername!==null && reporterUsername!=='' && (typeof reporterUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reporterUsername.trim())))return res.status(400).json({error:'Некорректный Telegram-юзернейм отправителя'});
   if(reportedUsername!==undefined && reportedUsername!==null && reportedUsername!=='' && (typeof reportedUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reportedUsername.trim())))return res.status(400).json({error:'Некорректный Telegram-юзернейм пользователя'});  if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
-  if(typeof evidence!=='string'||evidence.length>3000000||(evidence&&!(evidence.startsWith('data:image/')||evidence.startsWith('data:video/')||evidence.startsWith('data:application/pdf;'))))return res.status(400).json({error:'Доказательство должно быть фото, видео или PDF до 2 МБ'});
+  const evidenceValidation=validateReportEvidence(evidence);
+  if(!evidenceValidation.valid)return res.status(400).json({error:'Доказательство должно быть корректным фото, видео или PDF размером не более 2 МиБ.'});
   const targetExists=await pool.query("SELECT id,first_name,username FROM users WHERE id=$1 AND account_status='active'",[id]);
   if(!targetExists.rowCount)return res.status(404).json({error:'Профиль не найден или недоступен'});
   const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Преследование или угрозы безопасности','Другое'];
