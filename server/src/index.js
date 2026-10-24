@@ -581,6 +581,25 @@ app.post('/api/blocks/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   await pool.query('DELETE FROM likes WHERE (from_user=$1 AND to_user=$2) OR (from_user=$2 AND to_user=$1)',[req.user.id,id]);
   res.json({blocked:true});
 }));
+app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
+  const {reason,details='',reporterUsername,evidence='',targetName='Демо-профиль',targetUsername='',targetAge=null,reportType='profile'}=req.body||{};
+  if(typeof reason!=='string'||!reason.trim()||reason.trim().length>100)return res.status(400).json({error:'Укажи обязательную причину жалобы'});
+  if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
+  if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
+  const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Преследование или угрозы безопасности','Другое'];
+  if(!allowedReasons.includes(reason.trim()))return res.status(400).json({error:'Выбери причину из списка жалоб'});
+  const evidenceValidation=validateReportEvidence(evidence);
+  if(!evidenceValidation.valid)return res.status(400).json({error:'Доказательство должно быть корректным фото, видео или PDF размером не более 2 МиБ.'});
+  if(!process.env.BOT_TOKEN)return res.status(503).json({error:'Не удалось отправить жалобу: бот временно недоступен.'});
+  const reporterHandle=(req.user.username||'').trim()||('vibe-user-'+req.user.id);
+  const safeName=String(targetName).slice(0,80);
+  const safeUsername=String(targetUsername).replace(/[^A-Za-z0-9_@]/g,'').slice(0,40);
+  const reportText=['🚨 Жалоба на демо-профиль VIBE','Тип: '+(reportType==='post'?'публикация':'профиль'),'Профиль: '+safeName+(targetAge?' · '+Number(targetAge):'')+(safeUsername?' (@'+safeUsername.replace(/^@/,'')+')':''),'От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Telegram ID отправителя: '+req.user.id,'Причина: '+reason.trim(),'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'прикреплены в форме':'не приложены'),'Рассмотреть жалобу вручную; демо-профиль не является записью реального пользователя в базе.'].join(String.fromCharCode(10));
+  const sent=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:DEVELOPER_TELEGRAM_ID,text:reportText})});
+  const result=await sent.json().catch(()=>({}));
+  if(!sent.ok||!result.ok)return res.status(502).json({error:'Бот не смог доставить жалобу. Попробуй позже.'});
+  res.json({ok:true,review:'developer_notification'});
+}));
 app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
   const {reason,details='',reporterUsername,reportedUsername,evidence='',reportType='profile',listingId=null}=req.body||{};
