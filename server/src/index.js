@@ -1134,7 +1134,7 @@ async function start() {
     console.error('VIBE database schema initialization failed:', err.message);
     throw err;
   }
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log('VIBE API listening on ' + port);
     const token = process.env.BOT_TOKEN;
     if (token) {
@@ -1149,6 +1149,20 @@ async function start() {
       console.error('BOT_TOKEN is missing; Telegram bot is disabled');
     }
   });
+
+  let shuttingDown = false;
+  const shutdown = (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log('VIBE API received ' + signal + '; shutting down gracefully.');
+    server.close(() => {
+      pool.end()
+        .then(() => { console.log('VIBE database pool closed.'); })
+        .catch((err) => { console.error('VIBE database pool shutdown failed:', err.message); process.exitCode = 1; });
+    });
+  };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
 start().catch((err) => {
   console.error('VIBE startup failed; HTTP server was not started.');
