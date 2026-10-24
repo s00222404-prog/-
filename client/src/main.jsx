@@ -2,6 +2,7 @@ import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Heart,Compass,MessageCircle,UserRound,Plus,ArrowLeft,ArrowRight,MapPin,Sparkles,SlidersHorizontal,Send,ShieldAlert,Camera,Check,Lock,LogIn,ImagePlus,Settings,Search,CheckCircle2,Users,MoreHorizontal,X,RefreshCw} from 'lucide-react';
 import './style.css';
+import {observeUiTranslations} from './i18n.js';
 
 const API=(import.meta.env.VITE_API_URL||'').replace(/\/$/,'');
 const tg=window.Telegram?.WebApp;
@@ -19,7 +20,7 @@ function App(){
  const call=useCallback(async(path,opts)=>request(path,opts),[]);
  const refresh=useCallback(async()=>{const [d,l,c,m]=await Promise.all([call('/api/discover'),call('/api/likes'),call('/api/chats'),call('/api/listings/mine')]);setPeople(d.people||[]);setLikes({incoming:l.incoming||[],outgoing:l.outgoing||[]});setChats(c.chats||[]);setMyListing(m.listing||null);if(m.listing)setListing(v=>({...v,name:m.listing.name||'',city:m.listing.city||'',country:m.listing.country||'',hobbies:m.listing.hobbies||'',description:m.listing.description||'',mediaUrl:m.listing.media_url||'',mediaType:m.listing.media_type||'image'}));},[call]);
  const boot=useCallback(async()=>{if(!initData){setLoading(false);return}setLoading(true);setError('');try{tg?.ready();tg?.expand();await call('/api/auth/telegram',{method:'POST',body:JSON.stringify({initData})});const me=await call('/api/me');setUser(me.user);const u=me.user;setProfile({birthDate:u.birth_date?String(u.birth_date).slice(0,10):'',gender:u.gender||'',bio:u.bio||'',city:u.city||'',photoUrl:u.photo_url||'',goal:u.goal||'both',interests:Array.isArray(u.interests)?u.interests:[]});if(!u.birth_date)setProfileOpen(true);await refresh()}catch(e){setError(e.message)}finally{setLoading(false)}},[call,refresh]);
- useEffect(()=>{boot()},[boot]);useEffect(()=>{try{localStorage.setItem('vibe-language',language);localStorage.setItem('vibe-settings',JSON.stringify(settingsPrefs))}catch{}},[language,settingsPrefs]);useEffect(()=>{msgEnd.current?.scrollIntoView({behavior:'smooth'})},[messages]);useEffect(()=>{if(!initData)return;call('/api/stories').then(d=>setStories(d.stories||[])).catch(()=>{})},[call]);
+ useEffect(()=>{boot()},[boot]);useEffect(()=>{try{localStorage.setItem('vibe-language',language);localStorage.setItem('vibe-settings',JSON.stringify(settingsPrefs))}catch{}},[language,settingsPrefs]);useEffect(()=>observeUiTranslations(language),[language]);useEffect(()=>{msgEnd.current?.scrollIntoView({behavior:'smooth'})},[messages]);useEffect(()=>{if(!initData)return;call('/api/stories').then(d=>setStories(d.stories||[])).catch(()=>{})},[call]);
  const filtered=useMemo(()=>people.filter(p=>{const q=search.trim().toLowerCase();return (!q||[p.name,p.city,p.country,p.description,p.hobbies,...(p.interests||[])].filter(Boolean).join(' ').toLowerCase().includes(q))&&(!cityFilter||p.city?.toLowerCase()===cityFilter.toLowerCase())}),[people,search,cityFilter]);
  const cities=useMemo(()=>[...new Set(people.map(p=>p.city).filter(Boolean))].sort(),[people]);
  const currentPerson=filtered.length?filtered[((feedIndex%filtered.length)+filtered.length)%filtered.length]:null;
