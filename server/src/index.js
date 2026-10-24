@@ -1097,11 +1097,7 @@ app.post('/telegram/webhook', (req,res) => {
 });
 app.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:'Internal server error'});});
 async function start() {
-  try {
-    await initializeDatabase(pool);
-  } catch (err) {
-    throw err;
-  }
+  await initializeDatabase(pool);
   const server = app.listen(port, () => {
     console.log('VIBE API listening on ' + port);
     const token = process.env.BOT_TOKEN;
