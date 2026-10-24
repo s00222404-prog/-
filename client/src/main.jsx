@@ -205,6 +205,17 @@ function App() {
   }, [messages, tab]);
 
   useEffect(() => {
+    if (!initData || !user?.id || loading || user?.account_status === 'banned') return;
+    const refreshInbox = async () => {
+      if (document.visibilityState !== 'visible' || tab === 'chat') return;
+      try { const data = await request('/api/chats'); setChats(data.chats || []); }
+      catch { /* Inbox refresh is best-effort; keep the current screen usable. */ }
+    };
+    const timer = window.setInterval(refreshInbox, 15000);
+    return () => window.clearInterval(timer);
+  }, [user?.id, loading, tab]);
+
+  useEffect(() => {
     if (tab !== 'chat' || !activeChat || String(activeChat.user_id).startsWith('vibe-test-')) return;
     const refreshConversation = async () => {
       if (document.visibilityState !== 'visible') return;
@@ -514,14 +525,14 @@ function App() {
 
   const normalizedFeedSearch = feedSearch.trim().toLocaleLowerCase();
   const cityOptions = [...new Set(people.map(person => person.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const interestOptions = [...new Set(people.flatMap(person => [...(person.interests || []), ...(person.hobbies || '').split(/[,;\\n]/).map(value => value.trim())]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const interestOptions = [...new Set(people.flatMap(person => [...(person.interests || []), ...(person.hobbies || '').split(/[,;\n]/).map(value => value.trim())]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const filteredPeople = people.filter(person => {
     const searchable = [person.name, person.username, person.city, person.country, person.description, person.bio, person.hobbies, ...(person.interests || [])]
       .filter(Boolean).join(' ').toLocaleLowerCase();
     const matchesSearch = !normalizedFeedSearch || searchable.includes(normalizedFeedSearch);
     const matchesCity = feedCity === 'all' || person.city === feedCity;
     const matchesGoal = feedGoal === 'all' || person.goal === feedGoal || person.goal === 'both';
-    const personInterests = [...(person.interests || []), ...(person.hobbies || '').split(/[,;\\n]/).map(value => value.trim())].filter(Boolean).map(value => value.toLocaleLowerCase());
+    const personInterests = [...(person.interests || []), ...(person.hobbies || '').split(/[,;\n]/).map(value => value.trim())].filter(Boolean).map(value => value.toLocaleLowerCase());
     const matchesInterest = feedInterest === 'all' || personInterests.includes(feedInterest.toLocaleLowerCase());
     return matchesSearch && matchesCity && matchesGoal && matchesInterest;
   });
