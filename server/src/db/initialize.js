@@ -47,12 +47,10 @@ export async function initializeDatabase(pool) {
       await pool.query("CREATE TABLE IF NOT EXISTS referrals (id BIGSERIAL PRIMARY KEY, referrer_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, referred_user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE, referred_telegram_id TEXT NOT NULL UNIQUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), CHECK (referrer_user_id <> referred_user_id))");
       await pool.query('CREATE INDEX IF NOT EXISTS referrals_referrer_created_idx ON referrals(referrer_user_id, created_at DESC)');
 
+    await pool.query("CREATE TABLE IF NOT EXISTS stories (id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, media_url TEXT NOT NULL, media_type TEXT NOT NULL CHECK (media_type IN ('image','video')), caption TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'))");
+    await pool.query('CREATE INDEX IF NOT EXISTS stories_expires_idx ON stories(expires_at DESC)');
     console.log('VIBE database schema ready');
   } catch (error) {
     console.error('VIBE database schema initialization failed:', error.message);
     throw error;
   }
-}
-
-      await pool.query("CREATE TABLE IF NOT EXISTS stories (id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, media_url TEXT NOT NULL, media_type TEXT NOT NULL CHECK (media_type IN ('image','video')), caption TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'))");
-      await pool.query('CREATE INDEX IF NOT EXISTS stories_expires_idx ON stories(expires_at DESC)');
