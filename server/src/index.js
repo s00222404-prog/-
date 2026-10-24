@@ -286,7 +286,13 @@ app.put('/api/me',auth,wrap(async(req,res)=>{
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
   if(interests.some(value=>typeof value!=='string'||value.trim().length>50)) return res.status(400).json({error:'Каждый интерес должен быть текстом не длиннее 50 символов.'});
   if(city!==null&&(typeof city!=='string'||city.trim().length>80)) return res.status(400).json({error:'Укажи корректный город.'});
-  if(photoUrl!==null&&(typeof photoUrl!=='string'||photoUrl.length>2048||!/^https:\/\//i.test(photoUrl))) return res.status(400).json({error:'Фото должно иметь безопасную HTTPS-ссылку.'});
+  if(photoUrl!==null){
+    if(typeof photoUrl!=='string'||photoUrl.length>4400000) return res.status(400).json({error:'Фото профиля должно быть безопасной HTTPS-ссылкой или изображением размером до 3 МБ.'});
+    if(!/^https:\/\//i.test(photoUrl)){
+      const photoValidation=validateListingMedia(photoUrl,'image');
+      if(!photoValidation.valid)return res.status(400).json({error:'Фото профиля должно быть безопасной HTTPS-ссылкой или изображением размером до 3 МБ.'});
+    }
+  }
   if(profileTextProblem([bio,city,...interests])) return res.status(400).json({error:'В профиле найдены запрещённые ругательства, оскорбления или пошлые слова. Исправь текст.'});
   if(gender!==null&&!['woman','man','nonbinary','prefer_not_to_say'].includes(gender)) return res.status(400).json({error:'Invalid gender'});
   const d = typeof birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? new Date(birthDate + 'T00:00:00Z') : null;
