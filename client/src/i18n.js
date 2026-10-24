@@ -175,9 +175,21 @@ const EXTRA_TRANSLATIONS = {
   }
 };
 export function translateUiText(value, language) {
-  if (language === 'ru' || !value) return value;
-  const dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}) };
+  if (!value) return value;
   const text = String(value);
+  // Russian must also work when a component renders English/German text directly.
+  // Build a reverse dictionary from existing translations instead of leaving those strings untranslated.
+  let dict;
+  if (language === 'ru') {
+    dict = {};
+    for (const sourceDict of [UI_TRANSLATIONS.en, UI_TRANSLATIONS.de, EXTRA_TRANSLATIONS.en, EXTRA_TRANSLATIONS.de]) {
+      for (const [ru, translated] of Object.entries(sourceDict || {})) {
+        if (translated && !Object.prototype.hasOwnProperty.call(dict, translated)) dict[translated] = ru;
+      }
+    }
+  } else {
+    dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}) };
+  }
   const trimmed = text.trim();
   if (Object.prototype.hasOwnProperty.call(dict, trimmed)) return text.replace(trimmed, dict[trimmed]);
   let result = text;
