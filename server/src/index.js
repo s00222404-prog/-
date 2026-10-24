@@ -283,16 +283,20 @@ app.get('/api/me',auth,wrap(async(req,res)=>{const [r,likes]=await Promise.all([
 app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
+  if(interests.some(value=>typeof value!=='string'||value.trim().length>50)) return res.status(400).json({error:'Каждый интерес должен быть текстом не длиннее 50 символов.'});
+  if(city!==null&&(typeof city!=='string'||city.trim().length>80)) return res.status(400).json({error:'Укажи корректный город.'});
+  if(photoUrl!==null&&(typeof photoUrl!=='string'||photoUrl.length>2048||!/^https:\/\//i.test(photoUrl))) return res.status(400).json({error:'Фото должно иметь безопасную HTTPS-ссылку.'});
+  if(profileTextProblem([bio,city,...interests])) return res.status(400).json({error:'В профиле найдены запрещённые ругательства, оскорбления или пошлые слова. Исправь текст.'});
   if(gender!==null&&!['woman','man','nonbinary','prefer_not_to_say'].includes(gender)) return res.status(400).json({error:'Invalid gender'});
   const d = typeof birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? new Date(birthDate + 'T00:00:00Z') : null;
   if (!d || Number.isNaN(d.getTime()) || d.toISOString().slice(0,10) !== birthDate || birthDate > new Date().toISOString().slice(0,10)) return res.status(400).json({error:'Укажи корректную дату рождения, чтобы создать профиль.'});
-  const q=await pool.query(`UPDATE users SET birth_date=$1,age_confirmed=$2,gender=$3,bio=$4,city=$5,photo_url=$6,goal=$7,interests=$8,updated_at=NOW()
-    WHERE id=$9 RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,
-    [birthDate||null,Boolean(birthDate),gender,bio,city,photoUrl,goal,interests,req.user.id]);
   const age = ageOnDate(birthDate);
   if (age === null || age < 14) return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
   if (age > 100) return res.status(400).json({error:'Проверь дату рождения в профиле.'});
-  res.json({user:q.rows[0],route:age===null?'age_gate':age<18?'youth':'adult_verification',adultAccess:false});
+  const q=await pool.query(`UPDATE users SET birth_date=$1,age_confirmed=$2,gender=$3,bio=$4,city=$5,photo_url=$6,goal=$7,interests=$8,updated_at=NOW()
+    WHERE id=$9 RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,
+    [birthDate,Boolean(birthDate),gender,bio.trim(),city?.trim()||null,photoUrl,goal,interests.map(value=>value.trim()),req.user.id]);
+  res.json({user:q.rows[0],route:age<18?'youth':'adult_verification',adultAccess:false});
 }));
 
 async function getUserAgeBand(userId) {
