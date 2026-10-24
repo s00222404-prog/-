@@ -1595,3 +1595,10 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 @media(min-width:761px) {
  .app-shell:has(.chat-panel) .chat-panel {inset:20px!important;width:auto!important;height:auto!important;max-height:calc(100dvh - 40px)!important;border:1px solid rgba(210,181,242,.2)!important;border-radius:24px!important}
 }
+
+/* Report sheet: stable, lightweight scrolling and touch behavior in Telegram WebView */
+.report-overlay:not(.profile-fullscreen-overlay) { overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+.report-overlay:not(.profile-fullscreen-overlay) .report-dialog { contain:layout paint; transform:translateZ(0); }
+.report-overlay:not(.profile-fullscreen-overlay) .report-dialog input,
+.report-overlay:not(.profile-fullscreen-overlay) .report-dialog textarea,
+.report-overlay:not(.profile-fullscreen-overlay) .report-dialog select { touch-action:pan-y; }
