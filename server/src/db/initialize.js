@@ -12,7 +12,7 @@ export async function initializeDatabase(pool) {
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ');
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT');
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS users_email_exact_unique_idx ON users(email)');
-    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON LOWER(email) WHERE email IS NOT NULL');
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users(LOWER(email)) WHERE email IS NOT NULL');
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub_unique_idx ON users(google_sub) WHERE google_sub IS NOT NULL');
     await pool.query("CREATE TABLE IF NOT EXISTS web_sessions (id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, token_hash TEXT NOT NULL UNIQUE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     await pool.query('CREATE INDEX IF NOT EXISTS web_sessions_user_idx ON web_sessions(user_id, expires_at DESC)');
