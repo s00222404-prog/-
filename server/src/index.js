@@ -600,9 +600,16 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
   const safeName=String(targetName).slice(0,80);
   const safeUsername=String(targetUsername).replace(/[^A-Za-z0-9_@]/g,'').slice(0,40);
   const reportText=['🚨 Жалоба на демо-профиль VIBE','Тип: '+(reportType==='post'?'публикация':'профиль'),'Профиль: '+safeName+(targetAge?' · '+Number(targetAge):'')+(safeUsername?' (@'+safeUsername.replace(/^@/,'')+')':''),'От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Telegram ID отправителя: '+req.user.id,'Причина: '+reason.trim(),'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'прикреплены в форме':'не приложены'),'Рассмотреть жалобу вручную; демо-профиль не является записью реального пользователя в базе.'].join(String.fromCharCode(10));
-  const sent=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:DEVELOPER_TELEGRAM_ID,text:reportText})});
-  const result=await sent.json().catch(()=>({}));
-  if(!sent.ok||!result.ok)return res.status(502).json({error:'Бот не смог доставить жалобу. Попробуй позже.'});
+  const staff=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator')");
+  const recipients=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(row=>String(row.telegram_id))]);
+  const deliveries=await Promise.all([...recipients].map(async chat_id=>{
+    try {
+      const sent=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id,text:reportText})});
+      const result=await sent.json().catch(()=>({}));
+      return sent.ok&&result.ok;
+    } catch { return false; }
+  }));
+  if(!deliveries.some(Boolean))return res.status(502).json({error:'Не удалось доставить жалобу команде VIBE. Открой бота и нажми Start, затем попробуй ещё раз.'});
   res.json({ok:true,review:'developer_notification'});
 }));
 app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
