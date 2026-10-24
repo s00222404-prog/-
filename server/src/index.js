@@ -540,6 +540,7 @@ app.get('/api/chats',auth,wrap(async(req,res)=>{
     (SELECT m.created_at FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id) ORDER BY m.created_at DESC LIMIT 1) AS last_message_at
     FROM users u
     WHERE u.id<>$1 AND u.account_status='active'
+      AND EXISTS (SELECT 1 FROM listings l WHERE l.user_id=u.id AND l.status='published')
       AND (($2='teen' AND COALESCE(u.age_verification_status,'') <> 'verified' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($2='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
       AND (
         EXISTS (SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=u.id)
