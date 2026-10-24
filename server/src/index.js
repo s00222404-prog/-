@@ -360,7 +360,7 @@ app.get('/api/stories',auth,wrap(async(req,res)=>{
 }));
 app.post('/api/stories',auth,userActionRateLimit,wrap(async(req,res)=>{
  const {mediaUrl,mediaType='image',caption=''}=req.body||{};
- if(typeof mediaUrl!=='string'||mediaUrl.length>4_300_000||!/^data:(image\\/(jpeg|png|webp)|video\\/(mp4|webm));base64,/.test(mediaUrl))return res.status(400).json({error:'Выбери фото или видео подходящего формата размером до 3 МБ.'});
+ if(typeof mediaUrl!=='string'||mediaUrl.length>4_300_000||!['data:image/jpeg;base64,','data:image/png;base64,','data:image/webp;base64,','data:video/mp4;base64,','data:video/webm;base64,'].some(prefix=>mediaUrl.startsWith(prefix)))return res.status(400).json({error:'Выбери фото или видео подходящего формата размером до 3 МБ.'});
  if(!['image','video'].includes(mediaType)||((mediaUrl.startsWith('data:video/')?'video':'image')!==mediaType))return res.status(400).json({error:'Тип файла не совпадает с медиа.'});
  if(typeof caption!=='string'||caption.length>180)return res.status(400).json({error:'Подпись должна быть не длиннее 180 символов.'});
  if(profileTextProblem([caption]))return res.status(400).json({error:'В подписи найдены запрещённые слова. Исправь текст.'});
