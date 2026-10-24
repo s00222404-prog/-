@@ -545,9 +545,13 @@ app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,r
   res.status(201).json({message:q.rows[0]});
 }));
 app.post('/api/blocks/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
-  const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
+  const id=Number(req.params.userId);
+  if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
+  const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[id]);
+  if(!target.rowCount)return res.status(404).json({error:'Пользователь не найден или недоступен'});
   await pool.query('INSERT INTO blocks(blocker_id,blocked_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,id]);
-  await pool.query('DELETE FROM likes WHERE (from_user=$1 AND to_user=$2) OR (from_user=$2 AND to_user=$1)',[req.user.id,id]);res.json({blocked:true});
+  await pool.query('DELETE FROM likes WHERE (from_user=$1 AND to_user=$2) OR (from_user=$2 AND to_user=$1)',[req.user.id,id]);
+  res.json({blocked:true});
 }));
 app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
