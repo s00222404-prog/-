@@ -676,9 +676,10 @@ app.post('/telegram/webhook', (req,res) => {
       for(const [fromText,toText] of Object.entries(botWords[botLanguage]||{}).sort((a,b)=>b[0].length-a[0].length)) out=out.split(fromText).join(toText);
       return out;
     };
-    const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:translateBot(text),...(markup?{reply_markup:markup}:{})})});
+    const translateMarkup = value => { if (Array.isArray(value)) return value.map(translateMarkup); if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key,item]) => [key, key === 'text' && typeof item === 'string' ? translateBot(item) : translateMarkup(item)])); return value; };
+    const send=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:translateBot(text),...(markup?{reply_markup:translateMarkup(markup)}:{})})});
     const staffTelegramIds=async()=>{const q=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('helper','moderator','admin','chief_admin')");return [...new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...q.rows.map(x=>String(x.telegram_id))])];};
-    const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
+    const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text:translateBot(text),...(markup?{reply_markup:translateMarkup(markup)}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
     if(cb?.data?.startsWith('lang:set:')) {
       const chosen=cb.data.split(':')[2];
