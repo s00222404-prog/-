@@ -18,6 +18,8 @@ const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined });
 const port = Number(process.env.PORT || 3001);
 const DEVELOPER_TELEGRAM_ID = '8745499515';
+// Authenticate Telegram webhook requests even when no stable secret is configured in Render.
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || randomBytes(32).toString('hex');
 const ROLE_LABELS = { developer: 'Разработчик', chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const PUBLIC_STATUS_LABELS = { chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const BAN_REASONS = {
@@ -641,8 +643,7 @@ app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
 }));
 
 app.post('/telegram/webhook', (req,res) => {
-  const secret=process.env.TELEGRAM_WEBHOOK_SECRET;
-  if(secret&&req.get('X-Telegram-Bot-Api-Secret-Token')!==secret)return res.sendStatus(401);
+  if(req.get('X-Telegram-Bot-Api-Secret-Token')!==TELEGRAM_WEBHOOK_SECRET)return res.sendStatus(401);
   res.sendStatus(200);
   const m=req.body?.message, cb=req.body?.callback_query, token=process.env.BOT_TOKEN;
   if(!token||(!m?.chat?.id&&!cb?.message?.chat?.id))return;
@@ -1142,7 +1143,7 @@ async function start() {
       fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ url: 'https://znakomstva-824i.onrender.com/telegram/webhook' })
+        body: JSON.stringify({ url: 'https://znakomstva-824i.onrender.com/telegram/webhook', secret_token: TELEGRAM_WEBHOOK_SECRET })
       }).then(r => r.json()).then(result => console.log('Telegram webhook setup:', result.ok ? 'ok' : result.description))
         .catch(err => console.error('Telegram webhook setup failed:', err.message));
     } else {
