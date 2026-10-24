@@ -21,6 +21,12 @@ test('rejects prohibited wording in Russian and German', () => {
 test('normalizes compatibility characters and catches basic obfuscation', () => {
   assert.equal(profileTextProblem(['p.o.r.n']), true);
   assert.equal(profileTextProblem(['ＦＵＣＫ']), true);
+  assert.equal(profileTextProblem(['s.e.x']), true);
+});
+
+test('does not reject harmless words containing short prohibited substrings', () => {
+  assert.equal(profileTextProblem(['I live in Essex and enjoy grapes']), false);
+  assert.equal(profileTextProblem(['The grape harvest is excellent']), false);
 });
 
 test('ignores non-string fields safely', () => {
