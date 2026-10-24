@@ -577,6 +577,8 @@ app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,r
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен или его анкета не опубликована'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Нельзя отправить сообщение этому пользователю'});
+  const priorMessages=await pool.query(`SELECT COUNT(*) FILTER (WHERE sender_id=$1)::int AS sent,COUNT(*) FILTER (WHERE sender_id=$2)::int AS received FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2)`,[req.user.id,other]);
+  if(Number(priorMessages.rows[0]?.sent||0)>0&&Number(priorMessages.rows[0]?.received||0)===0)return res.status(429).json({error:'Первое сообщение уже отправлено. Дождись ответа или заблокируй пользователя.'});
   const q=await pool.query(`INSERT INTO messages(match_low,match_high,sender_id,body) VALUES(LEAST($1,$2),GREATEST($1,$2),$1,$3) RETURNING id,sender_id,body,created_at`,[req.user.id,other,body.trim()]);
   res.status(201).json({message:q.rows[0]});
 }));
