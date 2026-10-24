@@ -1772,7 +1772,7 @@ input:focus, textarea:focus, select:focus {
 .weekly-theme-card h3{font-size:19px;letter-spacing:-.5px;margin:9px 0 0;color:#fff}
 .daily-prompt-card>button,.weekly-theme-card>button{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:transparent;color:#d6b8ff;font-size:11px;font-weight:800}
 .daily-prompt-card>button:hover,.weekly-theme-card>button:hover{color:#fff}
-.feed-tools{grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(115px,.7fr)) auto}
+.feed-tools{grid-template-columns:minmax(0,1.25fr) repeat(4,minmax(100px,.7fr)) auto}
 .feed-tools .feed-city-filter{min-width:0}
 .profile-completion{display:grid;gap:10px;padding:14px;border:1px solid rgba(205,174,245,.14);border-radius:15px;background:linear-gradient(145deg,rgba(168,121,218,.08),rgba(255,255,255,.015));text-align:left}
 .profile-completion-top{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#d7c8e7;font-size:12px;font-weight:750}
