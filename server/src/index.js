@@ -600,6 +600,8 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
   const safeName=String(targetName).slice(0,80);
   const safeUsername=String(targetUsername).replace(/[^A-Za-z0-9_@]/g,'').slice(0,40);
   const reportText=['🚨 Жалоба на демо-профиль VIBE','Тип: '+(reportType==='post'?'публикация':'профиль'),'Профиль: '+safeName+(targetAge?' · '+Number(targetAge):'')+(safeUsername?' (@'+safeUsername.replace(/^@/,'')+')':''),'От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Telegram ID отправителя: '+req.user.id,'Причина: '+reason.trim(),'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'прикреплены в форме':'не приложены'),'Рассмотреть жалобу вручную; демо-профиль не является записью реального пользователя в базе.'].join(String.fromCharCode(10));
+  await pool.query(`CREATE TABLE IF NOT EXISTS demo_reports (id BIGSERIAL PRIMARY KEY, reporter_id BIGINT NOT NULL, reporter_username TEXT NOT NULL DEFAULT '', target_name TEXT NOT NULL, target_username TEXT NOT NULL DEFAULT '', target_age INTEGER, reason TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', evidence TEXT, report_type TEXT NOT NULL DEFAULT 'profile', status TEXT NOT NULL DEFAULT 'open', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  const saved=await pool.query('INSERT INTO demo_reports(reporter_id,reporter_username,target_name,target_username,target_age,reason,details,evidence,report_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,reporterHandle,safeName,safeUsername,targetAge?Number(targetAge):null,reason.trim(),details.trim(),evidence||null,reportType]);
   const staff=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator')");
   const recipients=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(row=>String(row.telegram_id))]);
   const deliveries=await Promise.all([...recipients].map(async chat_id=>{
@@ -610,7 +612,7 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
     } catch { return false; }
   }));
   if(!deliveries.some(Boolean))return res.status(502).json({error:'Не удалось доставить жалобу команде VIBE. Открой бота и нажми Start, затем попробуй ещё раз.'});
-  res.json({ok:true,review:'developer_notification'});
+  res.json({ok:true,reportId:saved.rows[0].id,review:'saved'});
 }));
 app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
