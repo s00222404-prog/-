@@ -413,8 +413,8 @@ function App() {
       setListingMediaUrl(savedListing.media_url || ''); setListingMediaType(savedListing.media_type || 'image');
       setListingStep(1);
       const discovery=await request('/api/discover'); setPeople(discovery.people||[]);
-      setNotice('Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.');
-      setTab('discover');
+      setNotice('Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь пользоваться главным меню и открыть ленту анкет самостоятельно.');
+      setTab('listing');
     } catch(e) { setError(e.message||'Не удалось отправить анкету.'); }
     finally { setPublishing(false); }
   }
@@ -466,7 +466,7 @@ function App() {
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
     {!loading && tab === 'discover' && <section className="people tiktok-feed">
-      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам или городу.</p></div><span className="count">{filteredPeople.length} / {people.length}</span></div>
+      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам или городу.</p></div><span className="count">{filteredPeople.length} / {people.length}</span><button type="button" className="skip feed-exit" onClick={() => setTab("chats")} aria-label="Выйти из ленты анкет">× В меню</button></div>
       <div className="feed-tools" role="search">
         <label className="feed-search"><Compass size={17} aria-hidden="true"/><input value={feedSearch} onChange={e=>setFeedSearch(e.target.value)} placeholder="Поиск по имени, интересам или описанию" aria-label="Поиск по анкетам"/></label>
         <label className="feed-city-filter"><MapPin size={16} aria-hidden="true"/><select value={feedCity} onChange={e=>setFeedCity(e.target.value)} aria-label="Фильтр по городу"><option value="all">Все города</option>{cityOptions.map(city=><option key={city} value={city}>{city}</option>)}</select></label>
