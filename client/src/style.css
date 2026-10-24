@@ -102,3 +102,37 @@ body{background:radial-gradient(ellipse at 50% -20%,#38244f 0,transparent 48%),v
  .app-frame.sidebar-collapsed .feed-controls .round-control.primary{flex:1;justify-content:center}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Public web authentication (Telegram is optional for web accounts). */
+.auth-screen{min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:28px 18px 20px;background:radial-gradient(ellipse at 50% 0%,#39234f 0,transparent 48%),var(--bg);position:relative;overflow:hidden}
+.auth-top{width:min(100%,1080px);display:flex;align-items:center;justify-content:space-between;margin:0 auto 42px}
+.auth-top select{border:1px solid var(--line);border-radius:12px;background:#1b1727;padding:9px 12px;color:#f7f4ff}
+.auth-card{position:relative;isolation:isolate;width:min(100%,440px);padding:34px 30px 28px;border:1px solid #ffffff1b;border-radius:26px;background:linear-gradient(155deg,#211a30f5,#171321f7);box-shadow:0 28px 90px #0005;overflow:hidden}
+.auth-card>*:not(.auth-orb){position:relative;z-index:1}
+.auth-orb{position:absolute;width:200px;height:200px;border-radius:50%;filter:blur(65px);opacity:.15;pointer-events:none;z-index:0}
+.auth-orb-one{top:-110px;right:-80px;background:var(--pink)}
+.auth-orb-two{bottom:5%;left:-130px;background:var(--violet)}
+.auth-brand-icon{display:flex;justify-content:center;margin-bottom:19px}
+.auth-brand-icon .vibe-mark{width:48px;height:48px;border-radius:17px;font-size:29px}
+.auth-card>.eyebrow{justify-content:center;font-size:9px;letter-spacing:1.6px}
+.auth-card h1{text-align:center;margin:12px 0 8px;font-size:31px;letter-spacing:-1.2px}
+.auth-intro{text-align:center;margin:0 auto 24px;max-width:330px;color:var(--muted);font-size:12px;line-height:1.7}
+.auth-google-wrap{display:flex;justify-content:center;min-height:42px}
+.auth-google-button{width:100%;display:flex;justify-content:center;min-height:42px}
+.auth-provider-note{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:13px;background:#ffffff05;color:var(--muted);font-size:11px;line-height:1.55;text-align:center}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:21px 0;color:#9187a5;font-size:10px}
+.auth-divider:before,.auth-divider:after{content:"";height:1px;flex:1;background:var(--line)}
+.auth-form{display:grid;gap:14px}
+.auth-form>label{display:grid;gap:7px;color:#d9d0e8;font-size:11px;font-weight:700}
+.auth-form input{width:100%;min-width:0;padding:13px 14px;border:1px solid #ffffff20;border-radius:13px;background:#100d19;color:#f7f4ff;outline:0}
+.auth-form input:focus{border-color:#a681ff;box-shadow:0 0 0 3px #9a7cff20}
+.auth-form .primary-button{justify-content:center;min-height:45px;margin-top:2px}
+.auth-code-help{margin:0;color:var(--muted);font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+.auth-code-help b{color:#f7f4ff}
+.auth-text-button{border:0;background:transparent;color:#d4bfff;font-size:11px;padding:5px}
+.auth-message{padding:10px 12px;margin:14px 0 0;border:1px solid #4b3a6c;border-radius:12px;background:#9a7cff12;color:#e5d9ff;font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+.auth-error{border-color:#773e5a;background:#ff5c9a12;color:#ffd2df}
+.auth-legal{margin:20px 0 0;color:#898098;font-size:9px;line-height:1.7;text-align:center}
+.auth-footer{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:auto;padding-top:35px;color:#a69bb7;font-size:10px}
+.auth-footer span{color:#786e88}
+@media(max-width:520px){.auth-screen{padding:18px 14px 16px}.auth-top{margin-bottom:25px}.auth-card{padding:28px 20px 23px;border-radius:22px}.auth-card h1{font-size:28px}.auth-footer{padding-top:24px}}
