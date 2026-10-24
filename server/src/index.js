@@ -298,6 +298,7 @@ app.post('/api/auth/telegram',authRateLimit,wrap(async(req,res)=>{
   res.json({user:u});
 }));
 app.get('/api/me',auth,wrap(async(req,res)=>{const [r,likes]=await Promise.all([pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1',[String(req.user.telegram_id)]),pool.query('SELECT COUNT(*)::int AS count FROM likes WHERE to_user=$1',[req.user.id])]);const role=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(r.rows[0]?.role||'none');const status=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(req.user.public_status||'none');res.json({user:{...req.user,account_code:String(req.user.id).padStart(6,'0'),likes_received:likes.rows[0]?.count||0,admin_access:roleRank[role]>=roleRank.admin,public_role:status,role_label:status==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[status]||null)}});}));
+app.get('/api/referrals',auth,wrap(async(req,res)=>{const q=await pool.query('SELECT COUNT(*)::int AS count FROM referrals WHERE referrer_user_id=$1',[req.user.id]);res.json({count:q.rows[0]?.count||0,account_code:String(req.user.id).padStart(6,'0')});}));
 app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
@@ -437,13 +438,13 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
    // This does not expose the listing to other users or bypass age-group filtering.
    if(!['teen','adult'].includes(viewerBand)){
      const own=await pool.query(`
-       SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,u.photo_url,u.username,
+       SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,u.photo_url,u.username,u.goal,u.interests AS profile_interests,
          CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
        FROM listings l JOIN users u ON u.id=l.user_id
        WHERE l.user_id=$1 AND u.account_status='active'
        LIMIT 1
      `,[req.user.id,DEVELOPER_TELEGRAM_ID]);
-     return res.json({people:own.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
+     return res.json({people:own.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:[...(p.profile_interests||[]),...(p.hobbies?p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean):[])].filter((value,index,array)=>value&&array.findIndex(item=>item.toLocaleLowerCase()===value.toLocaleLowerCase())===index)}))});
    }
    const q=await pool.query(`
      WITH viewer AS (
@@ -451,7 +452,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
        FROM users WHERE id=$1
      ),
      candidates AS (
-       SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,u.photo_url,u.username,
+       SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,u.photo_url,u.username,u.goal,u.interests AS profile_interests,
          CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role,
          (
            CASE WHEN NULLIF(TRIM(viewer.city),'') IS NOT NULL
@@ -491,7 +492,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
      ORDER BY CASE WHEN user_id=$1 THEN 1 ELSE 0 END, RANDOM()
      LIMIT 50
    `,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand]);
-   res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
+   res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:[...(p.profile_interests||[]),...(p.hobbies?p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean):[])].filter((value,index,array)=>value&&array.findIndex(item=>item.toLocaleLowerCase()===value.toLocaleLowerCase())===index)}))});
  }));
 app.post('/api/likes/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
@@ -534,13 +535,16 @@ app.get('/api/likes',auth,wrap(async(req,res)=>{
 app.get('/api/chats',auth,wrap(async(req,res)=>{
   const viewerBand=await getUserAgeBand(req.user.id);
   if(!['teen','adult'].includes(viewerBand))return res.json({chats:[]});
-  const q=await pool.query(`SELECT u.id AS user_id,u.first_name,u.photo_url,
+  const q=await pool.query(`SELECT u.id AS user_id,l.name AS first_name,u.username,u.photo_url,
     (SELECT m.body FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id) ORDER BY m.created_at DESC LIMIT 1) AS last_message,
     (SELECT m.created_at FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id) ORDER BY m.created_at DESC LIMIT 1) AS last_message_at
-    FROM users u
+    FROM users u JOIN listings l ON l.user_id=u.id AND l.status='published'
     WHERE u.id<>$1 AND u.account_status='active'
       AND (($2='teen' AND COALESCE(u.age_verification_status,'') <> 'verified' AND u.birth_date > CURRENT_DATE-INTERVAL '18 years' AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years') OR ($2='adult' AND u.age_verification_status='verified' AND u.verified_birth_date<=CURRENT_DATE-INTERVAL '18 years'))
-      AND EXISTS (SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=u.id)
+      AND (
+        EXISTS (SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=u.id)
+        OR EXISTS (SELECT 1 FROM messages m WHERE m.match_low=LEAST($1,u.id) AND m.match_high=GREATEST($1,u.id))
+      )
       AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
     ORDER BY last_message_at DESC NULLS LAST,u.first_name ASC`,[req.user.id,viewerBand]);
   res.json({chats:q.rows});
@@ -552,11 +556,10 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   if(!Number.isSafeInteger(other)||other===Number(req.user.id))return res.status(400).json({error:'Invalid user'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(other);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Личные сообщения доступны только внутри твоей возрастной стороны VIBE.'});
-  const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[other]);
-  if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
+  const target=await pool.query("SELECT u.id FROM users u WHERE u.id=$1 AND u.account_status='active' AND EXISTS (SELECT 1 FROM listings l WHERE l.user_id=u.id AND l.status='published')",[other]);
+  if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен или его анкета не опубликована'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Переписка недоступна'});
-  if(!await hasMutualLike(req.user.id,other))return res.status(403).json({error:'Чат доступен только после взаимной симпатии.'});
   const q=await pool.query(`SELECT id,sender_id,body,created_at FROM (SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at DESC LIMIT 200) recent_messages ORDER BY created_at ASC`,[req.user.id,other]);
   res.json({messages:q.rows});
 }));
@@ -569,11 +572,12 @@ app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,r
   if(other===Number(req.user.id))return res.status(400).json({error:'Invalid user'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(other);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Личные сообщения доступны только внутри твоей возрастной стороны VIBE.'});
-  const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[other]);
-  if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
+  const target=await pool.query("SELECT u.id FROM users u WHERE u.id=$1 AND u.account_status='active' AND EXISTS (SELECT 1 FROM listings l WHERE l.user_id=u.id AND l.status='published')",[other]);
+  if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен или его анкета не опубликована'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Нельзя отправить сообщение этому пользователю'});
-  if(!await hasMutualLike(req.user.id,other))return res.status(403).json({error:'Чат доступен только после взаимной симпатии.'});
+  const priorMessages=await pool.query(`SELECT COUNT(*) FILTER (WHERE sender_id=$1)::int AS sent,COUNT(*) FILTER (WHERE sender_id=$2)::int AS received FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2)`,[req.user.id,other]);
+  if(Number(priorMessages.rows[0]?.sent||0)>0&&Number(priorMessages.rows[0]?.received||0)===0)return res.status(429).json({error:'Первое сообщение уже отправлено. Дождись ответа или заблокируй пользователя.'});
   const q=await pool.query(`INSERT INTO messages(match_low,match_high,sender_id,body) VALUES(LEAST($1,$2),GREATEST($1,$2),$1,$3) RETURNING id,sender_id,body,created_at`,[req.user.id,other,body.trim()]);
   res.status(201).json({message:q.rows[0]});
 }));
@@ -1122,7 +1126,14 @@ app.post('/telegram/webhook', (req,res) => {
       if(from?.id&&from?.first_name) {
         const existing = await pool.query('SELECT 1 FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]);
         firstVisit = existing.rowCount === 0;
-        const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
+        const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING id,account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
+        const referralMatch = /^ref_(\d{6})$/.exec(parts[1] || '');
+        if (firstVisit && referralMatch) {
+          const referrer = await pool.query("SELECT id FROM users WHERE lpad(id::text,6,'0')=$1 AND account_status='active'", [referralMatch[1]]);
+          if (referrer.rowCount && Number(referrer.rows[0].id) !== Number(u.rows[0]?.id)) {
+            await pool.query('INSERT INTO referrals(referrer_user_id,referred_user_id,referred_telegram_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING', [referrer.rows[0].id, u.rows[0].id, String(from.id)]);
+          }
+        }
         if (u.rows[0]?.account_status === 'banned') {
           reply='⛔ Ваша учётная запись VIBE заблокирована.\nПричина: '+(u.rows[0].moderation_note||'Причина не указана')+'\nДоступ к сайту и функциям аккаунта закрыт.';
           await send(reply); return;

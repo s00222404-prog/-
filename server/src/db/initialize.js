@@ -32,6 +32,8 @@ export async function initializeDatabase(pool) {
       await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_tickets (id BIGSERIAL PRIMARY KEY, telegram_id TEXT NOT NULL, username TEXT, first_name TEXT NOT NULL DEFAULT 'Пользователь', user_id BIGINT REFERENCES users(id) ON DELETE SET NULL, message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','answered','closed')), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
       await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_messages (id BIGSERIAL PRIMARY KEY, ticket_id BIGINT NOT NULL REFERENCES telegram_support_tickets(id) ON DELETE CASCADE, sender_telegram_id TEXT NOT NULL, sender_role TEXT NOT NULL, message TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
       await pool.query("CREATE TABLE IF NOT EXISTS telegram_support_sessions (telegram_id TEXT PRIMARY KEY, mode TEXT NOT NULL CHECK (mode IN ('new_ticket','staff_reply')), ticket_id BIGINT REFERENCES telegram_support_tickets(id) ON DELETE CASCADE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+      await pool.query("CREATE TABLE IF NOT EXISTS referrals (id BIGSERIAL PRIMARY KEY, referrer_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, referred_user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE, referred_telegram_id TEXT NOT NULL UNIQUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), CHECK (referrer_user_id <> referred_user_id))");
+      await pool.query('CREATE INDEX IF NOT EXISTS referrals_referrer_created_idx ON referrals(referrer_user_id, created_at DESC)');
 
     console.log('VIBE database schema ready');
   } catch (error) {
