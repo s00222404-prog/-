@@ -64,7 +64,7 @@ function makeVibeDemoProfiles() {
   return VIBE_DEMO_NAMES.map((name, index) => ({
     id: 'vibe-test-' + (index + 1), name, age: 16 + (index % 3), username: 'vibe_test_' + (index + 1),
     city: VIBE_DEMO_CITIES[index % VIBE_DEMO_CITIES.length], country: 'Deutschland',
-    description: 'TESTPROFIL — Demo-Account zum Prüfen von Feed, Likes und Nachrichten.',
+    description: 'Ein Profil zum Kennenlernen und Austesten von VIBE.',
     hobbies: ['Musik, Filme','Gaming, Technik','Sport, Fotografie','Kunst, Reisen','Bücher, Natur'][index % 5],
     interests: ['Musik','Freundschaft'], media_type: 'image', media_url: '', photo_url: '',
     public_role: 'none', role_label: '', is_test_profile: true
@@ -361,13 +361,13 @@ function App() {
       return;
     }
     setReportSubmitting(true); setError('');
-    if (reportingPerson.is_test_profile) {
-      setReportingPerson(null); setReportDetails(''); setReportEvidence(''); setReportEvidenceName(''); setReportReason(''); setReportSubmitting(false);
-      setNotice('ТЕСТ: жалоба на демо-анкету не отправлена. Для проверки реальной жалобы выбери анкету пользователя.');
-      return;
-    }
     try {
-      await request('/api/reports/' + encodeURIComponent(reportingPerson.id), { method:'POST', body:JSON.stringify({reason:reportReason,details:reportDetails,evidence:reportEvidence,reportType,listingId:reportingPerson.listing_id || null,reporterUsername,reportedUsername}) });
+      const reportPayload = {reason:reportReason,details:reportDetails,evidence:reportEvidence,reportType,listingId:reportingPerson.listing_id || null,reporterUsername,reportedUsername,targetName:reportingPerson.name || 'Пользователь',targetUsername:reportingPerson.username || '',targetAge:reportingPerson.age || null};
+      if (reportingPerson.is_test_profile) {
+        await request('/api/reports/demo', { method:'POST', body:JSON.stringify(reportPayload) });
+      } else {
+        await request('/api/reports/' + encodeURIComponent(reportingPerson.id), { method:'POST', body:JSON.stringify(reportPayload) });
+      }
       setReportingPerson(null); setReportDetails(''); setReportEvidence(''); setReportEvidenceName(''); setReportReason('');
       setNotice('Жалоба отправлена модерации. Спасибо за сигнал.');
     } catch (e) { setError(e.message || 'Не удалось отправить жалобу.'); }
@@ -530,7 +530,7 @@ function App() {
             (p.media_url || p.photo_url) ? <img className="feed-media-asset" src={p.media_url || p.photo_url} alt={'Публикация: ' + (p.name || 'пользователь')}/> :
             <div className="profile-cover-placeholder feed-placeholder"><span>{(p.name || '?').slice(0,1).toUpperCase()}</span><small>ТВОЙ ВАЙБ. ТВОЯ ИСТОРИЯ.</small></div>}
           <div className="feed-media-shade"/>
-          <div className="feed-profile-copy"><div className="feed-identity"><button className="feed-name" onClick={()=>setViewingProfile(p)}>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}{p.is_test_profile ? ' · ТЕСТ' : ''}</button><RoleBadge role={p.public_role} label={p.role_label}/></div><span className="profile-location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span>{p.hobbies && <p className="feed-hobbies"><strong>Хобби</strong> {p.hobbies}</p>}<p className="feed-description">{p.description || p.bio || 'Пока ничего не рассказал о себе.'}</p>{((p.interests || []).length>0 || p.hobbies) && <div className="profile-interests">{[...(p.interests || []), ...(p.hobbies ? p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [])].filter((x,i,a)=>x && a.indexOf(x)===i).slice(0,5).map(x=><span key={x}>#{x}</span>)}</div>}</div>
+          <div className="feed-profile-copy"><div className="feed-identity"><button className="feed-name" onClick={()=>setViewingProfile(p)}>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}</button><RoleBadge role={p.public_role} label={p.role_label}/></div><span className="profile-location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span>{p.hobbies && <p className="feed-hobbies"><strong>Хобби</strong> {p.hobbies}</p>}<p className="feed-description">{p.description || p.bio || 'Пока ничего не рассказал о себе.'}</p>{((p.interests || []).length>0 || p.hobbies) && <div className="profile-interests">{[...(p.interests || []), ...(p.hobbies ? p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [])].filter((x,i,a)=>x && a.indexOf(x)===i).slice(0,5).map(x=><span key={x}>#{x}</span>)}</div>}</div>
           <div className="feed-action-rail">
             <button className={String(p.id)===String(user?.id)?'own-profile-like':likesData.outgoing.some(item=>String(item.id)===String(p.id))?'already-liked':''} onClick={()=>{if(String(p.id)!==String(user?.id)||user?.public_role==='developer')like(p)}} disabled={(String(p.id)===String(user?.id)&&user?.public_role!=='developer')||likingIds.includes(String(p.id))||likesData.outgoing.some(item=>String(item.id)===String(p.id))} aria-label={String(p.id)===String(user?.id)?'Тестовая симпатия разработчика':likesData.outgoing.some(item=>String(item.id)===String(p.id))?'Симпатия уже отправлена':'Поставить лайк'} title={String(p.id)===String(user?.id)?'Тестовая симпатия разработчика':likesData.outgoing.some(item=>String(item.id)===String(p.id))?'Симпатия уже отправлена':'Лайк'}><Heart size={25} fill="currentColor"/><span>{String(p.id)===String(user?.id)?(likingIds.includes(String(p.id))?'Отправляем…':'Тест лайка'):likingIds.includes(String(p.id))?'Отправляем…':likesData.outgoing.some(item=>String(item.id)===String(p.id))?'Отправлено':'Лайк'}</span></button>
             {(String(p.id)!==String(user?.id)||user?.public_role==='developer') && <><button onClick={()=>openChat({user_id:p.id,first_name:p.name||'Пользователь',photo_url:p.photo_url})} aria-label="Написать автору в личные сообщения" title="Написать автору"><MessageCircle size={24}/><span>Чат</span></button>{String(p.id)!==String(user?.id) && <button onClick={()=>{setReportingPerson(p);setReportType('post');setReportReason('');setReportDetails('');setReporterUsername(user?.username?'@'+user.username:'');setReportedUsername(p.username?'@'+p.username:'');setReportEvidence('');setReportEvidenceName('');}} aria-label="Пожаловаться на публикацию" title="Пожаловаться"><Flag size={23}/><span>Жалоба</span></button>}</>}
