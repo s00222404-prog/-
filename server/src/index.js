@@ -298,6 +298,7 @@ app.post('/api/auth/telegram',authRateLimit,wrap(async(req,res)=>{
   res.json({user:u});
 }));
 app.get('/api/me',auth,wrap(async(req,res)=>{const [r,likes]=await Promise.all([pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1',[String(req.user.telegram_id)]),pool.query('SELECT COUNT(*)::int AS count FROM likes WHERE to_user=$1',[req.user.id])]);const role=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(r.rows[0]?.role||'none');const status=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(req.user.public_status||'none');res.json({user:{...req.user,account_code:String(req.user.id).padStart(6,'0'),likes_received:likes.rows[0]?.count||0,admin_access:roleRank[role]>=roleRank.admin,public_role:status,role_label:status==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[status]||null)}});}));
+app.get('/api/referrals',auth,wrap(async(req,res)=>{const q=await pool.query('SELECT COUNT(*)::int AS count FROM referrals WHERE referrer_user_id=$1',[req.user.id]);res.json({count:q.rows[0]?.count||0,account_code:String(req.user.id).padStart(6,'0')});}));
 app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
@@ -1123,7 +1124,14 @@ app.post('/telegram/webhook', (req,res) => {
       if(from?.id&&from?.first_name) {
         const existing = await pool.query('SELECT 1 FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]);
         firstVisit = existing.rowCount === 0;
-        const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
+        const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING id,account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
+        const referralMatch = /^ref_(\\d{6})$/.exec(parts[1] || '');
+        if (firstVisit && referralMatch) {
+          const referrer = await pool.query("SELECT id FROM users WHERE lpad(id::text,6,'0')=$1 AND account_status='active'", [referralMatch[1]]);
+          if (referrer.rowCount && Number(referrer.rows[0].id) !== Number(u.rows[0]?.id)) {
+            await pool.query('INSERT INTO referrals(referrer_user_id,referred_user_id,referred_telegram_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING', [referrer.rows[0].id, u.rows[0].id, String(from.id)]);
+          }
+        }
         if (u.rows[0]?.account_status === 'banned') {
           reply='⛔ Ваша учётная запись VIBE заблокирована.\nПричина: '+(u.rows[0].moderation_note||'Причина не указана')+'\nДоступ к сайту и функциям аккаунта закрыт.';
           await send(reply); return;
