@@ -7,6 +7,16 @@ export async function initializeDatabase(pool) {
     await pool.query(schema);
     await pool.query("CREATE TABLE IF NOT EXISTS service_maintenance (id INTEGER PRIMARY KEY CHECK (id=1), enabled BOOLEAN NOT NULL DEFAULT FALSE, reason TEXT NOT NULL DEFAULT '', updated_by TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     await pool.query("INSERT INTO service_maintenance(id,enabled,reason) VALUES(1,FALSE,'') ON CONFLICT(id) DO NOTHING");
+    await pool.query('ALTER TABLE users ALTER COLUMN telegram_id DROP NOT NULL');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT');
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users(LOWER(email)) WHERE email IS NOT NULL');
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub_unique_idx ON users(google_sub) WHERE google_sub IS NOT NULL');
+    await pool.query("CREATE TABLE IF NOT EXISTS web_sessions (id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, token_hash TEXT NOT NULL UNIQUE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    await pool.query('CREATE INDEX IF NOT EXISTS web_sessions_user_idx ON web_sessions(user_id, expires_at DESC)');
+    await pool.query("CREATE TABLE IF NOT EXISTS email_login_codes (id BIGSERIAL PRIMARY KEY, email TEXT NOT NULL, code_hash TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, consumed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), request_ip TEXT)");
+    await pool.query('CREATE INDEX IF NOT EXISTS email_login_codes_lookup_idx ON email_login_codes(LOWER(email), created_at DESC)');
     await pool.query("CREATE TABLE IF NOT EXISTS admin_active_roles (telegram_id TEXT PRIMARY KEY, role TEXT NOT NULL CHECK (role IN ('developer','chief_admin','admin','moderator','helper')), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_passwords (telegram_id TEXT PRIMARY KEY, salt TEXT NOT NULL, password_hash TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_sessions (telegram_id TEXT PRIMARY KEY, unlocked_until TIMESTAMPTZ NOT NULL)');
