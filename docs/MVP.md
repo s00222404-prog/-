@@ -8,13 +8,12 @@
 - Block and report endpoints
 - Mobile-first dark UI prototype
 
-## Not yet implemented
-- Messaging API and chat UI
+## Still incomplete or requiring production validation
 - Random chat queue and compatibility ranking
-- Photo upload/storage and image moderation
-- Enforced age assurance
-- Admin moderation dashboard and appeal workflow
-- Rate limiting, abuse heuristics, audit logs, integration tests
+- Production media storage and robust image/video moderation (uploads currently use data URLs)
+- Integrated age-assurance provider and verified webhook flow
+- Admin audit log, appeals workflow, and operational moderation process
+- End-to-end tests, abuse monitoring, dependency alerts, and production smoke tests
 - Privacy policy, terms, retention/deletion/export process
 - Automated deployment and production smoke tests
 
@@ -28,8 +27,8 @@
 
 ## Age routing and identity safety
 
-1. Ask for date of birth at registration and use it only to route: unknown -> age gate; under 18 -> youth experience; claimed 18+ -> adult verification holding area.
+1. Ask for date of birth at registration and use it only to route: unknown -> age gate; ages 14–17 -> teen space; claimed 18+ -> adult verification holding area.
 2. Adult-only discovery, likes, matches, and messaging remain blocked until the server receives a verified result from an integrated age-assurance provider.
 3. Do not store passport scans in VIBE or feed them to a general-purpose AI model. Use a vetted provider's hosted document/age check, validate signed webhooks server-side, retain only the minimum verification result, and define deletion/retention rules with privacy counsel.
 4. AI photo/profile signals create an admin review queue, not an instant ban based on guessed gender. Use manual review for suspected impersonation and provide appeals.
-5. Ensure every discovery/chat entry point shares the same server-side access policy; the current starter does not yet implement chat delivery or a production provider adapter.
+5. Ensure every discovery/chat entry point shares the same server-side access policy; chat endpoints exist, but age-assurance provider integration and end-to-end age-boundary testing remain release blockers.
