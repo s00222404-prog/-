@@ -155,6 +155,7 @@ function App() {
   const [people, setPeople] = useState([]);
   const [likesData, setLikesData] = useState({incoming:[],outgoing:[]});
   const [likingIds, setLikingIds] = useState([]);
+  const likingRef = useRef(new Set());
   const [mutualIds, setMutualIds] = useState([]);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -327,6 +328,8 @@ function App() {
   async function like(person) {
     const personId = String(person.id);
     if (!personId || likingIds.includes(personId)) return;
+    if (likingRef.current.has(personId)) return;
+    likingRef.current.add(personId);
     setLikingIds(current => current.includes(personId) ? current : [...current, personId]);
     setError('');
     setNotice('');
@@ -334,6 +337,7 @@ function App() {
       setTestLikes(current => current.includes(personId) ? current : [...current, personId]);
       setLikesData(current => ({incoming:current.incoming, outgoing:[person, ...current.outgoing.filter(p => String(p.id) !== personId)]}));
       setNotice('ТЕСТ: лайк демо-анкете обработан локально; реальный пользователь не уведомлялся.');
+      likingRef.current.delete(personId);
       setLikingIds(current => current.filter(id => id !== personId));
       return;
     }
@@ -346,7 +350,6 @@ function App() {
       outgoing: [person, ...current.outgoing.filter(p => String(p.id) !== personId)]
     }));
     setNotice('Сохраняем симпатию… 💜');
-    setLikingIds(current => current.filter(id => id !== personId));
     try {
       const result = await request('/api/likes/' + encodeURIComponent(person.id), { method: 'POST' });
       if (result.matched) setMutualIds(current => current.includes(personId) ? current : [...current, personId]);
@@ -355,6 +358,9 @@ function App() {
       setLikesData(previousLikes);
       setMutualIds(previousMutual);
       setError(e.message || 'Не удалось отправить симпатию.');
+    } finally {
+      likingRef.current.delete(personId);
+      setLikingIds(current => current.filter(id => id !== personId));
     }
   }
 
@@ -530,7 +536,7 @@ function App() {
       {people.length === 0 && <div className="empty"><Sparkles/><h3>Лента пока пуста</h3><p>Публикации появятся, когда пользователи добавят фото или видео и их анкеты будут одобрены.</p><button className="save" onClick={() => setTab('listing')}><PlusCircle size={16}/> Добавить публикацию</button></div>}
       {people.length > 0 && filteredPeople.length === 0 && <div className="empty feed-no-results"><Compass/><h3>Ничего не найдено</h3><p>Попробуй изменить поисковый запрос или выбрать другой город.</p><button className="skip" onClick={()=>{setFeedSearch('');setFeedCity('all');}}>Сбросить фильтры</button></div>}
       {filteredPeople.length > 0 && <div className="feed-scroll" >
-      {filteredPeople.map((p,i) => <article className="feed-post" key={p.id} data-index={i} onTouchStart={e=>{if(e.target.closest('button,a,input,textarea,select,video'))return;e.currentTarget.dataset.touchY=String(e.touches[0].clientY);}} onTouchEnd={e=>{if(e.target.closest('button,a,input,textarea,select,video'))return;const start=Number(e.currentTarget.dataset.touchY||0);const delta=e.changedTouches[0].clientY-start;if(Math.abs(delta)>70){const container=e.currentTarget.parentElement;const posts=[...container.querySelectorAll('.feed-post')];const index=posts.indexOf(e.currentTarget);const next=posts[Math.max(0,Math.min(posts.length-1,index+(delta<0?1:-1)))];next?.scrollIntoView({behavior:'smooth',block:'start'});}}}>
+      {filteredPeople.map((p,i) => <article className="feed-post" key={p.id} data-index={i} >
         <div className="feed-media">
           {(p.media_type === 'video' && p.media_url) ? <video className="feed-media-asset" src={p.media_url} controls playsInline loop muted preload="metadata"/> :
             (p.media_url || p.photo_url) ? <img className="feed-media-asset" src={p.media_url || p.photo_url} alt={'Публикация: ' + (p.name || 'пользователь')}/> :
