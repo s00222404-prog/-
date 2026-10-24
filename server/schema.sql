@@ -1,6 +1,9 @@
 CREATE TABLE IF NOT EXISTS users (
   id BIGSERIAL PRIMARY KEY,
-  telegram_id BIGINT UNIQUE NOT NULL,
+  telegram_id BIGINT UNIQUE,
+  email TEXT UNIQUE,
+  email_verified_at TIMESTAMPTZ,
+  google_sub TEXT UNIQUE,
   username TEXT,
   first_name TEXT NOT NULL,
   birth_date DATE,
