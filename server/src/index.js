@@ -194,8 +194,15 @@ async function getRole(telegramId) {
   return current && roleRank[current]!==undefined && roleRank[current]<=roleRank[assigned] ? current : assigned;
 }
 async function canManage(req,res,next) {
-  try { const role = await getRole(req.user.telegram_id); if (roleRank[role] < roleRank.admin) return res.status(403).json({error:'Admin access denied'}); req.adminRole=role; next(); }
-  catch (e) { next(e); }
+  try {
+    const role = await getRole(req.user.telegram_id);
+    if (roleRank[role] < roleRank.admin) return res.status(403).json({error:'Admin access denied'});
+    if (role !== 'developer' && !await isAdminUnlocked(req.user.telegram_id)) {
+      return res.status(403).json({error:'Admin session is locked. Unlock access in the VIBE Telegram bot first.'});
+    }
+    req.adminRole = role;
+    next();
+  } catch (e) { next(e); }
 }
 app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',') }));
 app.use(express.json({ limit: '5mb' }));
