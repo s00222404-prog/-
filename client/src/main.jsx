@@ -511,7 +511,7 @@ function App() {
         gender:listing.gender||null,
         bio:listing.description,
         city:listing.city.trim(),
-        photoUrl:profile.photoUrl||null,
+        photoUrl:profile.photoUrl||(listingMediaType==='image'?listingMediaUrl:null),
         goal:listing.goal||'both',
         interests
       })});
@@ -542,6 +542,8 @@ function App() {
         setError('Укажи имя, дату рождения, город и страну. Имя — не короче 2 символов.');
         return;
       }
+      const age = calculateAgeFromBirthDate(listing.birthDate);
+      if (age === null || age < 14) { setError('VIBE доступен с 14 лет. Проверь дату рождения.'); return; }
       setListingStep(2);
       return;
     }
@@ -668,7 +670,7 @@ function App() {
     {!loading && tab === 'listing' && <section className="panel profile-panel listing-wizard">
       <div className="listing-wizard-heading">
         <span className="listing-wizard-icon"><PlusCircle size={22}/></span>
-        <div><span className="feed-kicker">ТВОЯ ИСТОРИЯ</span><h2>{listingStep===1?'Начнём с основ':listingStep===2?'Расскажи о себе':'Последний шаг'}</h2><p>Создай понятную, настоящую анкету. Перед публикацией её проверит модерация.</p></div>
+        <div><span className="feed-kicker">ТВОЯ ИСТОРИЯ</span><h2>{listingStep===1?'Начнём с основ':listingStep===2?'Расскажи о себе':'Последний шаг'}</h2><p>Заполни профиль и выбери интересы. Анкета появится в ленте после проверки.</p></div>
       </div>
       <div className="listing-stepper" aria-label="Шаг создания анкеты">
         {[{n:1,label:'Основное'},{n:2,label:'О тебе'},{n:3,label:'Медиа и отправка'}].map(step=><div key={step.n} className={'listing-step '+(listingStep===step.n?'current':listingStep>step.n?'complete':'')}><span>{listingStep>step.n?'✓':step.n}</span><small>{step.label}</small></div>)}
