@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw, MessageCircle, ImagePlus, PlusCircle, BadgeCheck, Crown, ShieldCheck, Wrench, LayoutGrid, Rows3, Flag } from 'lucide-react';
 import './style.css';
@@ -133,6 +133,7 @@ function App() {
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  const messagesEndRef = useRef(null);
   const [draft, setDraft] = useState('');
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [listing, setListing] = useState({name:'',age:'',city:'',country:'',hobbies:'',description:''});
@@ -159,6 +160,10 @@ function App() {
     }
     return data;
   }
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, tab]);
 
   async function loadApp() {
     setLoading(true);
@@ -472,7 +477,7 @@ function App() {
       <button className="save" style={{marginTop:18}} onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button>
     </section>}
     {!loading && tab === 'chats' && <section className="panel chat-list-panel"><div className="panel-heading-row"><div className="panel-icon"><MessageCircle/></div><span className="panel-kicker">НА СВЯЗИ</span></div><h2>Твои чаты</h2><p>Переписывайся напрямую с людьми из ленты VIBE.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{chat.photo_url ? <img src={chat.photo_url} alt="" loading="lazy"/> : (chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
-    {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required disabled={sendingMessage}/><button className="like" type="submit" disabled={sendingMessage || !draft.trim()} aria-label="Отправить сообщение">{sendingMessage ? <RefreshCw size={17} className="spin"/> : <ArrowRight size={17}/>}</button></form></section>}
+    {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><div className="chat-conversation-heading"><span className="chat-avatar">{activeChat.photo_url ? <img src={activeChat.photo_url} alt="" loading="lazy"/> : (activeChat.first_name || '?').slice(0,1)}</span><div><h2>{activeChat.first_name}</h2><p>Личные сообщения VIBE</p></div></div><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}<div ref={messagesEndRef}/></div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required disabled={sendingMessage}/><button className="like" type="submit" disabled={sendingMessage || !draft.trim()} aria-label="Отправить сообщение">{sendingMessage ? <RefreshCw size={17} className="spin"/> : <ArrowRight size={17}/>}</button></form></section>}
     {!loading && tab === 'listing' && <section className="panel profile-panel listing-wizard">
       <div className="listing-wizard-heading">
         <span className="listing-wizard-icon"><PlusCircle size={22}/></span>
