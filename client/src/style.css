@@ -2251,3 +2251,16 @@ a{color:#e0b5ff}
   .app-shell.feed-mode .feed-filter-overlay{left:9px;right:9px;top:calc(105px + env(safe-area-inset-top))}
   .app-shell.feed-mode .mobile-nav{position:fixed;left:0;right:0;bottom:0;z-index:1300;padding:9px 12px calc(9px + env(safe-area-inset-bottom));display:flex;justify-content:space-around;background:rgba(21,17,31,.95)!important;backdrop-filter:blur(18px);border-top:1px solid var(--vibe-line)}
 }
+
+
+/* Ensure prototype navigation is not hidden by earlier legacy feed rules. */
+@media(max-width:680px){
+  .app-shell:has(.tiktok-feed)>.topbar{display:flex!important}
+  .app-shell:has(.tiktok-feed)>.topbar .brand{display:flex!important}
+  .app-shell:has(.tiktok-feed)>.topbar:before,
+  .app-shell:has(.tiktok-feed)>.topbar:after{display:none!important}
+  .app-shell:has(.tiktok-feed)>.topbar .brand-mark{display:grid!important}
+  .app-shell:has(.tiktok-feed)>.topbar .brand{font-size:20px}
+  .app-shell:has(.tiktok-feed) .people.tiktok-feed{height:auto!important}
+  .app-shell:has(.tiktok-feed) .feed-scroll{height:calc(100dvh - 265px - env(safe-area-inset-bottom))!important;min-height:360px!important}
+}
