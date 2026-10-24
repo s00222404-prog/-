@@ -30,7 +30,7 @@ export function profileTextProblem(values) {
     // Short words such as "sex" and "rape" must not match inside harmless
     // words like "Essex" and "grape". Punctuation-obfuscated forms still match.
     if (normalizedTerm.length <= 4) {
-      return tokens.includes(normalizedTerm) || compactTokens.some(token =>
+      return tokens.some(token => token === normalizedTerm || token.startsWith(normalizedTerm)) || compactTokens.some(token =>
         token.hasSeparators && token.value.includes(compact(normalizedTerm))
       );
     }
