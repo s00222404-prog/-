@@ -1389,3 +1389,16 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 .chat-conversation-heading p{margin:4px 0 0;color:#aaa0bb;font-size:11px}
 .messages-list>div:last-child{height:1px}
 @media(max-width:560px){.chat-conversation-heading{padding:11px}.chat-conversation-heading .chat-avatar{flex-basis:42px;height:42px}}
+
+
+/* Full-screen discovery cards and profile details */
+.feed-mode .feed-scroll{height:calc(100dvh - 172px);min-height:420px;max-height:900px}
+.feed-media{cursor:pointer}
+.profile-fullscreen-overlay{padding:0;align-items:stretch;overflow:hidden}
+.profile-fullscreen-dialog{width:100%;max-width:none;height:100dvh;max-height:100dvh;margin:0;border:0;border-radius:0;overflow-y:auto;padding:max(18px,env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));}
+.profile-fullscreen-dialog>img,.profile-fullscreen-dialog>video{max-height:48dvh!important;object-fit:contain!important}
+@media(max-width:620px){
+ .feed-mode .feed-scroll{height:calc(100dvh - 150px - env(safe-area-inset-bottom));min-height:390px;max-height:none;border-radius:0}
+ .feed-mode .feed-post{border-radius:0;border-left:0;border-right:0;margin-bottom:0}
+ .profile-fullscreen-dialog{padding:max(16px,env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom))}
+}
