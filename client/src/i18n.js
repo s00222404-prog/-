@@ -33,6 +33,8 @@ const UI_TRANSLATIONS = {
     'VIBE доступен с 14 лет. Проверь дату рождения в профиле.':'VIBE is available from age 14. Check the birth date in your profile.',
     'Город и страна':'City and country','О себе':'About me','Хобби и занятия':'Hobbies and activities','Интересы':'Interests','Поставить лайк':'Like','Написать в ЛС':'Message','Чат':'Chat','Пожаловаться':'Report','Пользователь':'User','Не указаны':'Not provided','Описание не добавлено.':'No description added.','Местоположение не указано':'Location not provided','Пока ничего не рассказал о себе.':'Nothing here yet.','Профиль сохранён':'Profile saved','Разработчик':'Developer','ТЕСТ':'TEST','Тест':'Test','Тестовый':'Test','Публикация':'Post','Описание':'Description','Германия':'Germany','Дружба':'Friendship','Музыка':'Music','Фильмы':'Movies','Спорт':'Sports','Фотография':'Photography','Игры':'Gaming','Техника':'Technology','Книги':'Books','Природа':'Nature','Назад':'Back','Сохранить':'Save','Отправить':'Send','Отмена':'Cancel',
     'Проверь дату рождения в профиле.':'Check the birth date in your profile.',
+    'Для взрослой возрастной группы сначала требуется подтверждение возраста.':'Age verification is required before accessing the adults-only area.',
+    'Связаться с поддержкой VIBE':'Contact VIBE Support',
 
     'Найди людей по интересам или городу.':'Find people by interest or city.',
     'Поиск по имени, интересам или описанию':'Search names, interests or descriptions',
@@ -86,6 +88,8 @@ const UI_TRANSLATIONS = {
     'VIBE доступен с 14 лет. Проверь дату рождения в профиле.':'VIBE ist ab 14 Jahren verfügbar. Prüfe dein Geburtsdatum im Profil.',
     'Город и страна':'Stadt und Land','О себе':'Über mich','Хобби и занятия':'Hobbys und Aktivitäten','Интересы':'Interessen','Поставить лайк':'Gefällt mir','Написать в ЛС':'Nachricht senden','Чат':'Chat','Пожаловаться':'Melden','Пользователь':'Nutzer','Не указаны':'Nicht angegeben','Описание не добавлено.':'Keine Beschreibung hinzugefügt.','Местоположение не указано':'Standort nicht angegeben','Пока ничего не рассказал о себе.':'Noch keine Angaben.','Профиль сохранён':'Profil gespeichert','Разработчик':'Entwickler','ТЕСТ':'TEST','Тест':'Test','Тестовый':'Test','Публикация':'Beitrag','Описание':'Beschreibung','Германия':'Deutschland','Дружба':'Freundschaft','Музыка':'Musik','Фильмы':'Filme','Спорт':'Sport','Фотография':'Fotografie','Игры':'Gaming','Техника':'Technik','Книги':'Bücher','Природа':'Natur','Назад':'Zurück','Сохранить':'Speichern','Отправить':'Senden','Отмена':'Abbrechen',
     'Проверь дату рождения в профиле.':'Prüfe dein Geburtsdatum im Profil.',
+    'Для взрослой возрастной группы сначала требуется подтверждение возраста.':'Vor dem Zugang zum Erwachsenenbereich ist eine Altersprüfung erforderlich.',
+    'Связаться с поддержкой VIBE':'VIBE-Support kontaktieren',
 
     'Найди людей по интересам или городу.':'Finde Menschen nach Interessen oder Stadt.',
     'Поиск по имени, интересам или описанию':'Suche nach Namen, Interessen oder Beschreibung',
