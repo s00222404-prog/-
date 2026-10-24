@@ -194,6 +194,9 @@ function App() {
     if (!response.ok) {
       const error = new Error(data.error || 'Ошибка сервера (' + response.status + ')');
       error.banned = Boolean(data.banned);
+      error.restricted = Boolean(data.restricted);
+      error.maintenance = Boolean(data.maintenance);
+      error.reason = data.reason || '';
       error.banReason = data.reason || data.moderation_note || data.user?.moderation_note || '';
       error.banIssuer = data.ban_issuer_label || ((data.ban_issuer || data.user?.ban_issuer) === 'developer' ? 'разработчиком' : 'модератором');
       error.status = response.status;
@@ -285,8 +288,14 @@ function App() {
       setLikesData({incoming:incomingLikes,outgoing:outgoingLikes});
       setMutualIds(incomingLikes.filter(person => outgoingLikes.some(other => String(other.id) === String(person.id))).map(person => String(person.id)));
     } catch (e) {
-      if (e.banned) {
+      if (e.maintenance) {
+        setMaintenance({maintenance:true,reason:e.reason || 'VIBE временно закрыт на техническое обслуживание.'});
+        setError('');
+      } else if (e.banned) {
         setUser({ account_status: 'banned', moderation_note: e.banReason, ban_issuer_label: e.banIssuer });
+        setError('');
+      } else if (e.restricted) {
+        setUser({ account_status: 'restricted', moderation_note: e.banReason || e.reason || 'Доступ временно ограничен.' });
         setError('');
       } else setError(e.message || 'Не удалось подключиться к VIBE API.');
     } finally {
@@ -294,7 +303,7 @@ function App() {
     }
   }
 
-  useEffect(() => { fetch(API+'/api/service-status').then(r=>r.json()).then(s=>{if(s.maintenance)setMaintenance(s);else if(initData)loadApp();else setLoading(false)}).catch(()=>{if(initData)loadApp();else setLoading(false)}); }, []);
+  useEffect(() => { fetch(API+'/api/service-status').then(r=>r.json()).then(s=>{if(s.maintenance&&!initData)setMaintenance(s);else if(initData)loadApp();else setLoading(false)}).catch(()=>{if(initData)loadApp();else setLoading(false)}); }, []);
 
   async function chooseMedia(e) {
     const file = e.target.files?.[0];
@@ -578,6 +587,7 @@ function App() {
 
   if (maintenance) return <main className="app-shell"><section className="panel" style={{margin:'10vh auto',maxWidth:560,textAlign:'center',padding:28}}><div style={{fontSize:48}}>🔒</div><h1>VIBE временно закрыт</h1><p style={{whiteSpace:'pre-wrap',lineHeight:1.6}}>{maintenance.reason || 'Проект временно недоступен.'}</p><p>Пожалуйста, попробуйте зайти позже.</p></section></main>;
   if (user?.account_status === 'banned') return <main className={tab === 'discover' ? 'app-shell feed-mode' : 'app-shell'}><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш аккаунт забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Кем заблокирован:</b> {user.ban_issuer_label || (user.ban_issuer === 'developer' ? 'разработчиком' : 'модератором')}</p><p><b>Причина:</b> {user.moderation_note || user.reason || 'Причина не указана'}</p></section></main>;
+  if (['restricted','suspended'].includes(user?.account_status)) return <main className="app-shell"><section className="panel account-restriction-screen" role="alert"><div className="panel-icon"><ShieldAlert/></div><h1>{({ru:'Доступ временно ограничен',de:'Zugang vorübergehend eingeschränkt',en:'Access temporarily restricted'})[language]}</h1><p>{({ru:'Некоторые функции VIBE недоступны для этого аккаунта.',de:'Einige VIBE-Funktionen sind für dieses Konto nicht verfügbar.',en:'Some VIBE features are unavailable for this account.'})[language]}</p><p><b>{({ru:'Причина:',de:'Grund:',en:'Reason:'})[language]}</b> {user.moderation_note || user.reason || ({ru:'Причина не указана',de:'Kein Grund angegeben',en:'No reason provided'})[language]}</p><a className="save" href="https://t.me/iBEDatig_Bot" target="_blank" rel="noopener noreferrer">{({ru:'Обратиться в поддержку VIBE',de:'VIBE-Support kontaktieren',en:'Contact VIBE support'})[language]}</a></section></main>;
   if (!initData) return <Landing />;
   return <main className={tab === 'discover' ? 'app-shell feed-mode' : 'app-shell'}>
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><LanguagePicker/><button className="avatar" aria-label="Открыть мой профиль" onClick={() => setProfileOpen(true)}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
