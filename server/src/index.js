@@ -163,10 +163,10 @@ function adminCommandHelp(role){
     ['/часовойпояс Europe/Berlin','установить личный часовой пояс'], ['/пароль ВАШ_ПАРОЛЬ','задать пароль (от 4 символов)']
   ];
   const developerCore=[['/deleteall','предпросмотр массового удаления'],['/deleteall CONFIRM','подтвердить массовое удаление'],['/пароли','список администраторов'],['/resetadminpass TELEGRAM_ID','сбросить пароль администратора']];
-  const format=items=>items.map(([command,description])=>'• '+command+' — '+description).join('\\n');
+  const format=items=>items.map(([command,description])=>'• '+command+' — '+description).join('\n');
   const visibleCore=core.concat(roleRank[role]>=roleRank.admin?adminCore:[]).concat(role==='developer'?developerCore:[]);
   const extras=EXTRA_ADMIN_COMMANDS.filter(item=>roleCanUseCommand(role,item.command)).map(item=>['/'+item.command,item.description]);
-  return '🛡 VIBE | КОМАНДЫ РОЛИ: '+({helper:'ПОМОЩНИК',moderator:'МОДЕРАТОР',admin:'АДМИНИСТРАТОР',chief_admin:'ГЛАВНЫЙ АДМИНИСТРАТОР',developer:'РАЗРАБОТЧИК'}[role]||'НЕТ ДОСТУПА')+'\\n━━━━━━━━━━━━━━━━━━\\n🔑 ОСНОВНЫЕ КОМАНДЫ\\n'+format(visibleCore)+'\\n\\n📚 ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ('+extras.length+')\\n'+format(extras)+'\\n\\nДоступ зависит от активной роли. Вернуться к максимальной: /switchrole max';
+  return '🛡 VIBE | КОМАНДЫ РОЛИ: '+({helper:'ПОМОЩНИК',moderator:'МОДЕРАТОР',admin:'АДМИНИСТРАТОР',chief_admin:'ГЛАВНЫЙ АДМИНИСТРАТОР',developer:'РАЗРАБОТЧИК'}[role]||'НЕТ ДОСТУПА')+'\n━━━━━━━━━━━━━━━━━━\n🔑 ОСНОВНЫЕ КОМАНДЫ\n'+format(visibleCore)+'\n\n📚 ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ('+extras.length+')\n'+format(extras)+'\n\nДоступ зависит от активной роли. Вернуться к максимальной: /switchrole max';
 }
 async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
   if (!process.env.BOT_TOKEN) return;
