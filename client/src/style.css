@@ -1381,3 +1381,11 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 .feed-action-rail button.already-liked:disabled{opacity:1;cursor:default!important}
 .feed-action-rail button:disabled{cursor:not-allowed;opacity:.65}
 @media(prefers-reduced-motion:reduce){.likes-panel .chat-row,.chat-list-panel .chat-row{transition:none}}
+
+.chat-conversation-heading{display:flex;align-items:center;gap:13px;margin:0 0 12px;padding:13px 14px;border:1px solid rgba(220,199,242,.12);border-radius:17px;background:linear-gradient(110deg,rgba(255,255,255,.035),rgba(255,255,255,.012))}
+.chat-conversation-heading .chat-avatar{flex:0 0 46px;height:46px}
+.chat-conversation-heading>div{min-width:0}
+.chat-conversation-heading h2{margin:0;font-size:20px}
+.chat-conversation-heading p{margin:4px 0 0;color:#aaa0bb;font-size:11px}
+.messages-list>div:last-child{height:1px}
+@media(max-width:560px){.chat-conversation-heading{padding:11px}.chat-conversation-heading .chat-avatar{flex-basis:42px;height:42px}}
