@@ -645,8 +645,8 @@ app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
     return res.status(403).json({error:'Разработчика нельзя забанить'});
   }
   const actorRole=await getRole(req.user.telegram_id);
-  const targetRole=await getRole(targetUser.telegram_id);
-  if(roleRank[targetRole]>=roleRank[actorRole]) return res.status(403).json({error:'Нельзя банить пользователя с равным или более высоким рангом'});
+  if((roleRank[actorRole]??0)<roleRank.moderator) return res.status(403).json({error:'Для блокировки аккаунтов нужна роль модератора или выше'});
+  if(!await ensureTargetBelowActor(String(targetUser.telegram_id),actorRole)) return res.status(403).json({error:'Нельзя банить пользователя с равным или более высоким назначенным рангом'});
   const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3 RETURNING id,first_name,username,telegram_id",[reason,actorRole==='developer'?'developer':'moderator',targetUser.id]);
   res.json({banned:true,user:{...q.rows[0],profile_code:String(q.rows[0].id).padStart(6,'0')},reason});
 }));
@@ -977,9 +977,8 @@ app.post('/telegram/webhook', (req,res) => {
         if(!target.rowCount){await answer('Пользователь не найден');await edit('Пользователь уже удалён или не найден.');return;}
         if(String(target.rows[0].telegram_id)===DEVELOPER_TELEGRAM_ID){await answer('Аккаунт разработчика защищён');return;}
         const actorRole=await getRole(String(from.id));
-        const targetRole=await getRole(String(target.rows[0].telegram_id));
         if((roleRank[actorRole]??0)<roleRank.moderator){await answer('Блокировать аккаунты может только модератор или роль выше.');return;}
-        if((roleRank[targetRole]??0)>=(roleRank[actorRole]??0)){await answer('Нельзя банить пользователя с равным или более высоким рангом');return;}
+        if(!await ensureTargetBelowActor(String(target.rows[0].telegram_id),actorRole)){await answer('Нельзя банить пользователя с равным или более высоким назначенным рангом');return;}
         await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3",[selected.reason,actorRole==='developer'?'developer':'moderator',targetId]);
         await answer('Аккаунт заблокирован: '+selected.label);
         await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:target.rows[0].telegram_id,text:'⛔ Ваш аккаунт забанен.\nКем заблокирован: '+(actorRole==='developer'?'разработчиком':'модератором')+'.\nПричина: '+selected.reason+'\nДоступ к VIBE заблокирован.'})}).catch(e=>console.error('Ban notice failed:',e.message));
