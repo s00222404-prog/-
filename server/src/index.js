@@ -172,6 +172,11 @@ function adminCommandHelp(role){
   const extras=EXTRA_ADMIN_COMMANDS.filter(item=>roleCanUseCommand(role,item.command)).map(item=>['/'+item.command,item.description]);
   return '🛡 VIBE | КОМАНДЫ РОЛИ: '+({helper:'ПОМОЩНИК',moderator:'МОДЕРАТОР',admin:'АДМИНИСТРАТОР',chief_admin:'ГЛАВНЫЙ АДМИНИСТРАТОР',developer:'РАЗРАБОТЧИК'}[role]||'НЕТ ДОСТУПА')+'\n━━━━━━━━━━━━━━━━━━\n🔑 ОСНОВНЫЕ КОМАНДЫ\n'+format(visibleCore)+'\n\n📚 ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ('+extras.length+')\n'+format(extras)+'\n\nДоступ зависит от активной роли. Вернуться к максимальной: /switchrole max';
 }
+function adminReplyKeyboard(role){
+  const rows=[[{text:'/adminhelp'},{text:'/myrole'}],[{text:'/queue'},{text:'/reports'}],[{text:'/reportstats'},{text:'/users'}]];
+  if(roleRank[role]>=roleRank.admin) rows.push([{text:'/ban'},{text:'/unban'},{text:'/user'}]);
+  return {keyboard:rows,resize_keyboard:true,one_time_keyboard:false,is_persistent:true};
+}
 async function notifyDeveloperAttempt({actorId,actorName,actorUsername,action,source}) {
   if (!process.env.BOT_TOKEN) return;
   const text = 'VIBE | СИСТЕМА БЕЗОПАСНОСТИ\nЗарегистрирована заблокированная попытка действия в отношении разработчика.\nДействие: ' + action + '\nКто пытался: ' + (actorUsername ? '@' + actorUsername : (actorName || 'неизвестно')) + (actorUsername && actorName ? ' (' + actorName + ')' : '') + '\nИсточник: ' + source + '\nРезультат: действие заблокировано системой безопасности VIBE.';
@@ -880,7 +885,7 @@ app.post('/telegram/webhook', (req,res) => {
       const q=await pool.query('SELECT p.salt,p.password_hash,t.time_zone FROM admin_access_passwords p JOIN admin_access_timezones t ON t.telegram_id=p.telegram_id WHERE p.telegram_id=$1',[String(from.id)]);
       if(q.rowCount && verifyAdminPassword(txt,q.rows[0].salt,q.rows[0].password_hash)){
         await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,(date_trunc('day', NOW() AT TIME ZONE $2) + INTERVAL '1 day') AT TIME ZONE $2) ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id),q.rows[0].time_zone]);
-        await send('Доступ открыт до 00:00 по времени '+q.rows[0].time_zone+'.\n\n'+adminCommandHelp(role));return;
+        await send('Доступ открыт до 00:00 по времени '+q.rows[0].time_zone+'.\n\n'+adminCommandHelp(role),adminReplyKeyboard(role));return;
       }
       // For staff accounts, do not pass a failed password attempt into the public user-help flow.
       // This prevents the regular user menu from appearing after an invalid admin password.
@@ -891,7 +896,7 @@ app.post('/telegram/webhook', (req,res) => {
       const password=parts[1]||'',q=await pool.query('SELECT salt,password_hash FROM admin_access_passwords WHERE telegram_id=$1',[String(from.id)]);
       if(!password||!q.rowCount||!verifyAdminPassword(password,q.rows[0].salt,q.rows[0].password_hash)){await send('⛔ Неверный пароль.');return;}
       await pool.query("INSERT INTO admin_access_sessions(telegram_id,unlocked_until) VALUES($1,(date_trunc('day', NOW() AT TIME ZONE 'Europe/Berlin') + INTERVAL '1 day') AT TIME ZONE 'Europe/Berlin') ON CONFLICT(telegram_id) DO UPDATE SET unlocked_until=EXCLUDED.unlocked_until",[String(from.id)]);
-      await send('✅ Доступ открыт на 8 часов.\n\n'+adminCommandHelp(role));return;
+      await send('✅ Доступ открыт на 8 часов.\n\n'+adminCommandHelp(role),adminReplyKeyboard(role));return;
     }
     if(m&&roleRank[role]>=roleRank.admin&&!isDeveloper&&!/^\/(start|help|помощь|вход|adminlogin|switchrole|myrole|роль)(?:@\S+)?$/i.test(cmd)&&!await isAdminUnlocked(from.id)){await send('🔒 Админ-команды закрыты паролем.');return;}
 
