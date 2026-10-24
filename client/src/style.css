@@ -1376,3 +1376,8 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
  .chat-list-panel .chat-row{padding:11px;gap:10px}
  .messages-list{max-height:calc(100dvh - 260px);min-height:140px}
 }
+
+.feed-action-rail button.already-liked{background:rgba(190,137,245,.22);border-color:rgba(222,187,255,.48);color:#f0dfff}
+.feed-action-rail button.already-liked:disabled{opacity:1;cursor:default!important}
+.feed-action-rail button:disabled{cursor:not-allowed;opacity:.65}
+@media(prefers-reduced-motion:reduce){.likes-panel .chat-row,.chat-list-panel .chat-row{transition:none}}
