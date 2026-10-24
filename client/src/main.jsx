@@ -329,6 +329,7 @@ function App() {
     if (!personId || likingIds.includes(personId)) return;
     setLikingIds(current => current.includes(personId) ? current : [...current, personId]);
     setError('');
+    setNotice('');
     if (person.is_test_profile && user?.public_role === 'developer') {
       setTestLikes(current => current.includes(personId) ? current : [...current, personId]);
       setLikesData(current => ({incoming:current.incoming, outgoing:[person, ...current.outgoing.filter(p => String(p.id) !== personId)]}));
@@ -338,12 +339,13 @@ function App() {
     }
     try {
       const result = await request('/api/likes/' + encodeURIComponent(person.id), { method: 'POST' });
+      setTestLikes(current => current.filter(id => id !== personId));
       setLikesData(current => ({
         incoming: current.incoming.filter(p => String(p.id) !== personId),
         outgoing: [person, ...current.outgoing.filter(p => String(p.id) !== personId)]
       }));
       if (result.matched) setMutualIds(current => current.includes(personId) ? current : [...current, personId]);
-      setNotice(result.matched ? 'У вас взаимная симпатия 💜' : 'Симпатия отправлена.');
+      setNotice(result.matched ? 'У вас взаимная симпатия 💜' : 'Симпатия отправлена 💜');
     } catch (e) {
       setError(e.message || 'Не удалось отправить симпатию.');
     } finally {
@@ -373,6 +375,9 @@ function App() {
   }
 
   async function openChat(chat) {
+    setDraft('');
+    setError('');
+    setNotice('');
     if (String(chat.user_id).startsWith('vibe-test-') && user?.public_role === 'developer') {
       setActiveChat(chat);
       setMessages([{id:'test-welcome-'+chat.user_id,sender_id:chat.user_id,body:'ТЕСТОВЫЙ АВТООТВЕТ: демо-чат открыт. Напиши сообщение, чтобы проверить тестовый ответ.',created_at:new Date().toISOString(),test_mode:true}]);
@@ -410,6 +415,7 @@ function App() {
       });
       if (data.message) setMessages(current => [...current, data.message]);
       setDraft('');
+      refreshChats();
     } catch (e) {
       setError(e.message || 'Не удалось отправить сообщение.');
     } finally {
