@@ -272,16 +272,32 @@ app.post('/api/auth/telegram',authRateLimit,wrap(async(req,res)=>{
   res.json({user:u});
 }));
 app.get('/api/me',auth,wrap(async(req,res)=>{const [r,likes]=await Promise.all([pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1',[String(req.user.telegram_id)]),pool.query('SELECT COUNT(*)::int AS count FROM likes WHERE to_user=$1',[req.user.id])]);const role=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(r.rows[0]?.role||'none');const status=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(req.user.public_status||'none');res.json({user:{...req.user,account_code:String(req.user.id).padStart(6,'0'),likes_received:likes.rows[0]?.count||0,admin_access:roleRank[role]>=roleRank.admin,public_role:status,role_label:status==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[status]||null)}});}));
+function ageOnDate(value, now = new Date()) {
+  if (!value) return null;
+  const iso = String(value).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const [year, month, day] = iso.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) return null;
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (parsed > today) return null;
+  let age = today.getUTCFullYear() - year;
+  if (today.getUTCMonth() < month - 1 || (today.getUTCMonth() === month - 1 && today.getUTCDate() < day)) age--;
+  return age;
+}
+
 app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
   if(gender!==null&&!['woman','man','nonbinary','prefer_not_to_say'].includes(gender)) return res.status(400).json({error:'Invalid gender'});
-  const d=birthDate?new Date(birthDate+'T00:00:00Z'):null;
-  if(!birthDate||!/^\\d{4}-\\d{2}-\\d{2}$/.test(birthDate)||!d||Number.isNaN(d.getTime())||d.toISOString().slice(0,10)!==birthDate||d>new Date()) return res.status(400).json({error:'Укажи корректную дату рождения, чтобы создать профиль.'});
+  const d = typeof birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? new Date(birthDate + 'T00:00:00Z') : null;
+  if (!d || Number.isNaN(d.getTime()) || d.toISOString().slice(0,10) !== birthDate || birthDate > new Date().toISOString().slice(0,10)) return res.status(400).json({error:'Укажи корректную дату рождения, чтобы создать профиль.'});
   const q=await pool.query(`UPDATE users SET birth_date=$1,age_confirmed=$2,gender=$3,bio=$4,city=$5,photo_url=$6,goal=$7,interests=$8,updated_at=NOW()
     WHERE id=$9 RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,
     [birthDate||null,Boolean(birthDate),gender,bio,city,photoUrl,goal,interests,req.user.id]);
-  const age=d?Math.floor((Date.now()-d.getTime())/31557600000):null;
+  const age = ageOnDate(birthDate);
+  if (age === null || age < 14) return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
+  if (age > 100) return res.status(400).json({error:'Проверь дату рождения в профиле.'});
   res.json({user:q.rows[0],route:age===null?'age_gate':age<18?'youth':'adult_verification',adultAccess:false});
 }));
 
@@ -290,14 +306,7 @@ async function getUserAgeBand(userId) {
   if (!q.rowCount) return 'restricted';
   const u = q.rows[0];
   const today = new Date();
-  const ageOn = value => {
-    if (!value) return null;
-    const d = new Date(String(value).slice(0,10) + 'T00:00:00Z');
-    if (Number.isNaN(d.getTime())) return null;
-    let age = today.getUTCFullYear() - d.getUTCFullYear();
-    if (today.getUTCMonth() < d.getUTCMonth() || (today.getUTCMonth() === d.getUTCMonth() && today.getUTCDate() < d.getUTCDate())) age--;
-    return age;
-  };
+  const ageOn = ageOnDate;
   const selfReportedAge = ageOn(u.birth_date);
   if (selfReportedAge !== null && selfReportedAge >= 14 && selfReportedAge <= 17) return 'teen';
   const verifiedAge = ageOn(u.verified_birth_date);
@@ -307,10 +316,10 @@ async function getUserAgeBand(userId) {
 
 app.get('/api/age-status',auth,wrap(async(req,res)=>{
   const q=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
-  const u=q.rows[0]; const d=u.verified_birth_date?new Date(u.verified_birth_date):null;
-  const age=d?Math.floor((Date.now()-d.getTime())/31557600000):null;
+  const u=q.rows[0]; const age=ageOnDate(u.verified_birth_date); const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18; const selfAge=ageOnDate(u.birth_date); const ageBand=selfAge!==null&&selfAge>=14&&selfAge<18?'teen':adultAccess?'adult':'restricted';
+
   const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18;
-  const selfAge=u.birth_date?Math.floor((Date.now()-new Date(u.birth_date).getTime())/31557600000):null;
+
   const ageBand=selfAge!==null&&selfAge>=14&&selfAge<18?'teen':adultAccess?'adult':'restricted';
   res.json({route:!u.birth_date?'age_gate':selfAge!==null&&selfAge<14?'underage':ageBand==='teen'?'teen':adultAccess?'adult':'adult_verification',ageBand,adultAccess,status:u.age_verification_status});
 }));
@@ -325,11 +334,8 @@ app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
  if(!profileCheck.rows[0]?.birth_date)return res.status(400).json({error:'Сначала заполни профиль и укажи дату рождения.'});
  const ageSource=profileCheck.rows[0].age_verification_status==='verified'&&profileCheck.rows[0].verified_birth_date
    ? profileCheck.rows[0].verified_birth_date : profileCheck.rows[0].birth_date;
- const ageDate=new Date(String(ageSource).slice(0,10)+'T00:00:00Z');
- const today=new Date();
- let actualAge=today.getUTCFullYear()-ageDate.getUTCFullYear();
- if(today.getUTCMonth()<ageDate.getUTCMonth()||(today.getUTCMonth()===ageDate.getUTCMonth()&&today.getUTCDate()<ageDate.getUTCDate()))actualAge--;
- if(!Number.isFinite(actualAge)||actualAge<14||actualAge>100)return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
+ const actualAge=ageOnDate(ageSource);
+ if(actualAge===null||actualAge<14||actualAge>100)return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
  if(actualAge>=18&&profileCheck.rows[0].age_verification_status!=='verified')return res.status(403).json({error:'Для взрослой возрастной группы сначала требуется подтверждение возраста.'});
  if(!Number.isInteger(Number(age))||Number(age)!==actualAge)return res.status(400).json({error:'Возраст анкеты должен совпадать с датой рождения: '+actualAge+'.'});
 
