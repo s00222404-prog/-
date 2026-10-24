@@ -1816,3 +1816,6 @@ input:focus, textarea:focus, select:focus {
 @media(prefers-reduced-motion:reduce){
   .profile-completion-track>span{transition:none}
 }
+
+.invite-count{display:flex;align-items:center;gap:7px;margin:9px 0 0!important;color:#a99ab9;font-size:11px}
+.invite-count strong{color:#d7b8ff;font-size:13px;font-variant-numeric:tabular-nums}
