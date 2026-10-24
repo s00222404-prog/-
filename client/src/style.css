@@ -148,3 +148,10 @@ body{background:radial-gradient(ellipse at 50% -20%,#38244f 0,transparent 48%),v
 .support-email-link{display:inline-flex;align-items:center;justify-content:center;gap:4px;color:#cbb7ff;text-decoration:none;font-size:10px;line-height:1.6;overflow-wrap:anywhere;transition:color .18s}
 .support-email-link:hover{color:#f1eaff;text-decoration:underline}
 .rail-footer .support-email-link{display:flex;justify-content:flex-start;margin-top:8px}
+
+
+/* Google sign-in fallback shown until the OAuth client ID is configured */
+.google-fallback-button{display:flex;align-items:center;justify-content:center;gap:11px;width:100%;min-height:46px;padding:11px 16px;border:1px solid #ffffff24;border-radius:999px;background:#fff;color:#222;font-size:13px;font-weight:650;cursor:pointer;transition:background .18s,transform .18s}
+.google-fallback-button:hover{background:#f1eef7;transform:translateY(-1px)}
+.google-g-mark{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;font-size:17px;font-weight:800;color:#4285f4;background:linear-gradient(135deg,#fff,#f3f3f3)}
+.google-fallback-button svg:last-child{margin-left:auto;color:#6d6876}
