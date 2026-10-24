@@ -1478,3 +1478,10 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 .app-shell.feed-mode .feed-post .feed-action-rail button span {font-size:11px!important;line-height:1.1!important;font-weight:700!important;max-width:54px!important;text-align:center!important}
 .app-shell.feed-mode .feed-post .feed-action-rail button.already-liked {color:#ff4d83!important}
 .app-shell.feed-mode .feed-post .feed-profile-copy {right:70px!important}
+
+/* Ensure the dark media shade never covers the interactive action rail */
+.app-shell.feed-mode .feed-post .feed-media-asset {z-index:0!important}
+.app-shell.feed-mode .feed-post .feed-media-shade {z-index:1!important;pointer-events:none!important}
+.app-shell.feed-mode .feed-post .feed-profile-copy {z-index:5!important;pointer-events:auto!important}
+.app-shell.feed-mode .feed-post .feed-action-rail {z-index:100!important;position:absolute!important;pointer-events:auto!important;isolation:isolate!important}
+.app-shell.feed-mode .feed-post .feed-action-rail button {position:relative!important;z-index:101!important;pointer-events:auto!important;visibility:visible!important;opacity:1!important}
