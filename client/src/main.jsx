@@ -337,19 +337,24 @@ function App() {
       setLikingIds(current => current.filter(id => id !== personId));
       return;
     }
+    const previousLikes = likesData;
+    const previousMutual = mutualIds;
+    // Optimistic UI: show the purple liked state immediately while the API confirms.
+    setTestLikes(current => current.filter(id => id !== personId));
+    setLikesData(current => ({
+      incoming: current.incoming.filter(p => String(p.id) !== personId),
+      outgoing: [person, ...current.outgoing.filter(p => String(p.id) !== personId)]
+    }));
+    setNotice('Сохраняем симпатию… 💜');
+    setLikingIds(current => current.filter(id => id !== personId));
     try {
       const result = await request('/api/likes/' + encodeURIComponent(person.id), { method: 'POST' });
-      setTestLikes(current => current.filter(id => id !== personId));
-      setLikesData(current => ({
-        incoming: current.incoming.filter(p => String(p.id) !== personId),
-        outgoing: [person, ...current.outgoing.filter(p => String(p.id) !== personId)]
-      }));
       if (result.matched) setMutualIds(current => current.includes(personId) ? current : [...current, personId]);
       setNotice(result.matched ? 'У вас взаимная симпатия 💜' : 'Симпатия отправлена 💜');
     } catch (e) {
+      setLikesData(previousLikes);
+      setMutualIds(previousMutual);
       setError(e.message || 'Не удалось отправить симпатию.');
-    } finally {
-      setLikingIds(current => current.filter(id => id !== personId));
     }
   }
 
@@ -389,11 +394,12 @@ function App() {
       setTab('chat');
       return;
     }
+    setActiveChat(chat);
+    setMessages([]);
+    setTab('chat');
     try {
-      setActiveChat(chat);
       const data = await request('/api/chats/' + encodeURIComponent(chat.user_id) + '/messages');
       setMessages(data.messages || []);
-      setTab('chat');
     } catch (e) { setError(e.message); }
   }
 
