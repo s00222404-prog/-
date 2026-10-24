@@ -340,7 +340,9 @@ function App() {
       const freshProfile = await request('/api/me');
       const currentUser = freshProfile.user;
       setUser(currentUser);
-      const birthDate = currentUser?.birth_date ? String(currentUser.birth_date).slice(0, 10) : '';
+      const birthDate = currentUser?.age_verification_status === 'verified' && currentUser?.verified_birth_date
+        ? String(currentUser.verified_birth_date).slice(0, 10)
+        : currentUser?.birth_date ? String(currentUser.birth_date).slice(0, 10) : '';
       if (!birthDate) {
         setProfileOpen(true);
         throw new Error('Сначала сохрани дату рождения в профиле, затем отправь анкету.');
