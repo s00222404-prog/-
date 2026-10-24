@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Heart, Compass, UserRound, ShieldAlert, MapPin, Sparkles, ArrowRight, Lock, RefreshCw, MessageCircle, ImagePlus, PlusCircle, BadgeCheck, Crown, ShieldCheck, Wrench, LayoutGrid, Rows3, Flag } from 'lucide-react';
 import './style.css';
+import { translationAttributeOriginals, translationOriginals, translateUiText } from './i18n.js';
 
 const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const webApp = window.Telegram?.WebApp;
@@ -13,107 +14,37 @@ const LANGUAGES = {
   de: {label:'Deutsch', flag:'🇩🇪'},
   ru: {label:'Русский', flag:'🇷🇺'}
 };
+function getStoredLanguage() {
+  try {
+    const saved = localStorage.getItem('vibe-language');
+    return saved && Object.prototype.hasOwnProperty.call(LANGUAGES, saved) ? saved : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+function calculateAgeFromBirthDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').slice(0, 10));
+  if (!match) return null;
+  const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+  const today = new Date();
+  let age = today.getUTCFullYear() - year;
+  if (today.getUTCMonth() + 1 < month || (today.getUTCMonth() + 1 === month && today.getUTCDate() < day)) age--;
+  return age;
+}
+
 function LanguagePicker({className=''}) {
-  const [language,setLanguage] = useState(() => {
-    try { return localStorage.getItem('vibe-language') || 'en'; } catch { return 'en'; }
-  });
+  const [language,setLanguage] = useState(getStoredLanguage);
   function changeLanguage(value) {
+    if (!Object.prototype.hasOwnProperty.call(LANGUAGES, value)) return;
     setLanguage(value);
     try { localStorage.setItem('vibe-language', value); } catch {}
     document.documentElement.lang = value;
     window.dispatchEvent(new CustomEvent('vibe-language-change',{detail:value}));
   }
   return <label className={'language-picker '+className} aria-label="Choose language"><span aria-hidden="true">{LANGUAGES[language].flag}</span><select value={language} onChange={e=>changeLanguage(e.target.value)} aria-label="Language"><option value="en">English</option><option value="de">Deutsch</option><option value="ru">Русский</option></select></label>;
-}
-
-const UI_TRANSLATIONS = {
-  en: {
-    'Telegram подключён':'Telegram connected','знакомства':'Discover people','ТВОЯ ВОЛНА':'YOUR VIBE','Люди, с которыми':'People who','совпадает вайб.':'match your vibe.','Настоящие анкеты пользователей VIBE — без выдуманных профилей.':'Real VIBE user profiles — no made-up people.',
-    'Знакомства':'Discover','Симпатии':'Likes','Моя анкета':'My listing','Чаты':'Chats','Поиск':'Discover','Профиль':'Profile','Лента для тебя':'Your feed','публикаций':'posts','Лента пока пуста':'Your feed is empty','Публикации появятся, когда пользователи добавят фото или видео и их анкеты будут одобрены.':'Posts will appear when users add photos or videos and their listings are approved.','Добавить публикацию':'Add a post','ТВОЙ ВАЙБ. ТВОЯ ИСТОРИЯ.':'YOUR VIBE. YOUR STORY.','Местоположение не указано':'Location not specified','Пока ничего не рассказал о себе.':'Nothing here yet.','Лайк':'Like','ЛС':'DM','Жалоба':'Report','Профиль':'Profile','Назад':'Back','Город:':'City:','Не указан':'Not specified','О себе:':'About me:','Описание не добавлено.':'No description added.','Интересы:':'Interests:','Не указаны':'Not specified','Поставить лайк':'Like','Написать в ЛС':'Message','Пожаловаться':'Report','Посмотри, кто поставил тебе лайк, и управляй своими симпатиями.':'See who liked you and manage your likes.','Тебе поставили лайк ·':'People who liked you ·','Пока нет новых симпатий. Продолжай знакомиться в ленте.':'No new likes yet. Keep discovering people in the feed.','Взаимно':'Like back','Ты поставил лайк ·':'You liked ·','Здесь появятся анкеты, которым ты поставишь лайк.':'People you like will appear here.','Написать':'Message','Открыть чаты':'Open chats','Твои чаты':'Your chats','Переписывайся напрямую с людьми из ленты VIBE.':'Chat directly with people from the VIBE feed.','Пока нет чатов':'No chats yet','Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.':'Open the feed and tap “DM” on someone you like to start a conversation.','Начни разговор 👋':'Start a conversation 👋','← Все чаты':'← All chats','Напиши сообщение…':'Write a message…','Добавить анкету':'Create a listing','Это отдельная публичная анкета для рекомендаций. Она не меняет данные твоего профиля Telegram.':'This is a separate public listing for recommendations. It does not change your Telegram profile.','Имя':'Name','Возраст (14–100 лет)':'Age (14–100)','Город':'City','Страна':'Country','Фото или видео для ленты':'Photo or video for the feed','Выбрать фото или видео':'Choose photo or video','Убрать медиа':'Remove media','Хобби и занятия':'Hobbies and activities','Описание':'Description','Опубликовать анкету':'Publish listing','Публикуем…':'Publishing…','Сначала заполни профиль и укажи дату рождения.':'Complete your profile and enter your date of birth first.','Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.':'Listing saved and submitted for review. Others can see it after approval. You can see your own listing in recommendations.','Код аккаунта':'Account code','Настроить анкету':'Edit profile','Эти данные помогают VIBE подбирать совместимые знакомства. Не указывай точный адрес.':'These details help VIBE suggest compatible people. Do not enter your exact address.','Фото профиля':'Profile photo','Выбрать фото':'Choose photo','Дата рождения':'Date of birth','Пол':'Gender','Не указан':'Not specified','Женский':'Female','Мужской':'Male','Небинарный':'Non-binary','Не хочу указывать':'Prefer not to say','О себе':'About me','Цель знакомства':'What are you looking for?','Общение и отношения':'Conversation and relationships','Дружба':'Friendship','Общение':'Conversation','Отношения':'Relationships','Интересы через запятую':'Interests separated by commas','Сохранить профиль':'Save profile','Сохраняем…':'Saving…','Закрыть профиль':'Close profile','Управлять публичной анкетой':'Manage public listing','Пожаловаться на':'Report','публикацию':'post','профиль':'profile','Жалоба отправится модерации VIBE. Причина обязательна; доказательства можно приложить, если они есть.':'Your report will be sent to VIBE moderators. A reason is required; you can attach evidence if available.','Твой Telegram-юзернейм':'Your Telegram username','Telegram-юзернейм пользователя':'User’s Telegram username','Обязательная причина':'Required reason','Выбери причину':'Choose a reason','Спам':'Spam','Оскорбления или угрозы':'Insults or threats','Фейковая анкета':'Fake profile','Неприемлемый контент':'Inappropriate content','Подозрение на мошенничество':'Suspected scam','Преследование или угрозы безопасности':'Harassment or safety threats','Другое':'Other','Подробности':'Details','Доказательства (необязательно)':'Evidence (optional)','Прикрепить фото, видео или PDF':'Attach photo, video or PDF','Отправить жалобу':'Submit report','Отправляем…':'Sending…','Ваш аккаунт забанен':'Your account is banned','Доступ к VIBE закрыт.':'Access to VIBE is blocked.','Кем заблокирован:':'Banned by:','разработчиком':'developer','модератором':'moderator','Причина:':'Reason:','Причина не указана':'No reason provided','VIBE временно закрыт':'VIBE is temporarily unavailable','Проект временно недоступен.':'The project is temporarily unavailable.','Пожалуйста, попробуйте зайти позже.':'Please try again later.','Подключаем VIBE…':'Connecting to VIBE…','Правила проекта':'Project rules','Конфиденциальность':'Privacy','Безопасность важна':'Safety matters','Возрастная сторона':'Age group','Возрастная сторона доступна после проверки возраста.':'This age group is available after age verification.','Подростковая сторона':'Teen space','Взрослая сторона':'Adult space','Доступ к взрослой стороне ограничен до проверки возраста.':'Access to the adult space is restricted until age verification.','Статус анкеты: на проверке':'Listing status: pending review','Анкета будет опубликована после одобрения модератора.':'Your listing will be published after moderator approval.','Анкета на проверке':'Listing pending review','На модерации':'Pending review','Ожидает одобрения':'Awaiting approval','Проверяем анкету':'Your listing is being reviewed','Анкета отклонена':'Listing rejected','Анкета одобрена':'Listing approved','Закрыть':'Close'
-  },
-  de: {
-    'Telegram подключён':'Telegram verbunden','знакомства':'Leute entdecken','ТВОЯ ВОЛНА':'DEIN VIBE','Люди, с которыми':'Menschen, die','совпадает вайб.':'zu deinem Vibe passen.','Настоящие анкеты пользователей VIBE — без выдуманных профилей.':'Echte VIBE-Profile — keine erfundenen Personen.',
-    'Знакомства':'Entdecken','Симпатии':'Likes','Моя анкета':'Mein Profilbogen','Чаты':'Chats','Поиск':'Entdecken','Профиль':'Profil','Лента для тебя':'Dein Feed','публикаций':'Beiträge','Лента пока пуста':'Dein Feed ist leer','Публикации появятся, когда пользователи добавят фото или видео и их анкеты будут одобрены.':'Beiträge erscheinen, sobald Nutzer Fotos oder Videos hinzufügen und ihre Profile freigegeben wurden.','Добавить публикацию':'Beitrag hinzufügen','ТВОЙ ВАЙБ. ТВОЯ ИСТОРИЯ.':'DEIN VIBE. DEINE GESCHICHTE.','Местоположение не указано':'Standort nicht angegeben','Пока ничего не рассказал о себе.':'Noch keine Angaben.','Лайк':'Like','ЛС':'Nachricht','Жалоба':'Melden','Назад':'Zurück','Город:':'Stadt:','Не указан':'Nicht angegeben','О себе:':'Über mich:','Описание не добавлено.':'Keine Beschreibung vorhanden.','Интересы:':'Interessen:','Не указаны':'Nicht angegeben','Поставить лайк':'Like geben','Написать в ЛС':'Nachricht schreiben','Пожаловаться':'Melden','Посмотри, кто поставил тебе лайк, и управляй своими симпатиями.':'Sieh, wer dich gelikt hat, und verwalte deine Likes.','Тебе поставили лайк ·':'Likes von anderen ·','Пока нет новых симпатий. Продолжай знакомиться в ленте.':'Noch keine Likes. Entdecke weitere Leute im Feed.','Взаимно':'Zurückliken','Ты поставил лайк ·':'Deine Likes ·','Здесь появятся анкеты, которым ты поставишь лайк.':'Hier erscheinen Profile, die du gelikt hast.','Написать':'Nachricht','Открыть чаты':'Chats öffnen','Твои чаты':'Deine Chats','Переписывайся напрямую с людьми из ленты VIBE.':'Schreibe direkt mit Menschen aus dem VIBE-Feed.','Пока нет чатов':'Noch keine Chats','Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.':'Öffne den Feed und tippe bei einer Person auf „Nachricht“, um ein Gespräch zu beginnen.','Начни разговор 👋':'Beginne ein Gespräch 👋','← Все чаты':'← Alle Chats','Напиши сообщение…':'Nachricht schreiben…','Добавить анкету':'Profilbogen erstellen','Это отдельная публичная анкета для рекомендаций. Она не меняет данные твоего профиля Telegram.':'Dies ist ein separater öffentlicher Profilbogen für Empfehlungen. Dein Telegram-Profil bleibt unverändert.','Имя':'Name','Возраст (14–100 лет)':'Alter (14–100)','Город':'Stadt','Страна':'Land','Фото или видео для ленты':'Foto oder Video für den Feed','Выбрать фото или видео':'Foto oder Video auswählen','Убрать медиа':'Medium entfernen','Хобби и занятия':'Hobbys und Aktivitäten','Описание':'Beschreibung','Опубликовать анкету':'Profilbogen veröffentlichen','Публикуем…':'Wird veröffentlicht…','Сначала заполни профиль и укажи дату рождения.':'Fülle zuerst dein Profil aus und gib dein Geburtsdatum an.','Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.':'Profilbogen gespeichert und zur Prüfung eingereicht. Nach Freigabe ist er für andere sichtbar. Du kannst ihn bereits in den Empfehlungen sehen.','Код аккаунта':'Kontocode','Настроить анкету':'Profil bearbeiten','Эти данные помогают VIBE подбирать совместимые знакомства. Не указывай точный адрес.':'Diese Angaben helfen VIBE, passende Menschen vorzuschlagen. Gib keine genaue Adresse an.','Фото профиля':'Profilfoto','Выбрать фото':'Foto auswählen','Дата рождения':'Geburtsdatum','Пол':'Geschlecht','Не указан':'Nicht angegeben','Женский':'Weiblich','Мужской':'Männlich','Небинарный':'Nichtbinär','Не хочу указывать':'Keine Angabe','О себе':'Über mich','Цель знакомства':'Wonach suchst du?','Общение и отношения':'Gespräche und Beziehungen','Дружба':'Freundschaft','Общение':'Gespräche','Отношения':'Beziehungen','Интересы через запятую':'Interessen, durch Kommas getrennt','Сохранить профиль':'Profil speichern','Сохраняем…':'Wird gespeichert…','Закрыть профиль':'Profil schließen','Управлять публичной анкетой':'Öffentlichen Profilbogen verwalten','Пожаловаться на':'Melden:','публикацию':'Beitrag','профиль':'Profil','Жалоба отправится модерации VIBE. Причина обязательна; доказательства можно приложить, если они есть.':'Deine Meldung geht an die VIBE-Moderation. Ein Grund ist erforderlich; Belege können angehängt werden.','Твой Telegram-юзернейм':'Dein Telegram-Benutzername','Telegram-юзернейм пользователя':'Telegram-Benutzername der Person','Обязательная причина':'Grund (erforderlich)','Выбери причину':'Grund auswählen','Спам':'Spam','Оскорбления или угрозы':'Beleidigungen oder Drohungen','Фейковая анкета':'Fake-Profil','Неприемлемый контент':'Unangemessene Inhalte','Подозрение на мошенничество':'Betrugsverdacht','Преследование или угрозы безопасности':'Belästigung oder Sicherheitsbedrohung','Другое':'Sonstiges','Подробности':'Details','Доказательства (необязательно)':'Belege (optional)','Прикрепить фото, видео или PDF':'Foto, Video oder PDF anhängen','Отправить жалобу':'Meldung senden','Отправляем…':'Wird gesendet…','Ваш аккаунт забанен':'Dein Konto ist gesperrt','Доступ к VIBE закрыт.':'Der Zugang zu VIBE ist gesperrt.','Кем заблокирован:':'Gesperrt von:','разработчиком':'Entwickler','модератором':'Moderator','Причина:':'Grund:','Причина не указана':'Kein Grund angegeben','VIBE временно закрыт':'VIBE ist vorübergehend geschlossen','Проект временно недоступен.':'Das Projekt ist vorübergehend nicht verfügbar.','Пожалуйста, попробуйте зайти позже.':'Bitte versuche es später erneut.','Подключаем VIBE…':'VIBE wird verbunden…','Правила проекта':'Projektregeln','Конфиденциальность':'Datenschutz','Безопасность важна':'Sicherheit ist wichtig','Возрастная сторона':'Altersbereich','Возрастная сторона доступна после проверки возраста.':'Dieser Altersbereich ist nach einer Altersprüfung verfügbar.','Подростковая сторона':'Jugendbereich','Взрослая сторона':'Erwachsenenbereich','Доступ к взрослой стороне ограничен до проверки возраста.':'Der Zugang zum Erwachsenenbereich ist bis zur Altersprüfung eingeschränkt.','Статус анкеты: на проверке':'Profilstatus: wird geprüft','Анкета будет опубликована после одобрения модератора.':'Dein Profil wird nach Freigabe durch die Moderation veröffentlicht.','Анкета на проверке':'Profil wird geprüft','На модерации':'Wird geprüft','Ожидает одобрения':'Wartet auf Freigabe','Проверяем анкету':'Dein Profil wird geprüft','Анкета отклонена':'Profil abgelehnt','Анкета одобрена':'Profil freigegeben','Закрыть':'Schließen'
-  }
-};
-const translationOriginals = new WeakMap();
-const translationAttributeOriginals = new WeakMap();
-const EXTRA_TRANSLATIONS = {
-  en: {
-    "Возрастная сторона доступна":"Age access is available",
-    "возрастная сторона":"age group",
-    "Доступно":"Available",
-    "Взрослая сторона доступна после предусмотренной сервисом проверки возраста.":"Adult access is available after the service’s age verification process.",
-    "VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Взрослая сторона доступна после предусмотренной сервисом проверки возраста.":"VIBE separates teen users (14–17) from adults (18+). Adult access requires the service’s age verification process.",
-    "Анкета на проверке":"Listing pending review",
-    "Анкета отправлена на проверку":"Listing submitted for review",
-    "Твоя анкета находится на проверке модерации.":"Your listing is awaiting moderator review.",
-    "Ожидает одобрения":"Awaiting approval",
-    "Статус анкеты: на проверке":"Listing status: pending review",
-    "Анкета будет опубликована после одобрения модератора.":"Your listing will be published after a moderator approves it.",
-    "Анкета отклонена":"Listing rejected",
-    "Анкета опубликована":"Listing published",
-    "Ваша анкета одобрена и опубликована.":"Your listing has been approved and published.",
-  
-    "Возрастная сторона доступна": "Age access is available",
-    "возрастная сторона": "age group",
-    "Доступно": "Available",
-    "Взрослая сторона доступна после предусмотренной сервисом проверки возраста.": "Adult access is available after the service’s age verification process.",
-    "VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Взрослая сторона доступна после предусмотренной сервисом проверки возраста.": "VIBE separates teen users (14–17) from adults (18+). Adult access requires the service’s age verification process.",
-    "Анкета на проверке": "Listing pending review",
-    "Анкета отправлена на проверку": "Listing submitted for review",
-    "Твоя анкета находится на проверке модерации.": "Your listing is awaiting moderator review.",
-    "Ожидает одобрения": "Awaiting approval",
-    "Статус анкеты: на проверке": "Listing status: pending review",
-    "Анкета будет опубликована после одобрения модератора.": "Your listing will be published after a moderator approves it.",
-    "Анкета отклонена": "Listing rejected",
-    "Анкета опубликована": "Listing published",
-    "Ваша анкета одобрена и опубликована.": "Your listing has been approved and published.",
-  },
-  de: {
-    "Взрослая сторона доступна после предусмотренной сервисом проверки возраста.":"Der Zugang für Erwachsene ist nach der vorgesehenen Altersprüfung verfügbar.",
-    "VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Взрослая сторона доступна после предусмотренной сервисом проверки возраста.":"VIBE trennt Jugendliche (14–17) und Erwachsene (18+). Der Zugang für Erwachsene erfordert die vorgesehene Altersprüfung.",
-    "Анкета на проверке":"Profilbogen wird geprüft",
-    "Анкета отправлена на проверку":"Profilbogen zur Prüfung eingereicht",
-    "Твоя анкета находится на проверке модерации.":"Dein Profilbogen wird von der Moderation geprüft.",
-    "Ожидает одобрения":"Wartet auf Freigabe",
-    "Статус анкеты: на проверке":"Status des Profilbogens: in Prüfung",
-    "Анкета будет опубликована после одобрения модератора.":"Dein Profilbogen wird nach Freigabe durch die Moderation veröffentlicht.",
-    "Анкета отклонена":"Profilbogen abgelehnt",
-    "Анкета опубликована":"Profilbogen veröffentlicht",
-    "Ваша анкета одобрена и опубликована.":"Dein Profilbogen wurde freigegeben und veröffentlicht.",
-  
-    "Взрослая сторона доступна после предусмотренной сервисом проверки возраста.": "Der Zugang für Erwachsene ist nach der vorgesehenen Altersprüfung verfügbar.",
-    "VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Взрослая сторона доступна после предусмотренной сервисом проверки возраста.": "VIBE trennt Jugendliche (14–17) und Erwachsene (18+). Der Zugang für Erwachsene erfordert die vorgesehene Altersprüfung.",
-    "Анкета на проверке": "Profilbogen wird geprüft",
-    "Анкета отправлена на проверку": "Profilbogen zur Prüfung eingereicht",
-    "Твоя анкета находится на проверке модерации.": "Dein Profilbogen wird von der Moderation geprüft.",
-    "Ожидает одобрения": "Wartet auf Freigabe",
-    "Статус анкеты: на проверке": "Status des Profilbogens: in Prüfung",
-    "Анкета будет опубликована после одобрения модератора.": "Dein Profilbogen wird nach Freigabe durch die Moderation veröffentlicht.",
-    "Анкета отклонена": "Profilbogen abgelehnt",
-    "Анкета опубликована": "Profilbogen veröffentlicht",
-    "Ваша анкета одобрена и опубликована.": "Dein Profilbogen wurde freigegeben und veröffentlicht.",
-  },
-  en: {
-    'ТВОЙ VIBE':'YOUR VIBE','ТВОЯ ИСТОРИЯ НАЧИНАЕТСЯ ЗДЕСЬ':'YOUR STORY STARTS HERE','Пример карточки знакомства':'Example profile card',
-    'Публикация: ':'Post: ','Пользователь':'User','Анкета':'Listing','Возраст':'Age','Возраст (14–100 лет)':'Age (14–100)','Например, 22':'e.g. 22','Например, Берлин':'e.g. Berlin','Германия':'Germany','Музыка, спорт, игры, прогулки…':'Music, sports, games, walks…','Расскажи о себе без мата и пошлостей':'Tell people about yourself respectfully','Выбрать фото или видео':'Choose photo or video','Медиа готово к публикации.':'Media is ready to publish.','Медиа выбрано ·':'Media selected ·','фото':'photo','видео':'video','Перед публикацией проверяем текст на ругательства и пошлые выражения. Проверки возрастных групп временно отключены на этапе разработки. Перед запуском платформы их нужно будет вернуть.':'Text is checked for profanity and sexual content before publishing. Age-group checks are temporarily disabled during development and must be restored before launch.','Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.':'Listing saved and submitted for review. Others will see it after approval. You can see your own listing in recommendations.','Фото выбрано. Нажми «Сохранить анкету», чтобы применить изменения.':'Photo selected. Tap “Save profile” to apply changes.','Профиль сохранён.':'Profile saved.','Укажи дату рождения, чтобы создать профиль и пользоваться VIBE.':'Enter your date of birth to create a profile and use VIBE.','Не удалось сохранить профиль.':'Could not save profile.','Не удалось опубликовать анкету.':'Could not publish listing.','Выбери фото или видео.':'Choose a photo or video.','Медиа должно быть не больше 3 МБ.':'Media must be 3 MB or smaller.','Убрать доказательство':'Remove evidence','Подробности':'Details','Обязательная причина':'Required reason','Временно закрыт':'Temporarily unavailable','Твоя волна':'Your vibe','Пока нет новых симпатий.':'No new likes yet.','Анкета отправлена на проверку':'Listing submitted for review','Проверка':'Review','Одобрена':'Approved','На проверке':'Pending review','Отклонена':'Rejected','Лайки':'Likes','Профиль сохранён':'Profile saved','Симпатия отправлена.':'Like sent.','У вас взаимная симпатия 💜':'It’s a match 💜'
-  },
-  de: {
-    'ТВОЙ VIBE':'DEIN VIBE','ТВОЯ ИСТОРИЯ НАЧИНАЕТСЯ ЗДЕСЬ':'DEINE GESCHICHTE BEGINNT HIER','Пример карточки знакомства':'Beispiel einer Profilkarte',
-    'Публикация: ':'Beitrag: ','Пользователь':'Nutzer','Анкета':'Profilbogen','Возраст':'Alter','Возраст (14–100 лет)':'Alter (14–100)','Например, 22':'z. B. 22','Например, Берлин':'z. B. Berlin','Германия':'Deutschland','Музыка, спорт, игры, прогулки…':'Musik, Sport, Spiele, Spaziergänge…','Расскажи о себе без мата и пошлостей':'Erzähl respektvoll von dir','Выбрать фото или видео':'Foto oder Video auswählen','Медиа готово к публикации.':'Medium ist bereit zur Veröffentlichung.','Медиа выбрано ·':'Medium ausgewählt ·','Перед публикацией проверяем текст на ругательства и пошлые выражения. Проверки возрастных групп временно отключены на этапе разработки. Перед запуском платформы их нужно будет вернуть.':'Texte werden vor der Veröffentlichung auf Beleidigungen und sexuelle Inhalte geprüft. Altersgruppenprüfungen sind während der Entwicklung vorübergehend deaktiviert und müssen vor dem Start wieder aktiviert werden.','Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.':'Profilbogen gespeichert und zur Prüfung eingereicht. Andere sehen ihn nach der Freigabe. Du kannst deinen eigenen Profilbogen in den Empfehlungen sehen.','Фото выбрано. Нажми «Сохранить анкету», чтобы применить изменения.':'Foto ausgewählt. Tippe auf „Profil speichern“, um die Änderung zu übernehmen.','Профиль сохранён.':'Profil gespeichert.','Укажи дату рождения, чтобы создать профиль и пользоваться VIBE.':'Gib dein Geburtsdatum ein, um ein Profil zu erstellen und VIBE zu nutzen.','Не удалось сохранить профиль.':'Profil konnte nicht gespeichert werden.','Не удалось опубликовать анкету.':'Profilbogen konnte nicht veröffentlicht werden.','Выбери фото или видео.':'Wähle ein Foto oder Video aus.','Медиа должно быть не больше 3 МБ.':'Das Medium darf höchstens 3 MB groß sein.','Убрать доказательство':'Beleg entfernen','Твоя волна':'Dein Vibe','Пока нет новых симпатий.':'Noch keine Likes.','Анкета отправлена на проверку':'Profilbogen zur Prüfung eingereicht','Проверка':'Prüfung','Одобрена':'Freigegeben','На проверке':'In Prüfung','Отклонена':'Abgelehnt','Лайки':'Likes','Профиль сохранён':'Profil gespeichert','Симпатия отправлена.':'Like gesendet.','У вас взаимная симпатия 💜':'Es ist ein Match 💜'
-  }
-};
-function translateUiText(value, language) {
-  if (language === 'ru') return value;
-  const dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}) };
-  const text = value.trim();
-  if (dict[text]) return value.replace(text, dict[text]);
-  let result = value;
-  for (const [source, target] of Object.entries(dict).sort((a,b)=>b[0].length-a[0].length)) {
-    if (result.includes(source)) result = result.split(source).join(target);
-  }
-  return result;
 }
 
 function RoleBadge({ role, label }) {
@@ -123,7 +54,7 @@ function RoleBadge({ role, label }) {
 }
 
 function App() {
-  const [language, setLanguage] = useState(() => { try { return localStorage.getItem('vibe-language') || 'en'; } catch { return 'en'; } });
+  const [language, setLanguage] = useState(getStoredLanguage);
   useEffect(() => {
     const updateLanguage = event => setLanguage(event.detail || 'en');
     window.addEventListener('vibe-language-change', updateLanguage);
@@ -168,11 +99,10 @@ function App() {
     return () => window.removeEventListener('vibe-language-change', updateLanguage);
   }, [language]);
   const [tab, setTab] = useState('discover');
-  const [displayMode, setDisplayMode] = useState('large');
   const [user, setUser] = useState(null);
   const [people, setPeople] = useState([]);
   const [likesData, setLikesData] = useState({incoming:[],outgoing:[]});
-  const [myListing, setMyListing] = useState(null);
+  const [mutualIds, setMutualIds] = useState([]);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [reportingPerson, setReportingPerson] = useState(null);
@@ -183,7 +113,9 @@ function App() {
   const [reportedUsername, setReportedUsername] = useState('');
   const [reportEvidence, setReportEvidence] = useState('');
   const [reportEvidenceName, setReportEvidenceName] = useState('');
-  const [feedIndex, setFeedIndex] = useState(0);
+  const [feedSearch, setFeedSearch] = useState('');
+  const [feedCity, setFeedCity] = useState('all');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [listingMediaUrl, setListingMediaUrl] = useState('');
   const [listingMediaType, setListingMediaType] = useState('image');
   const [reportSubmitting, setReportSubmitting] = useState(false);
@@ -193,7 +125,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [maintenance, setMaintenance] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [ageStatus, setAgeStatus] = useState(null);
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -201,6 +132,7 @@ function App() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [listing, setListing] = useState({name:'',age:'',city:'',country:'',hobbies:'',description:''});
   const [publishing, setPublishing] = useState(false);
+  const [listingStep, setListingStep] = useState(1);
 
   async function request(path, options = {}) {
     const response = await fetch(API + path, {
@@ -246,17 +178,17 @@ function App() {
         goal: u.goal || 'both',
         interests: Array.isArray(u.interests) ? u.interests.join(', ') : ''
       });
-      const age = await request('/api/age-status');
-      setAgeStatus(age);
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
       const mine = await request('/api/listings/mine').catch(() => ({listing:null}));
-      setMyListing(mine.listing || null);
       if (mine.listing) { setListing({name:mine.listing.name,age:String(mine.listing.age),city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',description:mine.listing.description||''}); setListingMediaUrl(mine.listing.media_url||''); setListingMediaType(mine.listing.media_type||'image'); }
       const chatData = await request('/api/chats');
       setChats(chatData.chats || []);
       const likes = await request('/api/likes').catch(() => ({incoming:[],outgoing:[]}));
-      setLikesData({incoming:likes.incoming||[],outgoing:likes.outgoing||[]});
+      const incomingLikes = likes.incoming || [];
+      const outgoingLikes = likes.outgoing || [];
+      setLikesData({incoming:incomingLikes,outgoing:outgoingLikes});
+      setMutualIds(incomingLikes.filter(person => outgoingLikes.some(other => String(other.id) === String(person.id))).map(person => String(person.id)));
     } catch (e) {
       if (e.banned) {
         setUser({ account_status: 'banned', moderation_note: e.banReason, ban_issuer_label: e.banIssuer });
@@ -322,8 +254,6 @@ function App() {
         })
       });
       setUser(result.user);
-      const age = await request('/api/age-status');
-      setAgeStatus(age);
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
       setNotice('Профиль сохранён.');
@@ -340,6 +270,7 @@ function App() {
       const result = await request('/api/likes/' + encodeURIComponent(person.id), { method: 'POST' });
       setPeople(current => current.filter(p => p.id !== person.id));
       setLikesData(current => ({incoming:current.incoming.filter(p=>String(p.id)!==String(person.id)),outgoing:[person,...current.outgoing.filter(p=>String(p.id)!==String(person.id))]}));
+      if (result.matched) setMutualIds(current => current.includes(String(person.id)) ? current : [...current, String(person.id)]);
       setNotice(result.matched ? 'У вас взаимная симпатия 💜' : 'Симпатия отправлена.');
     } catch (e) { setError(e.message); }
   }
@@ -347,13 +278,13 @@ function App() {
   async function submitReport(e) {
     e.preventDefault();
     if (!reportingPerson) return;
-    if (!reportReason.trim() || !reporterUsername.trim() || !reportedUsername.trim()) {
-      setError('Укажи свой Telegram-юзернейм, юзернейм пользователя и обязательную причину жалобы.');
+    if (!reportReason.trim()) {
+      setError('Укажи обязательную причину жалобы.');
       return;
     }
     setReportSubmitting(true); setError('');
     try {
-      await request('/api/reports/' + encodeURIComponent(reportingPerson.id), { method:'POST', body:JSON.stringify({reason:reportReason,details:reportDetails,reporterUsername:reporterUsername.trim(),reportedUsername:reportedUsername.trim(),evidence:reportEvidence,reportType,listingId:reportingPerson.listing_id || null}) });
+      await request('/api/reports/' + encodeURIComponent(reportingPerson.id), { method:'POST', body:JSON.stringify({reason:reportReason,details:reportDetails,evidence:reportEvidence,reportType,listingId:reportingPerson.listing_id || null}) });
       setReportingPerson(null); setReportDetails(''); setReportEvidence(''); setReportEvidenceName(''); setReportReason('');
       setNotice('Жалоба отправлена модерации. Спасибо за сигнал.');
     } catch (e) { setError(e.message || 'Не удалось отправить жалобу.'); }
@@ -376,37 +307,83 @@ function App() {
 
   async function sendMessage(e) {
     e.preventDefault();
-    if (!activeChat || !draft.trim()) return;
+    const body = draft.trim();
+    if (!activeChat || !body || sendingMessage) return;
+    setSendingMessage(true);
+    setError('');
     try {
       const data = await request('/api/chats/' + encodeURIComponent(activeChat.user_id) + '/messages', {
-        method: 'POST', body: JSON.stringify({ body: draft.trim() })
+        method: 'POST', body: JSON.stringify({ body })
       });
-      setMessages(current => [...current, data.message]);
+      if (data.message) setMessages(current => [...current, data.message]);
       setDraft('');
-    } catch (e) { setError(e.message); }
+    } catch (e) {
+      setError(e.message || 'Не удалось отправить сообщение.');
+    } finally {
+      setSendingMessage(false);
+    }
   }
 
   async function publishListing(e) {
     e.preventDefault();
     setPublishing(true); setError(''); setNotice('');
     try {
-      if (!user?.birth_date) { setProfileOpen(true); throw new Error('Сначала заполни профиль и укажи дату рождения.'); }
-      const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:Number(listing.age),mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
+      if (!user?.birth_date) {
+        setProfileOpen(true);
+        throw new Error('Сначала заполни профиль и укажи дату рождения.');
+      }
+      const verifiedAge = calculateAgeFromBirthDate(String(user.birth_date).slice(0, 10));
+      if (verifiedAge === null || verifiedAge < 14) {
+        setProfileOpen(true);
+        throw new Error('VIBE доступен с 14 лет. Проверь дату рождения в профиле.');
+      }
+      const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:verifiedAge,mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
       const savedListing={...result.listing,age:String(result.listing.age)};
-      setListing(savedListing);
-      setMyListing(savedListing);
+      setListing({name:savedListing.name,age:String(savedListing.age),city:savedListing.city,country:savedListing.country,hobbies:savedListing.hobbies||'',description:savedListing.description||''});
       setListingMediaUrl(savedListing.media_url || ''); setListingMediaType(savedListing.media_type || 'image');
+      setListingStep(1);
       const discovery=await request('/api/discover'); setPeople(discovery.people||[]);
       setNotice('Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь видеть свою анкету в рекомендациях.');
       setTab('discover');
-    } catch(e) { setError(e.message||'Не удалось опубликовать анкету.'); }
+    } catch(e) { setError(e.message||'Не удалось отправить анкету.'); }
     finally { setPublishing(false); }
+  }
+
+  function continueListingWizard() {
+    setError('');
+    if (listingStep === 1) {
+      if (listing.name.trim().length < 2 || listing.city.trim().length < 2 || listing.country.trim().length < 2) {
+        setError('Укажи имя, город и страну. Имя — не короче 2 символов.');
+        return;
+      }
+      setListingStep(2);
+      return;
+    }
+    if (listingStep === 2) {
+      if (listing.description.trim().length < 5) {
+        setError('Добавь описание о себе (минимум 5 символов).');
+        return;
+      }
+      setListingStep(3);
+    }
   }
 
   async function skip(person) {
     // Hiding a card is only a local action; it does not create a like.
-    setPeople(current => current.filter(p => p.id !== person.id));
+    setPeople(current => current.filter(p => String(p.id) !== String(person.id)));
   }
+
+  const isMutualMatch = personId => mutualIds.includes(String(personId));
+
+  const normalizedFeedSearch = feedSearch.trim().toLocaleLowerCase();
+  const cityOptions = [...new Set(people.map(person => person.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const filteredPeople = people.filter(person => {
+    const searchable = [person.name, person.username, person.city, person.country, person.description, person.bio, ...(person.interests || [])]
+      .filter(Boolean).join(' ').toLocaleLowerCase();
+    const matchesSearch = !normalizedFeedSearch || searchable.includes(normalizedFeedSearch);
+    const matchesCity = feedCity === 'all' || person.city === feedCity;
+    return matchesSearch && matchesCity;
+  });
 
   if (maintenance) return <main className="app-shell"><section className="panel" style={{margin:'10vh auto',maxWidth:560,textAlign:'center',padding:28}}><div style={{fontSize:48}}>🔒</div><h1>VIBE временно закрыт</h1><p style={{whiteSpace:'pre-wrap',lineHeight:1.6}}>{maintenance.reason || 'Проект временно недоступен.'}</p><p>Пожалуйста, попробуйте зайти позже.</p></section></main>;
   if (user?.account_status === 'banned') return <main className={tab === 'discover' ? 'app-shell feed-mode' : 'app-shell'}><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш аккаунт забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Кем заблокирован:</b> {user.ban_issuer_label || (user.ban_issuer === 'developer' ? 'разработчиком' : 'модератором')}</p><p><b>Причина:</b> {user.moderation_note || user.reason || 'Причина не указана'}</p></section></main>;
@@ -414,15 +391,21 @@ function App() {
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><span className="brand-mark">v</span><span>vibe<span className="dot">.</span></span></div><span className="online"><i/> {user ? 'Telegram подключён' : 'знакомства'}</span><LanguagePicker/><button className="avatar" aria-label="Открыть мой профиль" onClick={() => setProfileOpen(true)}>{user?.photo_url ? <img src={user.photo_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/> : (user?.first_name || 'Я').slice(0, 1)}</button></header>
     <section className="hero"><div className="eyebrow"><Sparkles size={14}/> ТВОЯ ВОЛНА</div><h1>Люди, с которыми<br/><span>совпадает вайб.</span></h1><p>Настоящие анкеты пользователей VIBE — без выдуманных профилей.</p></section>
-    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); setLikesData({incoming:data.incoming||[],outgoing:data.outgoing||[]}); } catch(e) { setError(e.message); } }}><Heart size={17}/> Симпатии <span className="tab-count">{likesData.incoming.length}</span></button><button className={tab === 'listing' ? 'active' : ''} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={17}/> Моя анкета</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты <span className="tab-count">{chats.length}</span></button></nav>
+    <nav className="tabs"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={17}/> Знакомства</button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); const incomingLikes = data.incoming || []; const outgoingLikes = data.outgoing || []; setLikesData({incoming:incomingLikes,outgoing:outgoingLikes}); setMutualIds(incomingLikes.filter(person => outgoingLikes.some(other => String(other.id) === String(person.id))).map(person => String(person.id))); } catch(e) { setError(e.message); } }}><Heart size={17}/> Симпатии <span className="tab-count">{likesData.incoming.length}</span></button><button className={tab === 'listing' ? 'active' : ''} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={17}/> Моя анкета</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={17}/> Чаты <span className="tab-count">{chats.length}</span></button></nav>
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
     {error && <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
     {!loading && tab === 'discover' && <section className="people tiktok-feed">
-      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2></div><span className="count">{people.length} публикаций</span></div>
+      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам или городу.</p></div><span className="count">{filteredPeople.length} / {people.length}</span></div>
+      <div className="feed-tools" role="search">
+        <label className="feed-search"><Compass size={17} aria-hidden="true"/><input value={feedSearch} onChange={e=>setFeedSearch(e.target.value)} placeholder="Поиск по имени, интересам или описанию" aria-label="Поиск по анкетам"/></label>
+        <label className="feed-city-filter"><MapPin size={16} aria-hidden="true"/><select value={feedCity} onChange={e=>setFeedCity(e.target.value)} aria-label="Фильтр по городу"><option value="all">Все города</option>{cityOptions.map(city=><option key={city} value={city}>{city}</option>)}</select></label>
+        {(feedSearch || feedCity !== 'all') && <button type="button" className="feed-reset" onClick={()=>{setFeedSearch('');setFeedCity('all');}}>Сбросить</button>}
+      </div>
       {people.length === 0 && <div className="empty"><Sparkles/><h3>Лента пока пуста</h3><p>Публикации появятся, когда пользователи добавят фото или видео и их анкеты будут одобрены.</p><button className="save" onClick={() => setTab('listing')}><PlusCircle size={16}/> Добавить публикацию</button></div>}
-      <div className="feed-scroll" onScroll={e=>{const el=e.currentTarget;setFeedIndex(Math.round(el.scrollTop/Math.max(el.clientHeight,1)));}}>
-      {people.map((p,i) => <article className="feed-post" key={p.id} data-index={i}>
+      {people.length > 0 && filteredPeople.length === 0 && <div className="empty feed-no-results"><Compass/><h3>Ничего не найдено</h3><p>Попробуй изменить поисковый запрос или выбрать другой город.</p><button className="skip" onClick={()=>{setFeedSearch('');setFeedCity('all');}}>Сбросить фильтры</button></div>}
+      {filteredPeople.length > 0 && <div className="feed-scroll" >
+      {filteredPeople.map((p,i) => <article className="feed-post" key={p.id} data-index={i}>
         <div className="feed-media">
           {(p.media_type === 'video' && p.media_url) ? <video className="feed-media-asset" src={p.media_url} controls playsInline loop muted preload="metadata"/> :
             (p.media_url || p.photo_url) ? <img className="feed-media-asset" src={p.media_url || p.photo_url} alt={'Публикация: ' + (p.name || 'пользователь')}/> :
@@ -430,14 +413,14 @@ function App() {
           <div className="feed-media-shade"/>
           <div className="feed-profile-copy"><button className="feed-name" onClick={()=>setViewingProfile(p)}>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}</button><RoleBadge role={p.public_role} label={p.role_label}/><span className="profile-location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span><p>{p.description || p.bio || 'Пока ничего не рассказал о себе.'}</p>{(p.interests || []).length>0 && <div className="profile-interests">{p.interests.slice(0,5).map(x=><span key={x}>#{x}</span>)}</div>}</div>
           <div className="feed-action-rail">
-            {String(p.id)!==String(user?.id) && <><button onClick={()=>like(p)} aria-label="Поставить лайк" title="Лайк"><Heart size={25} fill="currentColor"/><span>Лайк</span></button><button onClick={()=>openChat({user_id:p.id,first_name:p.name||'Пользователь',photo_url:p.photo_url})} aria-label="Написать в личные сообщения" title="Написать"><MessageCircle size={24}/><span>ЛС</span></button><button onClick={()=>{setReportingPerson(p);setReportType('post');setReportReason('');setReportDetails('');setReporterUsername(user?.username?'@'+user.username:'');setReportedUsername(p.username?'@'+p.username:'');setReportEvidence('');setReportEvidenceName('');}} aria-label="Пожаловаться на публикацию" title="Пожаловаться"><Flag size={23}/><span>Жалоба</span></button></>}
+            {String(p.id)!==String(user?.id) && <><button onClick={()=>like(p)} aria-label="Поставить лайк" title="Лайк"><Heart size={25} fill="currentColor"/><span>Лайк</span></button><button onClick={()=>openChat({user_id:p.id,first_name:p.name||'Пользователь',photo_url:p.photo_url})} aria-label="Написать в личные сообщения" title="Написать"><MessageCircle size={24}/><span>Написать</span></button><button onClick={()=>{setReportingPerson(p);setReportType('post');setReportReason('');setReportDetails('');setReporterUsername(user?.username?'@'+user.username:'');setReportedUsername(p.username?'@'+p.username:'');setReportEvidence('');setReportEvidenceName('');}} aria-label="Пожаловаться на публикацию" title="Пожаловаться"><Flag size={23}/><span>Жалоба</span></button></>}
           </div>
         </div>
         <div className="feed-post-footer"><span>@{(p.username || p.name || 'vibe').replace(/^@/,'')}</span><button onClick={()=>setViewingProfile(p)}>Профиль <ArrowRight size={14}/></button><span>{i+1} / {people.length}</span></div>
       </article>)}
-      </div>
+      </div>}
     </section>}
-    {viewingProfile && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setViewingProfile(null)}>← Назад</button><h2>{viewingProfile.name || 'Пользователь'}{viewingProfile.age ? ', ' + viewingProfile.age : ''}</h2><RoleBadge role={viewingProfile.public_role} label={viewingProfile.role_label}/>{viewingProfile.media_type==='video'&&viewingProfile.media_url ? <video src={viewingProfile.media_url} controls playsInline style={{width:'100%',maxHeight:360,borderRadius:14,background:'#0f0d16',margin:'14px 0'}}/> : (viewingProfile.media_url||viewingProfile.photo_url) ? <img src={viewingProfile.media_url||viewingProfile.photo_url} alt="Медиа анкеты" style={{width:'100%',maxHeight:320,objectFit:'contain',borderRadius:14,background:'#0f0d16',margin:'14px 0'}}/> : null}<p><b>Город:</b> {[viewingProfile.city,viewingProfile.country].filter(Boolean).join(', ') || 'Не указан'}</p><p><b>О себе:</b> {viewingProfile.description || viewingProfile.bio || 'Описание не добавлено.'}</p><p><b>Интересы:</b> {(viewingProfile.interests || []).join(', ') || 'Не указаны'}</p>{String(viewingProfile.id) !== String(user?.id) && <div className="profile-actions"><button className="like" onClick={() => { const person = viewingProfile; setViewingProfile(null); like(person); }}><Heart size={17} fill="currentColor"/> Поставить лайк</button><button className="save" onClick={() => openChat({user_id:viewingProfile.id,first_name:viewingProfile.name || 'Пользователь',photo_url:viewingProfile.photo_url})}><MessageCircle size={17}/> Написать в ЛС</button><button className="skip" onClick={() => { setReportingPerson(viewingProfile); setReportType('profile'); setReportReason(''); setReportDetails(''); setReporterUsername(user?.username?'@'+user.username:''); setReportedUsername(viewingProfile.username?'@'+viewingProfile.username:''); setReportEvidence(''); setReportEvidenceName(''); setViewingProfile(null); }}>Пожаловаться</button></div>}</section></div>}
+    {viewingProfile && <div className="report-overlay"><section className="panel report-dialog"><button className="back-chat" onClick={() => setViewingProfile(null)}>← Назад</button><h2>{viewingProfile.name || 'Пользователь'}{viewingProfile.age ? ', ' + viewingProfile.age : ''}</h2><p className="profile-handle">{viewingProfile.username ? '@'+viewingProfile.username : 'Пользователь VIBE'} · анкета #{viewingProfile.listing_id || '—'}</p><RoleBadge role={viewingProfile.public_role} label={viewingProfile.role_label}/>{viewingProfile.media_type==='video'&&viewingProfile.media_url ? <video src={viewingProfile.media_url} controls playsInline style={{width:'100%',maxHeight:360,borderRadius:14,background:'#0f0d16',margin:'14px 0'}}/> : (viewingProfile.media_url||viewingProfile.photo_url) ? <img src={viewingProfile.media_url||viewingProfile.photo_url} alt="Медиа анкеты" style={{width:'100%',maxHeight:320,objectFit:'contain',borderRadius:14,background:'#0f0d16',margin:'14px 0'}}/> : null}<div className="full-profile-details"><p><b>Город и страна</b><span>{[viewingProfile.city,viewingProfile.country].filter(Boolean).join(', ') || 'Не указаны'}</span></p><p><b>О себе</b><span>{viewingProfile.description || viewingProfile.bio || 'Описание не добавлено.'}</span></p><p><b>Хобби и занятия</b><span>{viewingProfile.hobbies || (viewingProfile.interests || []).join(', ') || 'Не указаны'}</span></p><p><b>Интересы</b><span>{(viewingProfile.interests || []).join(', ') || 'Не указаны'}</span></p></div>{String(viewingProfile.id) !== String(user?.id) && <div className="profile-actions"><button className="like" onClick={() => { const person = viewingProfile; setViewingProfile(null); like(person); }}><Heart size={17} fill="currentColor"/> Поставить лайк</button><button className="save" onClick={() => openChat({user_id:viewingProfile.id,first_name:viewingProfile.name || 'Пользователь',photo_url:viewingProfile.photo_url})}><MessageCircle size={17}/> Написать в ЛС</button><button className="skip" onClick={() => { setReportingPerson(viewingProfile); setReportType('profile'); setReportReason(''); setReportDetails(''); setReporterUsername(user?.username?'@'+user.username:''); setReportedUsername(viewingProfile.username?'@'+viewingProfile.username:''); setReportEvidence(''); setReportEvidenceName(''); setViewingProfile(null); }}>Пожаловаться</button></div>}</section></div>}
 
 
     {!loading && tab === 'likes' && <section className="panel">
@@ -458,18 +441,40 @@ function App() {
       <button className="save" style={{marginTop:18}} onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button>
     </section>}
     {!loading && tab === 'chats' && <section className="panel"><div className="panel-icon"><MessageCircle/></div><h2>Твои чаты</h2><p>Переписывайся напрямую с людьми из ленты VIBE.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{(chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
-    {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required/><button className="like" type="submit"><ArrowRight size={17}/></button></form></section>}
-    {!loading && tab === 'listing' && <section className="panel profile-panel"><div className="panel-icon"><PlusCircle/></div><h2>Добавить анкету</h2><p>Это отдельная публичная анкета для рекомендаций. Она не меняет данные твоего профиля Telegram.</p><form onSubmit={publishListing}>
-      <label>Имя<input value={listing.name} onChange={e=>setListing({...listing,name:e.target.value})} minLength={2} maxLength={60} placeholder="Как тебя показывать" required/></label>
-      <label>Возраст (14–100 лет)<input type="number" inputMode="numeric" min="1" max="120" step="1" value={listing.age} onChange={e=>setListing({...listing,age:e.target.value})} placeholder="Например, 22" required/></label>
-      <label>Город<input value={listing.city} onChange={e=>setListing({...listing,city:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Берлин" required/></label>
-      <label>Страна<input value={listing.country} onChange={e=>setListing({...listing,country:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Германия" required/></label>
-      <label>Фото или видео для ленты<span className="media-picker"><ImagePlus size={17}/>{listingMediaUrl ? 'Медиа выбрано · '+(listingMediaType==='video'?'видео':'фото') : 'Выбрать фото или видео'}<input type="file" accept="image/*,video/*" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;const isVideo=file.type.startsWith('video/');if(!file.type.startsWith('image/')&&!isVideo){setError('Выбери фото или видео.');e.target.value='';return;}if(file.size>3*1024*1024){setError('Медиа должно быть не больше 3 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать медиа'));reader.readAsDataURL(file);});setListingMediaUrl(data);setListingMediaType(isVideo?'video':'image');setError('');setNotice('Медиа готово к публикации.');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>{listingMediaUrl && <div className="listing-media-preview">{listingMediaType==='video'?<video src={listingMediaUrl} controls playsInline/>:<img src={listingMediaUrl} alt="Предпросмотр публикации"/>}<button className="skip" type="button" onClick={()=>{setListingMediaUrl('');setListingMediaType('image');}}>Убрать медиа</button></div>}
-      <label>Хобби и занятия<textarea value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, прогулки…"/></label>
-      <label>Описание<textarea value={listing.description} onChange={e=>setListing({...listing,description:e.target.value})} maxLength={1000} placeholder="Расскажи о себе без мата и пошлостей" required/></label>
-      <p className="field-hint">Перед публикацией проверяем текст на ругательства и пошлые выражения. Проверки возрастных групп временно отключены на этапе разработки. Перед запуском платформы их нужно будет вернуть.</p>
-      <button className="save" type="submit" disabled={publishing}><PlusCircle size={16}/>{publishing?'Публикуем…':'Опубликовать анкету'}<ArrowRight size={16}/></button>
-    </form></section>}
+    {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required disabled={sendingMessage}/><button className="like" type="submit" disabled={sendingMessage || !draft.trim()} aria-label="Отправить сообщение">{sendingMessage ? <RefreshCw size={17} className="spin"/> : <ArrowRight size={17}/>}</button></form></section>}
+    {!loading && tab === 'listing' && <section className="panel profile-panel listing-wizard">
+      <div className="listing-wizard-heading">
+        <span className="listing-wizard-icon"><PlusCircle size={22}/></span>
+        <div><span className="feed-kicker">ТВОЯ ИСТОРИЯ</span><h2>{listingStep===1?'Начнём с основ':listingStep===2?'Расскажи о себе':'Последний шаг'}</h2><p>Создай понятную, настоящую анкету. Перед публикацией её проверит модерация.</p></div>
+      </div>
+      <div className="listing-stepper" aria-label="Шаг создания анкеты">
+        {[{n:1,label:'Основное'},{n:2,label:'О тебе'},{n:3,label:'Медиа и отправка'}].map(step=><div key={step.n} className={'listing-step '+(listingStep===step.n?'current':listingStep>step.n?'complete':'')}><span>{listingStep>step.n?'✓':step.n}</span><small>{step.label}</small></div>)}
+      </div>
+      <form onSubmit={listingStep===3?publishListing:e=>{e.preventDefault();continueListingWizard();}}>
+        {listingStep===1 && <div className="listing-step-content">
+          <label>Как тебя показывать?<input autoFocus value={listing.name} onChange={e=>setListing({...listing,name:e.target.value})} minLength={2} maxLength={60} placeholder="Имя или никнейм" required/></label>
+          <div className="listing-two-columns">
+            <label>Город<input value={listing.city} onChange={e=>setListing({...listing,city:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Берлин" required/></label>
+            <label>Страна<input value={listing.country} onChange={e=>setListing({...listing,country:e.target.value})} minLength={2} maxLength={80} placeholder="Германия" required/></label>
+          </div>
+          <div className="listing-info-note"><MapPin size={17}/><span>Указывай только город и страну — не публикуй адрес, школу или другие точные данные о местоположении.</span></div>
+          <button className="save listing-next" type="submit">Продолжить <ArrowRight size={17}/></button>
+        </div>}
+        {listingStep===2 && <div className="listing-step-content">
+          <label>Хобби и занятия<textarea autoFocus value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, рисование, прогулки…"/></label>
+          <label>Немного о тебе<textarea value={listing.description} onChange={e=>setListing({...listing,description:e.target.value})} minLength={5} maxLength={1000} placeholder="Что тебе нравится? О чём интересно поговорить?" required/></label>
+          <p className="field-hint">Не добавляй телефон, адрес, пароли или чужие личные данные. Оскорбления и сексуализированный контент запрещены.</p>
+          <div className="listing-wizard-actions"><button className="skip" type="button" onClick={()=>{setListingStep(1);setError('');}}>Назад</button><button className="save" type="submit">К медиа <ArrowRight size={17}/></button></div>
+        </div>}
+        {listingStep===3 && <div className="listing-step-content">
+          <div className="listing-age-summary"><span className="listing-age-icon"><ShieldCheck size={20}/></span><div><b>Возраст из профиля</b><p>{calculateAgeFromBirthDate(String(user?.birth_date||'').slice(0,10)) ?? '—'} лет · возраст не вводится вручную</p></div></div>
+          <label>Фото или видео для ленты<span className="media-picker"><ImagePlus size={17}/>{listingMediaUrl ? 'Медиа выбрано · '+(listingMediaType==='video'?'видео':'фото') : 'Выбрать фото или видео'}<input type="file" accept="image/*,video/*" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;const isVideo=file.type.startsWith('video/');if(!file.type.startsWith('image/')&&!isVideo){setError('Выбери фото или видео.');e.target.value='';return;}if(file.size>3*1024*1024){setError('Медиа должно быть не больше 3 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать медиа'));reader.readAsDataURL(file);});setListingMediaUrl(data);setListingMediaType(isVideo?'video':'image');setError('');setNotice('Медиа готово к отправке.');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>
+          {listingMediaUrl && <div className="listing-media-preview">{listingMediaType==='video'?<video src={listingMediaUrl} controls playsInline/>:<img src={listingMediaUrl} alt="Предпросмотр анкеты"/>}<button className="skip" type="button" onClick={()=>{setListingMediaUrl('');setListingMediaType('image');}}>Убрать медиа</button></div>}
+          <div className="listing-review-card"><span className="listing-review-check"><ShieldCheck size={18}/></span><div><b>Что будет дальше?</b><p>Анкета уйдёт на проверку. Она появится в ленте других пользователей только после одобрения.</p></div></div>
+          <div className="listing-wizard-actions"><button className="skip" type="button" onClick={()=>{setListingStep(2);setError('');}}>Назад</button><button className="save" type="submit" disabled={publishing}>{publishing?'Отправляем…':'Отправить на проверку'} <ArrowRight size={17}/></button></div>
+        </div>}
+      </form>
+    </section>}
     {profileOpen && <div className="report-overlay" onClick={e => { if (e.target === e.currentTarget && user?.birth_date) setProfileOpen(false); }}><section className="panel report-dialog profile-modal account-profile-modal">{user?.birth_date && <button className="back-chat" type="button" onClick={() => setProfileOpen(false)}>← Закрыть профиль</button>}{!user?.birth_date && <p className="field-hint">Сначала заполни обязательные данные профиля. Без даты рождения продолжить нельзя.</p>}<div className="account-avatar">{user?.photo_url ? <img src={user.photo_url} alt="Аватар" /> : <UserRound size={42}/>}</div><h2>{user?.username ? '@' + user.username : (user?.first_name || 'Пользователь')}</h2><RoleBadge role={user?.public_role} label={user?.role_label}/><div className="account-profile-stats"><div><span>Код аккаунта</span><strong>{user?.account_code || String(user?.id || '').padStart(6,'0')}</strong></div><div><span>Симпатии</span><strong><Heart size={17} fill="currentColor"/> {user?.likes_received || 0}</strong></div></div>
       <form className="profile-panel profile-editor-form" onSubmit={saveProfile}>
         <h3>Настроить анкету</h3>
@@ -484,13 +489,13 @@ function App() {
         <label>О себе<textarea value={profile.bio} maxLength={500} onChange={e=>setProfile({...profile,bio:e.target.value})} placeholder="Расскажи немного о себе…"/></label>
         <label>Цель знакомства<select value={profile.goal} onChange={e=>setProfile({...profile,goal:e.target.value})}><option value="both">Общение и отношения</option><option value="friendship">Дружба</option><option value="chat">Общение</option><option value="relationship">Отношения</option></select></label>
         <label>Интересы через запятую<input value={profile.interests} maxLength={500} onChange={e=>setProfile({...profile,interests:e.target.value})} placeholder="Музыка, игры, кино, спорт"/></label>
-        {ageStatus && !ageStatus.adultAccess && <p className="field-hint">VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Взрослая сторона доступна после предусмотренной сервисом проверки возраста.</p>}
+        <p className="field-hint">VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Доступ к взрослой стороне требует подтверждения возраста.</p>
         <button className="save" type="submit" disabled={saving || uploadingMedia || !profile.birthDate}><Lock size={15}/>{saving ? 'Сохраняем…' : 'Сохранить профиль'}</button>
         <button className="skip profile-public-listing-link" type="button" disabled={!user?.birth_date} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={15}/> Управлять публичной анкетой</button>
       </form>
       </section></div>}
-    {reportingPerson && <div className="report-overlay" onClick={e=>{if(e.target===e.currentTarget){setReportingPerson(null);setError('');}}}><section className="panel report-dialog"><button className="back-chat" type="button" onClick={()=>{setReportingPerson(null);setError('');}}>← Назад</button><h2>Пожаловаться на {reportType === 'post' ? 'публикацию' : 'профиль'}</h2><p>Жалоба отправится модерации VIBE. Причина обязательна; доказательства можно приложить, если они есть.</p><form onSubmit={submitReport}><label>Твой Telegram-юзернейм<input value={reporterUsername} onChange={e=>setReporterUsername(e.target.value)} placeholder="@твой_username" maxLength={64} required/></label><label>Telegram-юзернейм пользователя<input value={reportedUsername} onChange={e=>setReportedUsername(e.target.value)} placeholder="@username_на_кого_жалоба" maxLength={64} required/></label><label>Обязательная причина<select value={reportReason} onChange={e=>setReportReason(e.target.value)} required><option value="" disabled>Выбери причину</option><option>Спам</option><option>Оскорбления или угрозы</option><option>Фейковая анкета</option><option>Неприемлемый контент</option><option>Подозрение на мошенничество</option><option>Преследование или угрозы безопасности</option><option>Другое</option></select></label><label>Подробности<textarea value={reportDetails} onChange={e=>setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло (необязательно)"/></label><label>Доказательства (необязательно)<span className="media-picker"><ImagePlus size={17}/>{reportEvidenceName || 'Прикрепить фото, видео или PDF'}<input type="file" accept="image/*,video/*,application/pdf" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>2*1024*1024){setError('Доказательство должно быть не больше 2 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать файл'));reader.readAsDataURL(file);});setReportEvidence(data);setReportEvidenceName(file.name);setError('');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>{reportEvidence && <button className="skip" type="button" onClick={()=>{setReportEvidence('');setReportEvidenceName('');}}>Убрать доказательство</button>}<button className="save" type="submit" disabled={reportSubmitting}>{reportSubmitting?'Отправляем…':'Отправить жалобу'}</button></form></section></div>}
-    <nav className="mobile-nav" aria-label="Основная навигация"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={20}/><span>Поиск</span></button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); setLikesData({incoming:data.incoming||[],outgoing:data.outgoing||[]}); } catch(e) { setError(e.message); } }}><Heart size={20}/><span>Симпатии</span>{likesData.incoming.length > 0 && <i>{likesData.incoming.length}</i>}</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={20}/><span>Чаты</span>{chats.length > 0 && <i>{chats.length}</i>}</button><button className={profileOpen ? 'active' : ''} onClick={() => setProfileOpen(true)}><UserRound size={20}/><span>Профиль</span></button></nav>
+    {reportingPerson && <div className="report-overlay" onClick={e=>{if(e.target===e.currentTarget){setReportingPerson(null);setError('');}}}><section className="panel report-dialog"><button className="back-chat" type="button" onClick={()=>{setReportingPerson(null);setError('');}}>← Назад</button><h2>Пожаловаться на {reportType === 'post' ? 'публикацию' : 'профиль'}</h2><p>Жалоба отправится модерации VIBE. Причина обязательна; доказательства можно приложить, если они есть.</p><form onSubmit={submitReport}><label>Обязательная причина<select value={reportReason} onChange={e=>setReportReason(e.target.value)} required><option value="" disabled>Выбери причину</option><option>Спам</option><option>Оскорбления или угрозы</option><option>Фейковая анкета</option><option>Неприемлемый контент</option><option>Подозрение на мошенничество</option><option>Преследование или угрозы безопасности</option><option>Другое</option></select></label><label>Подробности<textarea value={reportDetails} onChange={e=>setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло (необязательно)"/></label><label>Доказательства (необязательно)<span className="media-picker"><ImagePlus size={17}/>{reportEvidenceName || 'Прикрепить фото, видео или PDF'}<input type="file" accept="image/*,video/*,application/pdf" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>2*1024*1024){setError('Доказательство должно быть не больше 2 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать файл'));reader.readAsDataURL(file);});setReportEvidence(data);setReportEvidenceName(file.name);setError('');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>{reportEvidence && <button className="skip" type="button" onClick={()=>{setReportEvidence('');setReportEvidenceName('');}}>Убрать доказательство</button>}<button className="save" type="submit" disabled={reportSubmitting}>{reportSubmitting?'Отправляем…':'Отправить жалобу'}</button></form></section></div>}
+    <nav className="mobile-nav" aria-label="Основная навигация"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={20}/><span>Поиск</span></button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); const incomingLikes = data.incoming || []; const outgoingLikes = data.outgoing || []; setLikesData({incoming:incomingLikes,outgoing:outgoingLikes}); setMutualIds(incomingLikes.filter(person => outgoingLikes.some(other => String(other.id) === String(person.id))).map(person => String(person.id))); } catch(e) { setError(e.message); } }}><Heart size={20}/><span>Симпатии</span>{likesData.incoming.length > 0 && <i>{likesData.incoming.length}</i>}</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={20}/><span>Чаты</span>{chats.length > 0 && <i>{chats.length}</i>}</button><button className={tab === 'listing' ? 'active' : ''} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={20}/><span>Моя анкета</span></button></nav>
     <footer><span>vibe. © 2026</span><span className="site-legal-links"><a href="/rules">Правила проекта</a><a href="/privacy">Конфиденциальность</a><Lock size={12}/> Безопасность важна</span></footer>
   </main>;
 }

@@ -1,0 +1,46 @@
+name: VIBE checks
+
+on:
+  push:
+    paths:
+      - "server/**"
+      - "client/**"
+      - ".github/workflows/server-tests.yml"
+  pull_request:
+    paths:
+      - "server/**"
+      - "client/**"
+      - ".github/workflows/server-tests.yml"
+
+jobs:
+  server-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install server dependencies
+        working-directory: server
+        run: npm install
+      - name: Run server tests
+        working-directory: server
+        run: npm test
+
+  client-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install client dependencies
+        working-directory: client
+        run: npm install
+      - name: Build client
+        working-directory: client
+        run: npm run build

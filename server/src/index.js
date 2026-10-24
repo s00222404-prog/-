@@ -3,9 +3,12 @@ import { readFile } from 'node:fs/promises';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import pg from 'pg';
 import { validateTelegramInitData } from './telegram.js';
 import { EXTRA_ADMIN_COMMANDS, handleExtraAdminCommand } from './admin-commands.js';
+import { profileTextProblem } from './moderation/text-policy.js';
+import { ageOnDate } from './age-policy.js';
 
 const app = express();
 const { Pool } = pg;
@@ -31,17 +34,101 @@ const BAN_REASONS = {
   other: { label: 'Другое подтверждённое нарушение правил', reason: 'Другое подтверждённое нарушение правил VIBE' }
 };
 
-function telegramCommandsForRole(_role) { return [{command:'help',description:'Помощь пользователям'}]; }
+const TELEGRAM_COMMAND_DESCRIPTIONS = {
+  help: 'Help and support',
+  adminhelp: 'Show commands available for your role',
+  helpadmin: 'Show administrator help',
+  myrole: 'Show your active and assigned role',
+  switchrole: 'Switch to an assigned role',
+  queue: 'Open moderation queue',
+  ping: 'Check bot response',
+  health: 'Check service health',
+  permissions: 'Show role permissions',
+  stats: 'Show platform statistics',
+  today: 'Show accounts created today',
+  week: 'Show accounts created this week',
+  pending: 'Count profiles awaiting review',
+  published: 'Count published profiles',
+  rejected: 'Count rejected profiles',
+  reports: 'List open user reports',
+  reportstats: 'Show report statistics',
+  flags: 'List moderation flags',
+  flagstats: 'Show moderation flag statistics',
+  recent: 'List recently registered users',
+  inactive: 'List inactive accounts',
+  search: 'Search users by name or username',
+  bycity: 'Count profiles by city',
+  topcities: 'Show popular profile cities',
+  interests: 'Show popular interests',
+  likes: 'Show likes and mutual likes statistics',
+  matches: 'Show mutual matches statistics',
+  chats: 'Show active chat statistics',
+  messages: 'Show message statistics',
+  profiles: 'Show profile statistics',
+  verified: 'Count age-verified adult accounts',
+  unverified: 'Count accounts awaiting age review',
+  agequeue: 'Open age-review queue',
+  ban: 'Ban a user account',
+  unban: 'Restore a banned account',
+  delete: 'Delete a user account',
+  deleteall: 'Preview or confirm bulk account deletion',
+  users: 'Count registered users',
+  bans: 'List banned accounts',
+  staff: 'List team members and roles',
+  admins: 'List administrators',
+  moderators: 'List moderators',
+  helpers: 'List helpers',
+  botinfo: 'Show bot configuration status',
+  dbcheck: 'Check database connectivity',
+  support: 'Open user support options',
+};
+
+function telegramCommandsForRole(role) {
+  const core = [
+    { command: 'help', description: TELEGRAM_COMMAND_DESCRIPTIONS.help },
+    { command: 'adminhelp', description: TELEGRAM_COMMAND_DESCRIPTIONS.adminhelp },
+    { command: 'myrole', description: TELEGRAM_COMMAND_DESCRIPTIONS.myrole },
+    { command: 'switchrole', description: TELEGRAM_COMMAND_DESCRIPTIONS.switchrole },
+    { command: 'queue', description: TELEGRAM_COMMAND_DESCRIPTIONS.queue },
+    { command: 'ping', description: TELEGRAM_COMMAND_DESCRIPTIONS.ping },
+  ];
+  const extra = EXTRA_ADMIN_COMMANDS
+    .filter(item => /^[a-z0-9_]{1,32}$/.test(item.command) && roleCanUseCommand(role, item.command))
+    .map(item => ({
+      command: item.command,
+      description: TELEGRAM_COMMAND_DESCRIPTIONS[item.command] || `Run the ${item.command.replace(/_/g, ' ')} command`,
+    }));
+  const commands = [...core.filter(item => item.command === 'help' || roleCanUseCommand(role, item.command)), ...extra];
+  const unique = [...new Map(commands.map(item => [item.command, item])).values()];
+  return unique.slice(0, 100);
+}
+
 async function hideTelegramCommands(token) {
   if (!token) return;
-  const scopes=[{type:'default'},{type:'all_private_chats'},{type:'all_group_chats'}];
-  const staff=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator','helper')");
-  const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(x=>String(x.telegram_id))]);
-  for(const id of ids) scopes.push({type:'chat',chat_id:Number(id)});
-  for(const scope of scopes) for(const language_code of [undefined,'ru','en']) {
-    const body={commands:scope.type==='default'?[{command:'help',description:'Помощь пользователям'}]:[],scope}; if(language_code) body.language_code=language_code;
-    const r=await fetch('https://api.telegram.org/bot'+token+'/setMyCommands',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-    const result=await r.json(); if(!result.ok) console.error('Telegram menu clear failed:',scope.type,result.description);
+  const call = async (scope, commands) => {
+    const response = await fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ commands, scope }),
+    });
+    const result = await response.json();
+    if (!result.ok) console.error('Telegram command menu update failed:', scope.type, result.description);
+  };
+
+  await call({ type: 'default' }, [{ command: 'help', description: 'Help and support' }]);
+  await call({ type: 'all_group_chats' }, []);
+
+  const staff = await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator','helper')");
+  const staffIds = new Set([
+    DEVELOPER_TELEGRAM_ID,
+    ...(process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(value => value.trim()).filter(Boolean),
+    ...staff.rows.map(row => String(row.telegram_id)),
+  ]);
+
+  for (const id of staffIds) {
+    const role = await getRole(id);
+    if (role === 'none') continue;
+    await call({ type: 'chat', chat_id: Number(id) }, telegramCommandsForRole(role));
   }
 }
 function hashAdminPassword(password,salt){return scryptSync(password,salt,64).toString('hex');}
@@ -111,17 +198,43 @@ app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').sp
 app.use(express.json({ limit: '5mb' }));
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);
 
+// Protect expensive and abuse-prone endpoints. User-scoped limits run after auth;
+// the authentication endpoint is IP-limited because no trusted identity exists yet.
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток входа. Попробуй позже.' },
+});
+const userActionRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.telegram_id
+    ? `telegram:${req.user.telegram_id}`
+    : ipKeyGenerator(req.ip),
+  message: { error: 'Слишком много запросов. Попробуй позже.' },
+});
+const reportRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.telegram_id
+    ? `telegram:${req.user.telegram_id}`
+    : ipKeyGenerator(req.ip),
+  message: { error: 'Слишком много жалоб. Попробуй позже.' },
+});
+
 async function auth(req,res,next) {
   try {
     const maintenance=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");
     if(maintenance.rows[0]?.enabled){const identity=validateTelegramInitData(req.get('X-Telegram-Init-Data'),process.env.BOT_TOKEN);if(String(identity.id)!==DEVELOPER_TELEGRAM_ID)return res.status(503).json({error:'VIBE временно закрыт',maintenance:true,reason:maintenance.rows[0].reason});}
 
     const identity = validateTelegramInitData(req.get('X-Telegram-Init-Data'), process.env.BOT_TOKEN);
-    const q = await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
-      ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
-      RETURNING id,telegram_id,username,first_name,birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status,ban_issuer`,
-      [identity.id,identity.username,identity.firstName,identity.photoUrl]);
-    req.user=q.rows[0];
+    req.user = await upsertTelegramUser(identity);
     if (req.user.account_status === 'banned') {
       return res.status(403).json({ error: 'Ваш аккаунт забанен', banned: true, reason: req.user.moderation_note || 'Причина не указана', moderation_note: req.user.moderation_note || '', ban_issuer: req.user.ban_issuer || 'moderator', ban_issuer_label: (req.user.ban_issuer || 'moderator') === 'developer' ? 'разработчиком' : 'модератором' });
     }
@@ -132,17 +245,29 @@ async function auth(req,res,next) {
   } catch { res.status(401).json({error:'Telegram authentication failed'}); }
 }
 const adminOnly = canManage;
+async function upsertTelegramUser(identity) {
+  const result = await pool.query(`INSERT INTO users (telegram_id, username, first_name, photo_url)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (telegram_id) DO UPDATE
+      SET username = EXCLUDED.username,
+          first_name = EXCLUDED.first_name,
+          photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
+          updated_at = NOW()
+    RETURNING id, telegram_id, username, first_name, birth_date,
+      age_verification_status, age_verified_at, gender, profile_review_status,
+      account_status, bio, city, photo_url, goal, interests, discoverable,
+      moderation_note, public_status, ban_issuer`,
+    [identity.id, identity.username, identity.firstName, identity.photoUrl]);
+  return result.rows[0];
+}
 app.get('/api/service-status',wrap(async(_req,res)=>{const q=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");const m=q.rows[0];res.json({maintenance:Boolean(m?.enabled),reason:m?.reason||''});}));
 app.get('/health',wrap(async(_req,res)=>{const q=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");const m=q.rows[0];const maintenance=Boolean(m?.enabled)||String(process.env.MAINTENANCE_MODE||'').toLowerCase()==='true';res.status(maintenance?503:200).json({ok:!maintenance,status:maintenance?'maintenance':'online',app:'vibe-api',message:maintenance?(m?.reason||process.env.MAINTENANCE_MESSAGE||'Проводятся технические работы. Попробуйте позже.'): 'Сервер работает нормально'});}));
 
-app.post('/api/auth/telegram',wrap(async(req,res)=>{
+app.post('/api/auth/telegram',authRateLimit,wrap(async(req,res)=>{
   const maintenance=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");
   if(maintenance.rows[0]?.enabled){const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);if(String(i.id)!==DEVELOPER_TELEGRAM_ID)return res.status(503).json({error:'VIBE временно закрыт',maintenance:true,reason:maintenance.rows[0].reason});}
   const i=validateTelegramInitData(req.body?.initData,process.env.BOT_TOKEN);
-  const q=await pool.query(`INSERT INTO users (telegram_id,username,first_name,photo_url) VALUES ($1,$2,$3,$4)
-    ON CONFLICT (telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,photo_url=COALESCE(EXCLUDED.photo_url,users.photo_url),updated_at=NOW()
-    RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable,account_status,moderation_note`,[i.id,i.username,i.firstName,i.photoUrl]);
-  const u = q.rows[0];
+  const u = await upsertTelegramUser(i);
   if (u.account_status === 'banned') return res.status(403).json({ error: 'Ваш аккаунт забанен', banned: true, reason: u.moderation_note || 'Причина не указана', moderation_note: u.moderation_note || '' });
   if (['suspended','restricted'].includes(u.account_status)) return res.status(403).json({ error: 'Доступ к аккаунту ограничен', restricted: true, reason: u.moderation_note || 'Причина не указана' });
   res.json({user:u});
@@ -152,12 +277,14 @@ app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
   if(typeof bio!=='string'||bio.length>500||!['friendship','chat','relationship','both'].includes(goal)||!Array.isArray(interests)||interests.length>20) return res.status(400).json({error:'Invalid profile'});
   if(gender!==null&&!['woman','man','nonbinary','prefer_not_to_say'].includes(gender)) return res.status(400).json({error:'Invalid gender'});
-  const d=birthDate?new Date(birthDate+'T00:00:00Z'):null;
-  if(!birthDate||!/^\\d{4}-\\d{2}-\\d{2}$/.test(birthDate)||!d||Number.isNaN(d.getTime())||d.toISOString().slice(0,10)!==birthDate||d>new Date()) return res.status(400).json({error:'Укажи корректную дату рождения, чтобы создать профиль.'});
+  const d = typeof birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? new Date(birthDate + 'T00:00:00Z') : null;
+  if (!d || Number.isNaN(d.getTime()) || d.toISOString().slice(0,10) !== birthDate || birthDate > new Date().toISOString().slice(0,10)) return res.status(400).json({error:'Укажи корректную дату рождения, чтобы создать профиль.'});
   const q=await pool.query(`UPDATE users SET birth_date=$1,age_confirmed=$2,gender=$3,bio=$4,city=$5,photo_url=$6,goal=$7,interests=$8,updated_at=NOW()
     WHERE id=$9 RETURNING id,username,first_name,birth_date,age_verification_status,gender,bio,city,photo_url,goal,interests,discoverable`,
     [birthDate||null,Boolean(birthDate),gender,bio,city,photoUrl,goal,interests,req.user.id]);
-  const age=d?Math.floor((Date.now()-d.getTime())/31557600000):null;
+  const age = ageOnDate(birthDate);
+  if (age === null || age < 14) return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
+  if (age > 100) return res.status(400).json({error:'Проверь дату рождения в профиле.'});
   res.json({user:q.rows[0],route:age===null?'age_gate':age<18?'youth':'adult_verification',adultAccess:false});
 }));
 
@@ -166,14 +293,7 @@ async function getUserAgeBand(userId) {
   if (!q.rowCount) return 'restricted';
   const u = q.rows[0];
   const today = new Date();
-  const ageOn = value => {
-    if (!value) return null;
-    const d = new Date(String(value).slice(0,10) + 'T00:00:00Z');
-    if (Number.isNaN(d.getTime())) return null;
-    let age = today.getUTCFullYear() - d.getUTCFullYear();
-    if (today.getUTCMonth() < d.getUTCMonth() || (today.getUTCMonth() === d.getUTCMonth() && today.getUTCDate() < d.getUTCDate())) age--;
-    return age;
-  };
+  const ageOn = ageOnDate;
   const selfReportedAge = ageOn(u.birth_date);
   if (selfReportedAge !== null && selfReportedAge >= 14 && selfReportedAge <= 17) return 'teen';
   const verifiedAge = ageOn(u.verified_birth_date);
@@ -183,43 +303,22 @@ async function getUserAgeBand(userId) {
 
 app.get('/api/age-status',auth,wrap(async(req,res)=>{
   const q=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
-  const u=q.rows[0]; const d=u.verified_birth_date?new Date(u.verified_birth_date):null;
-  const age=d?Math.floor((Date.now()-d.getTime())/31557600000):null;
-  const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18;
-  const selfAge=u.birth_date?Math.floor((Date.now()-new Date(u.birth_date).getTime())/31557600000):null;
-  const ageBand=selfAge!==null&&selfAge>=14&&selfAge<18?'teen':adultAccess?'adult':'restricted';
+  const u=q.rows[0]; const age=ageOnDate(u.verified_birth_date); const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18; const selfAge=ageOnDate(u.birth_date); const ageBand=selfAge!==null&&selfAge>=14&&selfAge<18?'teen':adultAccess?'adult':'restricted';
   res.json({route:!u.birth_date?'age_gate':selfAge!==null&&selfAge<14?'underage':ageBand==='teen'?'teen':adultAccess?'adult':'adult_verification',ageBand,adultAccess,status:u.age_verification_status});
 }));
 
-const bannedProfileTerms=[
- 'fuck','fucking','motherfucker','shit','bullshit','bitch','bastard','asshole','arsehole','cunt','dick','dickhead','pussy','cock','whore','slut','twat','wanker','jerkoff','retard','fag','faggot','nigger','nigga','kys','rape','rapist','porn','nudes','nude','sex','sexting',
- 'ебать','ебу','ебал','ебан','ёбан','бляд','бля','сука','сучка','хуй','хуя','хуе','пизд','мудил','гандон','залуп','шлюх','секс','порно','дроч','насил','уёб','уеб','мудак','мраз','урод','дебил','идиот','твар','чмо','лох','сдохни','убейся','соси','заеб','нахуй','пошёл нах','пошел нах',
- 'scheisse','scheiß','fick','ficken','ficker','arschloch','hure','schlampe','wichser','hurensohn','fotze','schwanz','muschi','vergewaltig','bastard','idiot','miststück',
- 'putain','merde','connard','connasse','salope','enculé','encule','nique','pute','foutre',
- 'puta','puto','joder','mierda','coño','cono','gilipollas','cabron','cabrón','pendejo','chingar','verga','maricon','maricón',
- 'cazzo','stronzo','vaffanculo','figa','troia','bastardo',
- 'kurwa','chuj','pizda','blyat','suka','cyka','hui','pizdec','pidor','pidaras','zaeb','nahui','huy','huylo','jebac','kurw','dziwka',
-];
-function profileTextProblem(values){
- const text=values.filter(v=>typeof v==='string').join(' ').normalize('NFKC').toLocaleLowerCase();
- const compact=text.replace(/[\s._*\-+!@#$%^&()\[\]{}:;'"~`/\\|]+/g,'');
- return bannedProfileTerms.some(term=>text.includes(term)||compact.includes(term.replace(/[^a-zа-яё]/gi,'')));
-}
 app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
  const q=await pool.query(`SELECT l.user_id AS id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,l.updated_at,l.id AS listing_id FROM listings l WHERE l.user_id=$1`,[req.user.id]);
  res.json({listing:q.rows[0]||null});
 }));
-app.post('/api/listings',auth,wrap(async(req,res)=>{
+app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
  const profileCheck=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
  if(!profileCheck.rows[0]?.birth_date)return res.status(400).json({error:'Сначала заполни профиль и укажи дату рождения.'});
  const ageSource=profileCheck.rows[0].age_verification_status==='verified'&&profileCheck.rows[0].verified_birth_date
    ? profileCheck.rows[0].verified_birth_date : profileCheck.rows[0].birth_date;
- const ageDate=new Date(String(ageSource).slice(0,10)+'T00:00:00Z');
- const today=new Date();
- let actualAge=today.getUTCFullYear()-ageDate.getUTCFullYear();
- if(today.getUTCMonth()<ageDate.getUTCMonth()||(today.getUTCMonth()===ageDate.getUTCMonth()&&today.getUTCDate()<ageDate.getUTCDate()))actualAge--;
- if(!Number.isFinite(actualAge)||actualAge<14||actualAge>100)return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
+ const actualAge=ageOnDate(ageSource);
+ if(actualAge===null||actualAge<14||actualAge>100)return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
  if(actualAge>=18&&profileCheck.rows[0].age_verification_status!=='verified')return res.status(403).json({error:'Для взрослой возрастной группы сначала требуется подтверждение возраста.'});
  if(!Number.isInteger(Number(age))||Number(age)!==actualAge)return res.status(400).json({error:'Возраст анкеты должен совпадать с датой рождения: '+actualAge+'.'});
 
@@ -349,7 +448,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
    `,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand]);
    res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
  }));
-app.post('/api/likes/:userId',auth,wrap(async(req,res)=>{
+app.post('/api/likes/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(id);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Симпатии доступны только пользователям твоей возрастной стороны VIBE.'});
@@ -404,12 +503,10 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Переписка недоступна'});
-  const match=await pool.query('SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2',[req.user.id,other]);
-  if(!match.rowCount)return res.status(403).json({error:'Чат доступен только после взаимной симпатии.'});
   const q=await pool.query(`SELECT id,sender_id,body,created_at FROM messages WHERE match_low=LEAST($1,$2) AND match_high=GREATEST($1,$2) ORDER BY created_at ASC LIMIT 200`,[req.user.id,other]);
   res.json({messages:q.rows});
 }));
-app.post('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
+app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,res)=>{
   const other=Number(req.params.userId); const body=req.body?.body;
   if(!Number.isSafeInteger(other)||other===Number(req.user.id)||typeof body!=='string'||!body.trim()||body.trim().length>4000)return res.status(400).json({error:'Некорректное сообщение'});
   if(profileTextProblem([body]))return res.status(400).json({error:'Сообщение содержит запрещённые ругательства, оскорбления или пошлые выражения. Измени текст и попробуй снова.'});
@@ -419,34 +516,35 @@ app.post('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   if(!target.rowCount)return res.status(404).json({error:'Пользователь недоступен'});
   const blocked=await pool.query('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[req.user.id,other]);
   if(blocked.rowCount)return res.status(403).json({error:'Нельзя отправить сообщение этому пользователю'});
-  const match=await pool.query('SELECT 1 FROM likes a JOIN likes b ON b.from_user=a.to_user AND b.to_user=a.from_user WHERE a.from_user=$1 AND a.to_user=$2',[req.user.id,other]);
-  if(!match.rowCount)return res.status(403).json({error:'Отправлять сообщения можно только после взаимной симпатии.'});
   const q=await pool.query(`INSERT INTO messages(match_low,match_high,sender_id,body) VALUES(LEAST($1,$2),GREATEST($1,$2),$1,$3) RETURNING id,sender_id,body,created_at`,[req.user.id,other,body.trim()]);
   res.status(201).json({message:q.rows[0]});
 }));
-app.post('/api/blocks/:userId',auth,wrap(async(req,res)=>{
+app.post('/api/blocks/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
   await pool.query('INSERT INTO blocks(blocker_id,blocked_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,id]);
   await pool.query('DELETE FROM likes WHERE (from_user=$1 AND to_user=$2) OR (from_user=$2 AND to_user=$1)',[req.user.id,id]);res.json({blocked:true});
 }));
-app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
+app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
   const {reason,details='',reporterUsername,reportedUsername,evidence='',reportType='profile',listingId=null}=req.body||{};
   if(!Number.isSafeInteger(id)||id===Number(req.user.id))return res.status(400).json({error:'Некорректный пользователь для жалобы'});
   if(typeof reason!=='string'||!reason.trim()||reason.trim().length>100)return res.status(400).json({error:'Укажи обязательную причину жалобы'});
   if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
-  if(typeof reporterUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reporterUsername.trim()))return res.status(400).json({error:'Укажи свой Telegram-юзернейм (3–32 символа)'});
-  if(typeof reportedUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reportedUsername.trim()))return res.status(400).json({error:'Укажи Telegram-юзернейм пользователя, на которого жалуешься'});
-  if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
+  if(reporterUsername!==undefined && reporterUsername!==null && reporterUsername!=='' && (typeof reporterUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reporterUsername.trim())))return res.status(400).json({error:'Некорректный Telegram-юзернейм отправителя'});
+  if(reportedUsername!==undefined && reportedUsername!==null && reportedUsername!=='' && (typeof reportedUsername!=='string'||!/^@?[A-Za-z0-9_]{3,32}$/.test(reportedUsername.trim())))return res.status(400).json({error:'Некорректный Telegram-юзернейм пользователя'});  if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
   if(typeof evidence!=='string'||evidence.length>3000000||(evidence&&!(evidence.startsWith('data:image/')||evidence.startsWith('data:video/')||evidence.startsWith('data:application/pdf;'))))return res.status(400).json({error:'Доказательство должно быть фото, видео или PDF до 2 МБ'});
   const targetExists=await pool.query("SELECT id,first_name,username FROM users WHERE id=$1 AND account_status='active'",[id]);
   if(!targetExists.rowCount)return res.status(404).json({error:'Профиль не найден или недоступен'});
   const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Преследование или угрозы безопасности','Другое'];
   if(!allowedReasons.includes(reason.trim()))return res.status(400).json({error:'Выбери причину из списка жалоб'});
-  const reportedHandle=reportedUsername.trim().replace(/^@/,'');
   const authenticatedHandle=(req.user.username||'').trim();
-  if(authenticatedHandle&&reporterUsername.trim().replace(/^@/,'').toLowerCase()!==authenticatedHandle.toLowerCase())return res.status(400).json({error:'Укажи свой настоящий Telegram-юзернейм'});
-  if(targetExists.rows[0].username&&reportedHandle.toLowerCase()!==targetExists.rows[0].username.toLowerCase())return res.status(400).json({error:'Юзернейм не совпадает с выбранным профилем'});
+  const suppliedReporterHandle=typeof reporterUsername==='string'?reporterUsername.trim().replace(/^@/,''):'';
+  if(suppliedReporterHandle&&authenticatedHandle&&suppliedReporterHandle.toLowerCase()!==authenticatedHandle.toLowerCase())return res.status(400).json({error:'Указанный отправитель не совпадает с аккаунтом Telegram'});
+  const actualTargetHandle=(targetExists.rows[0].username||'').trim();
+  const suppliedTargetHandle=typeof reportedUsername==='string'?reportedUsername.trim().replace(/^@/,''):'';
+  if(suppliedTargetHandle&&actualTargetHandle&&suppliedTargetHandle.toLowerCase()!==actualTargetHandle.toLowerCase())return res.status(400).json({error:'Юзернейм не совпадает с выбранным профилем'});
+  const reporterHandle=authenticatedHandle||('vibe-user-'+req.user.id);
+  const reportedHandle=actualTargetHandle||('vibe-user-'+id);
   const safeListingId=listingId===null?null:Number(listingId);
   if(safeListingId!==null&&(!Number.isSafeInteger(safeListingId)||safeListingId<1))return res.status(400).json({error:'Некорректная публикация'});
   if(reportType==='post'){
@@ -454,13 +552,13 @@ app.post('/api/reports/:userId',auth,wrap(async(req,res)=>{
     const post=await pool.query('SELECT id FROM listings WHERE id=$1 AND user_id=$2',[safeListingId,id]);
     if(!post.rowCount)return res.status(400).json({error:'Публикация не принадлежит выбранному профилю'});
   }
-  const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reason.trim(),details.trim(),reporterUsername.trim(),reportedUsername.trim(),evidence,reportType,safeListingId]);
+  const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reason.trim(),details.trim(),reporterHandle,reportedHandle,evidence,reportType,safeListingId]);
   if(process.env.BOT_TOKEN){
     try{
       const roles=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin')");
       const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...roles.rows.map(x=>String(x.telegram_id))]);
       const target=targetExists.rows[0];
-      const reportText=['🚨 Новая жалоба VIBE #'+inserted.rows[0].id,'Тип: '+(reportType==='post'?'на публикацию':'на профиль'),'На пользователя: '+(target.first_name||'неизвестно')+' (@'+reportedHandle+')','От: '+(req.user.first_name||'пользователь')+' ('+reporterUsername.trim()+')','Причина: '+reason.trim(),'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'приложены файлом в Telegram':'не приложены'),'Открой /очередь в боте для модерации.'].join(String.fromCharCode(10));
+      const reportText=['🚨 Новая жалоба VIBE #'+inserted.rows[0].id,'Тип: '+(reportType==='post'?'на публикацию':'на профиль'),'На пользователя: '+(target.first_name||'неизвестно')+' ('+(target.username?'@'+reportedHandle:reportedHandle)+')','От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Причина: '+reason.trim(),'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'приложены файлом в Telegram':'не приложены'),'Открой /очередь в боте для модерации.'].join(String.fromCharCode(10));
       await Promise.all([...ids].map(async telegramId=>{
         try{
           await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText})});
@@ -546,16 +644,6 @@ app.post('/telegram/webhook', (req,res) => {
     const isDeveloper = role === 'developer';
     const adminCommandNames = new Set([...EXTRA_ADMIN_COMMANDS.map(x=>x.command), 'adminhelp','helpadmin','queue','users','пользователи','bans','баны','user','юзер','ban','бан','unban','разбан','delete','удалить','пароли','resetadminpass','часовойпояс','пароль']);
     if(m && cmd.startsWith('/') && adminCommandNames.has(cmd.slice(1)) && roleRank[role]>=roleRank.helper && !roleCanUseCommand(role,cmd)) { await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:'⛔ Команда недоступна для активной роли «'+({helper:'Помощник',moderator:'Модератор',admin:'Администратор',chief_admin:'Главный администратор',developer:'Разработчик'}[role]||role)+'». Используй /adminhelp для списка доступных команд.'})}); return; }
-    if(cb?.data?.startsWith('lang:set:')) {
-      const chosen=cb.data.split(':')[2];
-      if(['en','ru','de'].includes(chosen) && from?.id) {
-        await pool.query("INSERT INTO users(telegram_id,username,first_name,language) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET language=EXCLUDED.language,updated_at=NOW()",[String(from.id),from.username||null,from.first_name||'User',chosen]);
-        botLanguage=chosen;
-        await answer(chosen==='ru'?'Язык сохранён':chosen==='de'?'Sprache gespeichert':'Language saved');
-        await send(chosen==='ru'?'Язык сохранён. Напиши /start, чтобы открыть меню.':chosen==='de'?'Sprache gespeichert. Sende /start, um das Menü zu öffnen.':'Language saved. Send /start to open the menu.');
-      } else await answer('Unsupported language');
-      return;
-    }
     if (m && ['/start','/help','/помощь','/admin','/адм'].includes(cmd)) {
       try { await hideTelegramCommands(token); }
       catch (e) { console.error('Telegram chat command menu refresh failed:', e.message); }
@@ -595,6 +683,15 @@ app.post('/telegram/webhook', (req,res) => {
     const staffTelegramIds=async()=>{const q=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('helper','moderator','admin','chief_admin')");return [...new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...q.rows.map(x=>String(x.telegram_id))])];};
     const edit=async(text,markup)=>fetch('https://api.telegram.org/bot'+token+'/editMessageText',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,message_id:cb.message.message_id,text,...(markup?{reply_markup:markup}:{})})});
     const answer=async(text='')=>fetch('https://api.telegram.org/bot'+token+'/answerCallbackQuery',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({callback_query_id:cb.id,text})});
+    if(cb?.data?.startsWith('lang:set:')) {
+      const chosen=cb.data.split(':')[2];
+      if(['en','ru','de'].includes(chosen) && from?.id) {
+        await pool.query("INSERT INTO users(telegram_id,username,first_name,language) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET language=EXCLUDED.language,updated_at=NOW()",[String(from.id),from.username||null,from.first_name||'User',chosen]);
+        await answer(chosen==='ru'?'Язык сохранён':chosen==='de'?'Sprache gespeichert':'Language saved');
+        await send(chosen==='ru'?'Язык сохранён. Напиши /start, чтобы открыть меню.':chosen==='de'?'Sprache gespeichert. Sende /start, um das Menü zu öffnen.':'Language saved. Send /start to open the menu.');
+      } else await answer('Unsupported language');
+      return;
+    }
     const ownAccount=from?.id ? await pool.query('SELECT account_status,moderation_note,ban_issuer FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]) : {rowCount:0,rows:[]};
     if(m&&(cmd==='/closeproject'||cmd==='/закрытьпроект')){
       if(!isDeveloper){await send('⛔ Эта команда доступна только разработчику.');return;}

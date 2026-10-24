@@ -3,12 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "start": "node src/index.js", "dev": "node --watch src/index.js" },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "pg": "^8.13.1",
-    "stripe": "^18.5.0"
+    "stripe": "^18.5.0",
+    "express-rate-limit": "^7.5.0"
   }
 }
