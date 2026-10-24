@@ -936,10 +936,12 @@ app.post('/telegram/webhook', (req,res) => {
         const actorRole=await getRole(String(from.id));
         if((roleRank[actorRole]??0)<roleRank.moderator){await answer('Проверять и публиковать анкеты может только модератор или роль выше.');return;}
         if(!Number.isSafeInteger(id)||id<=0||!['approve','reject'].includes(act)){await answer('Некорректное действие');return;}
-        const found=await pool.query('SELECT l.id,l.user_id,l.name,u.telegram_id FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=$1',[id]);
+        const found=await pool.query('SELECT l.id,l.user_id,l.name,l.status,u.telegram_id FROM listings l JOIN users u ON u.id=l.user_id WHERE l.id=$1',[id]);
         if(!found.rowCount){await answer('Анкета не найдена');await edit('Анкета уже удалена или не найдена.');return;}
+        if(found.rows[0].status!=='pending'){await answer('Эта анкета уже обработана.');await edit('ℹ️ Решение по анкете #'+id+' уже принято: '+found.rows[0].status+'.');return;}
         const status=act==='approve'?'published':'rejected';
-        await pool.query('UPDATE listings SET status=$1,updated_at=NOW() WHERE id=$2',[status,id]);
+        const updated=await pool.query("UPDATE listings SET status=$1,updated_at=NOW() WHERE id=$2 AND status='pending' RETURNING id",[status,id]);
+        if(!updated.rowCount){await answer('Анкета уже обработана другим модератором.');return;}
         const message=act==='approve'?'✅ Твоя анкета VIBE «'+found.rows[0].name+'» прошла проверку и теперь доступна в рекомендациях.':'⚠️ Анкета VIBE «'+found.rows[0].name+'» не прошла проверку. Пожалуйста, исправьте данные и отправьте анкету повторно.';
         await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:found.rows[0].telegram_id,text:message})}).catch(e=>console.error('Listing decision notification failed:',e.message));
         await answer(act==='approve'?'Анкета одобрена и опубликована.':'Анкета отклонена.');
