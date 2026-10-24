@@ -12,6 +12,8 @@ import { validateReportEvidence } from './moderation/evidence-policy.js';
 import { ageOnDate, ageBandForUser } from './age-policy.js';
 
 const app = express();
+// Render terminates TLS and forwards the original client IP through one trusted proxy.
+app.set('trust proxy', 1);
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined });
 const port = Number(process.env.PORT || 3001);
