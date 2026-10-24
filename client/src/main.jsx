@@ -279,6 +279,7 @@ function App() {
       setPeople(discovery.people || []);
       const mine = await request('/api/listings/mine').catch(() => ({listing:null}));
       if (mine.listing) { setListing(current=>({...current,name:mine.listing.name,age:String(mine.listing.age),birthDate:u.birth_date?String(u.birth_date).slice(0,10):'',gender:u.gender||'',city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',interests:Array.isArray(u.interests)?u.interests.join(', '):'',goal:u.goal||'both',description:mine.listing.description||''})); setListingMediaUrl(mine.listing.media_url||''); setListingMediaType(mine.listing.media_type||'image'); } else { setListing(current=>({...current,birthDate:u.birth_date?String(u.birth_date).slice(0,10):'',gender:u.gender||'',city:u.city||'',interests:Array.isArray(u.interests)?u.interests.join(', '):'',goal:u.goal||'both',description:u.bio||''})); setTab('listing'); setListingStep(1); }
+      if (!u.birth_date) { setTab('listing'); setListingStep(1); }
       const chatData = await request('/api/chats');
       setChats(chatData.chats || []);
       const referrals = await request('/api/referrals').catch(() => ({count:0}));
