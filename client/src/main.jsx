@@ -518,6 +518,7 @@ function App() {
       const freshProfile = await request('/api/me');
       const currentUser = freshProfile.user;
       setUser(currentUser);
+      setProfile({birthDate:currentUser.birth_date?String(currentUser.birth_date).slice(0,10):listing.birthDate,gender:currentUser.gender||listing.gender||'',bio:currentUser.bio||listing.description,city:currentUser.city||listing.city,photoUrl:currentUser.photo_url||profile.photoUrl||(listingMediaType==='image'?listingMediaUrl:''),goal:currentUser.goal||listing.goal||'both',interests:Array.isArray(currentUser.interests)?currentUser.interests.join(', '):listing.interests});
       const birthDate = currentUser?.age_verification_status === 'verified' && currentUser?.verified_birth_date
         ? String(currentUser.verified_birth_date).slice(0, 10)
         : currentUser?.birth_date ? String(currentUser.birth_date).slice(0, 10) : '';
