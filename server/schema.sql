@@ -121,3 +121,14 @@ CREATE TABLE IF NOT EXISTS moderation_flags (
 );
 CREATE INDEX IF NOT EXISTS age_verification_user_idx ON age_verification_requests(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS moderation_flags_status_idx ON moderation_flags(status, created_at);
+
+-- Referral attribution: one valid inviter per newly registered Telegram account.
+CREATE TABLE IF NOT EXISTS referrals (
+  id BIGSERIAL PRIMARY KEY,
+  referrer_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  referred_user_id BIGINT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  referred_telegram_id TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (referrer_user_id <> referred_user_id)
+);
+CREATE INDEX IF NOT EXISTS referrals_referrer_created_idx ON referrals(referrer_user_id, created_at DESC);
