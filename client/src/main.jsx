@@ -106,6 +106,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [people, setPeople] = useState([]);
   const [likesData, setLikesData] = useState({incoming:[],outgoing:[]});
+  const [likingIds, setLikingIds] = useState([]);
   const [mutualIds, setMutualIds] = useState([]);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -270,13 +271,24 @@ function App() {
   }
 
   async function like(person) {
+    const personId = String(person.id);
+    if (!personId || likingIds.includes(personId)) return;
+    setLikingIds(current => current.includes(personId) ? current : [...current, personId]);
+    setError('');
     try {
       const result = await request('/api/likes/' + encodeURIComponent(person.id), { method: 'POST' });
-      setPeople(current => current.filter(p => p.id !== person.id));
-      setLikesData(current => ({incoming:current.incoming.filter(p=>String(p.id)!==String(person.id)),outgoing:[person,...current.outgoing.filter(p=>String(p.id)!==String(person.id))]}));
-      if (result.matched) setMutualIds(current => current.includes(String(person.id)) ? current : [...current, String(person.id)]);
+      setPeople(current => current.filter(p => String(p.id) !== personId));
+      setLikesData(current => ({
+        incoming: current.incoming.filter(p => String(p.id) !== personId),
+        outgoing: [person, ...current.outgoing.filter(p => String(p.id) !== personId)]
+      }));
+      if (result.matched) setMutualIds(current => current.includes(personId) ? current : [...current, personId]);
       setNotice(result.matched ? 'У вас взаимная симпатия 💜' : 'Симпатия отправлена.');
-    } catch (e) { setError(e.message); }
+    } catch (e) {
+      setError(e.message || 'Не удалось отправить симпатию.');
+    } finally {
+      setLikingIds(current => current.filter(id => id !== personId));
+    }
   }
 
   async function submitReport(e) {
@@ -288,7 +300,7 @@ function App() {
     }
     setReportSubmitting(true); setError('');
     try {
-      await request('/api/reports/' + encodeURIComponent(reportingPerson.id), { method:'POST', body:JSON.stringify({reason:reportReason,details:reportDetails,evidence:reportEvidence,reportType,listingId:reportingPerson.listing_id || null}) });
+      await request('/api/reports/' + encodeURIComponent(reportingPerson.id), { method:'POST', body:JSON.stringify({reason:reportReason,details:reportDetails,evidence:reportEvidence,reportType,listingId:reportingPerson.listing_id || null,reporterUsername,reportedUsername}) });
       setReportingPerson(null); setReportDetails(''); setReportEvidence(''); setReportEvidenceName(''); setReportReason('');
       setNotice('Жалоба отправлена модерации. Спасибо за сигнал.');
     } catch (e) { setError(e.message || 'Не удалось отправить жалобу.'); }
@@ -432,7 +444,7 @@ function App() {
           <div className="feed-media-shade"/>
           <div className="feed-profile-copy"><div className="feed-identity"><button className="feed-name" onClick={()=>setViewingProfile(p)}>{p.name || 'Пользователь'}{p.age ? ', '+p.age : ''}</button><RoleBadge role={p.public_role} label={p.role_label}/></div><span className="profile-location"><MapPin size={13}/>{[p.city,p.country].filter(Boolean).join(', ') || 'Местоположение не указано'}</span>{p.hobbies && <p className="feed-hobbies"><strong>Хобби</strong> {p.hobbies}</p>}<p className="feed-description">{p.description || p.bio || 'Пока ничего не рассказал о себе.'}</p>{((p.interests || []).length>0 || p.hobbies) && <div className="profile-interests">{[...(p.interests || []), ...(p.hobbies ? p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [])].filter((x,i,a)=>x && a.indexOf(x)===i).slice(0,5).map(x=><span key={x}>#{x}</span>)}</div>}</div>
           <div className="feed-action-rail">
-            {String(p.id)!==String(user?.id) && <><button onClick={()=>like(p)} aria-label="Поставить лайк" title="Лайк"><Heart size={25} fill="currentColor"/><span>Лайк</span></button><button onClick={()=>openChat({user_id:p.id,first_name:p.name||'Пользователь',photo_url:p.photo_url})} aria-label="Написать в личные сообщения" title="Написать"><MessageCircle size={24}/><span>Написать</span></button><button onClick={()=>{setReportingPerson(p);setReportType('post');setReportReason('');setReportDetails('');setReporterUsername(user?.username?'@'+user.username:'');setReportedUsername(p.username?'@'+p.username:'');setReportEvidence('');setReportEvidenceName('');}} aria-label="Пожаловаться на публикацию" title="Пожаловаться"><Flag size={23}/><span>Жалоба</span></button></>}
+            {String(p.id)!==String(user?.id) && <><button onClick={()=>like(p)} disabled={likingIds.includes(String(p.id))} aria-label="Поставить лайк" title="Лайк"><Heart size={25} fill="currentColor"/><span>{likingIds.includes(String(p.id))?'Отправляем…':'Лайк'}</span></button><button onClick={()=>openChat({user_id:p.id,first_name:p.name||'Пользователь',photo_url:p.photo_url})} aria-label="Написать в личные сообщения" title="Написать"><MessageCircle size={24}/><span>Написать</span></button><button onClick={()=>{setReportingPerson(p);setReportType('post');setReportReason('');setReportDetails('');setReporterUsername(user?.username?'@'+user.username:'');setReportedUsername(p.username?'@'+p.username:'');setReportEvidence('');setReportEvidenceName('');}} aria-label="Пожаловаться на публикацию" title="Пожаловаться"><Flag size={23}/><span>Жалоба</span></button></>}
           </div>
         </div>
         <div className="feed-post-footer"><span>@{(p.username || p.name || 'vibe').replace(/^@/,'')}</span><button onClick={()=>setViewingProfile(p)}>Профиль <ArrowRight size={14}/></button><span>{i+1} / {people.length}</span></div>
@@ -449,7 +461,7 @@ function App() {
       {likesData.incoming.length===0 ? <p className="field-hint">Пока нет новых симпатий. Продолжай знакомиться в ленте.</p> : likesData.incoming.map(person=><div className="chat-row" key={'in-'+person.id}>
         <span className="chat-avatar">{person.photo_url?<img src={person.photo_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>:(person.name||'?').slice(0,1)}</span>
         <span className="chat-row-copy"><b>{person.name}{person.age?', '+person.age:''}</b><small>{[person.city,person.country].filter(Boolean).join(', ')||'VIBE'}</small></span>
-        <button className="like" onClick={()=>like(person)}><Heart size={15} fill="currentColor"/> Взаимно</button>
+        <button className="like" disabled={likingIds.includes(String(person.id))} onClick={()=>like(person)}><Heart size={15} fill="currentColor"/> {likingIds.includes(String(person.id))?'Отправляем…':'Взаимно'}</button>
       </div>)}
       <h3 style={{marginTop:24}}>Ты поставил лайк · {likesData.outgoing.length}</h3>
       {likesData.outgoing.length===0 ? <p className="field-hint">Здесь появятся анкеты, которым ты поставишь лайк.</p> : likesData.outgoing.map(person=><div className="chat-row" key={'out-'+person.id}>
@@ -459,7 +471,7 @@ function App() {
       </div>)}
       <button className="save" style={{marginTop:18}} onClick={() => { setTab('chats'); refreshChats(); }}>Открыть чаты <MessageCircle size={16}/></button>
     </section>}
-    {!loading && tab === 'chats' && <section className="panel"><div className="panel-icon"><MessageCircle/></div><h2>Твои чаты</h2><p>Переписывайся напрямую с людьми из ленты VIBE.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{(chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
+    {!loading && tab === 'chats' && <section className="panel"><div className="panel-icon"><MessageCircle/></div><h2>Твои чаты</h2><p>Переписывайся напрямую с людьми из ленты VIBE.</p>{chats.length === 0 ? <div className="empty"><Heart/><h3>Пока нет чатов</h3><p>Открой ленту и нажми «ЛС» у понравившегося человека, чтобы начать разговор.</p></div> : chats.map(chat => <button className="chat-row" key={chat.user_id} onClick={() => openChat(chat)}><span className="chat-avatar">{chat.photo_url ? <img src={chat.photo_url} alt="" loading="lazy"/> : (chat.first_name || '?').slice(0,1)}</span><span className="chat-row-copy"><b>{chat.first_name}</b><small>{chat.last_message || 'Начни разговор 👋'}</small></span><MessageCircle size={18}/></button>)}</section>}
     {!loading && tab === 'chat' && activeChat && <section className="panel chat-panel"><button className="back-chat" onClick={() => { setTab('chats'); refreshChats(); }}>← Все чаты</button><h2>Чат с {activeChat.first_name}</h2><div className="messages-list">{messages.map(message => <div className={'message-bubble ' + (String(message.sender_id) === String(user?.id) ? 'mine' : '')} key={message.id}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleString()}</small></div>)}</div><form className="chat-compose" onSubmit={sendMessage}><input value={draft} onChange={e => setDraft(e.target.value)} maxLength={4000} placeholder="Напиши сообщение…" required disabled={sendingMessage}/><button className="like" type="submit" disabled={sendingMessage || !draft.trim()} aria-label="Отправить сообщение">{sendingMessage ? <RefreshCw size={17} className="spin"/> : <ArrowRight size={17}/>}</button></form></section>}
     {!loading && tab === 'listing' && <section className="panel profile-panel listing-wizard">
       <div className="listing-wizard-heading">
@@ -513,7 +525,7 @@ function App() {
         <button className="skip profile-public-listing-link" type="button" disabled={!user?.birth_date} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={15}/> Управлять публичной анкетой</button>
       </form>
       </section></div>}
-    {reportingPerson && <div className="report-overlay" onClick={e=>{if(e.target===e.currentTarget){setReportingPerson(null);setError('');}}}><section className="panel report-dialog"><button className="back-chat" type="button" onClick={()=>{setReportingPerson(null);setError('');}}>← Назад</button><h2>Пожаловаться на {reportType === 'post' ? 'публикацию' : 'профиль'}</h2><p>Жалоба отправится модерации VIBE. Причина обязательна; доказательства можно приложить, если они есть.</p><form onSubmit={submitReport}><label>Обязательная причина<select value={reportReason} onChange={e=>setReportReason(e.target.value)} required><option value="" disabled>Выбери причину</option><option>Спам</option><option>Оскорбления или угрозы</option><option>Фейковая анкета</option><option>Неприемлемый контент</option><option>Подозрение на мошенничество</option><option>Преследование или угрозы безопасности</option><option>Другое</option></select></label><label>Подробности<textarea value={reportDetails} onChange={e=>setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло (необязательно)"/></label><label>Доказательства (необязательно)<span className="media-picker"><ImagePlus size={17}/>{reportEvidenceName || 'Прикрепить фото, видео или PDF'}<input type="file" accept="image/*,video/*,application/pdf" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>2*1024*1024){setError('Доказательство должно быть не больше 2 МБ.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать файл'));reader.readAsDataURL(file);});setReportEvidence(data);setReportEvidenceName(file.name);setError('');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>{reportEvidence && <button className="skip" type="button" onClick={()=>{setReportEvidence('');setReportEvidenceName('');}}>Убрать доказательство</button>}<button className="save" type="submit" disabled={reportSubmitting}>{reportSubmitting?'Отправляем…':'Отправить жалобу'}</button></form></section></div>}
+    {reportingPerson && <div className="report-overlay" onClick={e=>{if(e.target===e.currentTarget){setReportingPerson(null);setError('');}}}><section className="panel report-dialog"><button className="back-chat" type="button" onClick={()=>{setReportingPerson(null);setError('');}}>← Назад</button><h2>Пожаловаться на {reportType === 'post' ? 'публикацию' : 'профиль'}</h2><p>Жалоба отправится модерации VIBE. Причина обязательна; доказательства можно приложить, если они есть.</p><form onSubmit={submitReport}><label>Обязательная причина<select value={reportReason} onChange={e=>setReportReason(e.target.value)} required><option value="" disabled>Выбери причину</option><option>Спам</option><option>Оскорбления или угрозы</option><option>Фейковая анкета</option><option>Неприемлемый контент</option><option>Подозрение на мошенничество</option><option>Преследование или угрозы безопасности</option><option>Другое</option></select></label><label>Подробности<textarea value={reportDetails} onChange={e=>setReportDetails(e.target.value)} maxLength={1000} placeholder="Опиши, что произошло (необязательно)"/></label><label>Доказательства (необязательно)<span className="media-picker"><ImagePlus size={17}/>{reportEvidenceName || 'Прикрепить фото, видео или PDF'}<input type="file" accept="image/*,video/*,application/pdf" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>2*1024*1024){setError('Доказательство должно быть не больше 2 МБ.');e.target.value='';return;}const allowedTypes=['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm','application/pdf'];if(!allowedTypes.includes(file.type)){setError('Поддерживаются JPG, PNG, WEBP, GIF, MP4, WEBM или PDF.');e.target.value='';return;}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('Не удалось прочитать файл'));reader.readAsDataURL(file);});setReportEvidence(data);setReportEvidenceName(file.name);setError('');}catch(err){setError(err.message);}e.target.value='';}}/></span></label>{reportEvidence && <button className="skip" type="button" onClick={()=>{setReportEvidence('');setReportEvidenceName('');}}>Убрать доказательство</button>}<button className="save" type="submit" disabled={reportSubmitting}>{reportSubmitting?'Отправляем…':'Отправить жалобу'}</button></form></section></div>}
     <nav className="mobile-nav" aria-label="Основная навигация"><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}><Compass size={20}/><span>Поиск</span></button><button className={tab === 'likes' ? 'active' : ''} onClick={async () => { setTab('likes'); try { const data = await request('/api/likes'); const incomingLikes = data.incoming || []; const outgoingLikes = data.outgoing || []; setLikesData({incoming:incomingLikes,outgoing:outgoingLikes}); setMutualIds(incomingLikes.filter(person => outgoingLikes.some(other => String(other.id) === String(person.id))).map(person => String(person.id))); } catch(e) { setError(e.message); } }}><Heart size={20}/><span>Симпатии</span>{likesData.incoming.length > 0 && <i>{likesData.incoming.length}</i>}</button><button className={tab === 'chats' || tab === 'chat' ? 'active' : ''} onClick={() => { setTab('chats'); refreshChats(); }}><MessageCircle size={20}/><span>Чаты</span>{chats.length > 0 && <i>{chats.length}</i>}</button><button className={tab === 'listing' ? 'active' : ''} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={20}/><span>Моя анкета</span></button></nav>
     <footer><span>vibe. © 2026</span><span className="site-legal-links"><a href="/rules">Правила проекта</a><a href="/privacy">Конфиденциальность</a><Lock size={12}/> Безопасность важна</span></footer>
   </main>;
