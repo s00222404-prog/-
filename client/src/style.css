@@ -1602,3 +1602,38 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
 .report-overlay:not(.profile-fullscreen-overlay) .report-dialog input,
 .report-overlay:not(.profile-fullscreen-overlay) .report-dialog textarea,
 .report-overlay:not(.profile-fullscreen-overlay) .report-dialog select { touch-action:pan-y; }
+
+
+/* Prevent Android/Telegram WebView's blue tap flash; keep interactions smooth */
+*, *::before, *::after {
+  -webkit-tap-highlight-color: transparent;
+}
+button, a, [role="button"], input, textarea, select {
+  -webkit-tap-highlight-color: transparent!important;
+}
+button:focus:not(:focus-visible), a:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible) {
+  outline:none!important;
+}
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+.feed-action-rail button,
+.feed-post button,
+.feed-post a,
+.report-dialog button {
+  -webkit-tap-highlight-color: transparent!important;
+  -webkit-touch-callout:none;
+}
+.feed-post, .feed-scroll, .report-overlay, .report-dialog, .chat-panel, .messages-list {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.feed-scroll {scroll-behavior:smooth; scrollbar-width:none}
+.feed-scroll::-webkit-scrollbar {display:none}
+.feed-post img, .feed-post video { backface-visibility:hidden; }
+@media (prefers-reduced-motion: no-preference) {
+  .feed-action-rail button, .feed-post button, .report-dialog button {
+    transition:background-color .16s ease,color .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease!important;
+  }
+}
