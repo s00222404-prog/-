@@ -1819,3 +1819,32 @@ input:focus, textarea:focus, select:focus {
 
 .invite-count{display:flex;align-items:center;gap:7px;margin:9px 0 0!important;color:#a99ab9;font-size:11px}
 .invite-count strong{color:#d7b8ff;font-size:13px;font-variant-numeric:tabular-nums}
+
+
+/* Full-screen feed keeps the filter controls reachable without restoring the site header. */
+.app-shell.feed-mode .discovery-inspiration-grid{display:none!important}
+.feed-filter-trigger{display:none}
+.feed-filter-overlay{display:none}
+.app-shell.feed-mode .feed-filter-trigger{
+  display:flex;position:fixed;z-index:1100;top:calc(12px + env(safe-area-inset-top));left:12px;
+  align-items:center;gap:7px;padding:10px 13px;border:1px solid rgba(255,255,255,.2);
+  border-radius:999px;background:rgba(19,13,28,.78);backdrop-filter:blur(18px);
+  color:#f3e8ff;font-size:11px;font-weight:800;box-shadow:0 6px 24px #0005
+}
+.app-shell.feed-mode .feed-filter-trigger:hover{background:rgba(83,48,112,.9)}
+.app-shell.feed-mode .feed-filter-overlay{
+  display:grid;position:fixed;z-index:1200;top:calc(58px + env(safe-area-inset-top));left:12px;right:12px;
+  width:auto;max-width:410px;max-height:calc(100dvh - 76px - env(safe-area-inset-bottom));overflow-y:auto;
+  gap:11px;padding:17px;border:1px solid rgba(211,181,255,.24);border-radius:22px;
+  background:rgba(20,15,29,.97);backdrop-filter:blur(24px);box-shadow:0 22px 70px #000a
+}
+.feed-filter-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:2px}
+.feed-filter-heading h3{margin:7px 0 0;color:#f7efff;font-size:19px;letter-spacing:-.5px}
+.feed-filter-overlay .feed-search,.feed-filter-overlay .feed-city-filter{width:100%;box-sizing:border-box}
+.feed-filter-overlay .feed-search input,.feed-filter-overlay .feed-city-filter select{color:#f4eaff}
+.feed-filter-actions{display:grid;grid-template-columns:.8fr 1.2fr;gap:8px;margin-top:2px}
+.feed-filter-actions button{min-width:0;min-height:43px}
+@media(max-width:560px){
+  .app-shell.feed-mode .feed-filter-trigger{top:calc(10px + env(safe-area-inset-top));left:10px;padding:9px 12px}
+  .app-shell.feed-mode .feed-filter-overlay{left:9px;right:9px;top:calc(54px + env(safe-area-inset-top));padding:14px;border-radius:18px}
+}
