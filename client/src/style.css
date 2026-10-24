@@ -1873,3 +1873,102 @@ input:focus, textarea:focus, select:focus {
 }
 .onboarding-interest-suggestions{margin:8px 0 22px}
 .onboarding-interest-suggestions button{min-height:36px}
+
+
+/* Feed redesign: remove duplicate marketing blocks from the discovery experience */
+.app-shell:has(.tiktok-feed) .hero,
+.app-shell:has(.tiktok-feed) .discovery-inspiration-grid,
+.app-shell:has(.tiktok-feed) .feed-tools,
+.app-shell:has(.tiktok-feed) .feed-topline,
+.app-shell:has(.tiktok-feed) footer { display:none !important; }
+.app-shell:has(.tiktok-feed) .people.tiktok-feed { padding:0; margin:0; }
+.app-shell:has(.tiktok-feed) .feed-scroll {
+  height:calc(100dvh - 142px);
+  min-height:480px;
+  max-height:none;
+  width:min(100% - 32px, 760px);
+  margin:0 auto;
+  border-radius:24px;
+  overflow-y:auto;
+  scroll-snap-type:y mandatory;
+  scrollbar-width:none;
+}
+.app-shell:has(.tiktok-feed) .feed-scroll::-webkit-scrollbar { display:none; }
+.app-shell:has(.tiktok-feed) .feed-post {
+  height:100%;
+  min-height:480px;
+  margin:0 0 12px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:24px;
+  box-shadow:0 18px 60px rgba(0,0,0,.28);
+}
+.app-shell:has(.tiktok-feed) .feed-media-shade {
+  background:linear-gradient(180deg,rgba(7,5,12,.38) 0%,transparent 22%,rgba(7,5,12,.04) 42%,rgba(7,5,12,.90) 100%);
+}
+.app-shell:has(.tiktok-feed) .feed-profile-copy {
+  left:clamp(16px,3vw,30px);
+  right:88px;
+  bottom:clamp(20px,4vh,38px);
+  gap:9px;
+}
+.app-shell:has(.tiktok-feed) .feed-profile-copy .feed-description { max-width:540px; }
+.app-shell:has(.tiktok-feed) .feed-action-rail { right:clamp(10px,2vw,20px); bottom:clamp(24px,4vh,40px); gap:13px; }
+.app-shell:has(.tiktok-feed) .feed-action-rail button {
+  min-width:52px;
+  padding:10px 7px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:17px;
+  background:rgba(17,11,27,.62);
+  backdrop-filter:blur(14px);
+}
+.app-shell:has(.tiktok-feed) .feed-post-footer { top:14px; left:14px; right:14px; }
+.app-shell:has(.tiktok-feed) .feed-post-footer > span:first-child,
+.app-shell:has(.tiktok-feed) .feed-post-footer button {
+  background:rgba(17,11,27,.62);
+  border-color:rgba(255,255,255,.16);
+  backdrop-filter:blur(12px);
+}
+@media (min-width:681px) {
+  .app-shell:has(.tiktok-feed) .tabs { width:min(100% - 32px,760px); margin:12px auto; }
+  .app-shell:has(.tiktok-feed) .topbar { width:min(100% - 32px,760px); margin:12px auto 0; }
+  .app-shell:has(.tiktok-feed) .feed-scroll { height:calc(100dvh - 150px); }
+}
+@media (max-width:680px) {
+  .app-shell:has(.tiktok-feed) {
+    width:100%;
+    min-height:100dvh;
+    margin:0;
+    padding:0 0 calc(76px + env(safe-area-inset-bottom));
+    overflow:hidden;
+  }
+  .app-shell:has(.tiktok-feed) .topbar,
+  .app-shell:has(.tiktok-feed) .tabs { display:none !important; }
+  .app-shell:has(.tiktok-feed) .people.tiktok-feed { width:100%; height:100dvh; }
+  .app-shell:has(.tiktok-feed) .feed-scroll {
+    width:100%;
+    height:calc(100dvh - 72px - env(safe-area-inset-bottom));
+    min-height:0;
+    margin:0;
+    border-radius:0;
+    padding:0;
+  }
+  .app-shell:has(.tiktok-feed) .feed-post {
+    width:100%;
+    height:calc(100dvh - 72px - env(safe-area-inset-bottom));
+    min-height:0;
+    margin:0;
+    border:0;
+    border-radius:0;
+    box-shadow:none;
+  }
+  .app-shell:has(.tiktok-feed) .feed-media { border-radius:0; }
+  .app-shell:has(.tiktok-feed) .feed-profile-copy { left:16px; right:76px; bottom:22px; }
+  .app-shell:has(.tiktok-feed) .feed-profile-copy .feed-name { font-size:clamp(25px,7vw,34px); }
+  .app-shell:has(.tiktok-feed) .feed-profile-copy p { font-size:14px; line-height:1.45; -webkit-line-clamp:3; }
+  .app-shell:has(.tiktok-feed) .feed-action-rail { right:10px; bottom:24px; gap:12px; }
+  .app-shell:has(.tiktok-feed) .feed-action-rail button { min-width:48px; padding:9px 5px; border-radius:15px; }
+  .app-shell:has(.tiktok-feed) .feed-post-footer { top:12px; left:12px; right:12px; }
+  .app-shell:has(.tiktok-feed) .feed-filter-trigger { top:calc(12px + env(safe-area-inset-top)); left:12px; }
+  .app-shell:has(.tiktok-feed) .feed-filter-overlay { top:calc(58px + env(safe-area-inset-top)); }
+  .app-shell:has(.tiktok-feed) .mobile-nav { z-index:1300; }
+}
