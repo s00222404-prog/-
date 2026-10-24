@@ -635,7 +635,7 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
 app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
   const code=String(req.params.code||'');
   const reason=typeof req.body?.reason==='string'?req.body.reason.trim():'';
-  if(!/^\\d{6}$/.test(code)) return res.status(400).json({error:'Введи ровно 6 цифр кода профиля'});
+  if(!/^\d{6}$/.test(code)) return res.status(400).json({error:'Введи ровно 6 цифр кода профиля'});
   if(!reason||reason.length>500) return res.status(400).json({error:'Укажи причину бана (до 500 символов)'});
   const target=await pool.query("SELECT id,first_name,username,telegram_id FROM users WHERE lpad(id::text,6,'0')=$1",[code]);
   if(!target.rowCount) return res.status(404).json({error:'Профиль с таким кодом не найден'});
@@ -652,7 +652,7 @@ app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
 }));
 app.get('/api/admin/users/:code',auth,adminOnly,wrap(async(req,res)=>{
   const code=String(req.params.code||'');
-  if(!/^\\d{6}$/.test(code)) return res.status(400).json({error:'Введи ровно 6 цифр кода профиля'});
+  if(!/^\d{6}$/.test(code)) return res.status(400).json({error:'Введи ровно 6 цифр кода профиля'});
   const q=await pool.query("SELECT id,first_name,username,account_status,moderation_note FROM users WHERE lpad(id::text,6,'0')=$1",[code]);
   if(!q.rowCount) return res.status(404).json({error:'Профиль с таким кодом не найден'});
   res.json({user:{...q.rows[0],profile_code:String(q.rows[0].id).padStart(6,'0')}});
