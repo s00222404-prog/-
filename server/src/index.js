@@ -4,7 +4,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import pg from 'pg';
+import { pool } from './db.js';
 import { validateTelegramInitData } from './telegram.js';
 import { EXTRA_ADMIN_COMMANDS, handleExtraAdminCommand } from './admin-commands.js';
 import { profileTextProblem } from './moderation/text-policy.js';
@@ -14,8 +14,6 @@ import { ageOnDate, ageBandForUser } from './age-policy.js';
 const app = express();
 // Render terminates TLS and forwards the original client IP through one trusted proxy.
 app.set('trust proxy', 1);
-const { Pool } = pg;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined });
 const port = Number(process.env.PORT || 3001);
 const DEVELOPER_TELEGRAM_ID = '8745499515';
 // Authenticate Telegram webhook requests even when no stable secret is configured in Render.
@@ -1134,6 +1132,7 @@ async function start() {
     console.log('VIBE database schema ready');
   } catch (err) {
     console.error('VIBE database schema initialization failed:', err.message);
+    throw err;
   }
   app.listen(port, () => {
     console.log('VIBE API listening on ' + port);
@@ -1151,4 +1150,7 @@ async function start() {
     }
   });
 }
-start();
+start().catch((err) => {
+  console.error('VIBE startup failed; HTTP server was not started.');
+  process.exitCode = 1;
+});
