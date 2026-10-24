@@ -1100,7 +1100,7 @@ async function start() {
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_sessions (telegram_id TEXT PRIMARY KEY, unlocked_until TIMESTAMPTZ NOT NULL)');
     await pool.query('CREATE TABLE IF NOT EXISTS admin_access_timezones (telegram_id TEXT PRIMARY KEY, time_zone TEXT NOT NULL)');
     await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_status_check");
-    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected'))");
+    await pool.query("ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (status IN ('draft','pending','published','hidden','rejected')) NOT VALID");
     // Existing databases retain old CREATE TABLE constraints; migrate listing ages for the teen band.
     await pool.query("ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_age_check");
     // Keep legacy rows intact during the policy migration; new writes still enforce the 14–100 range.
