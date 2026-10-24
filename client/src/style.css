@@ -871,3 +871,11 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
  .listing-wizard-actions{gap:8px}
  .listing-wizard-actions button{padding:11px 8px;font-size:12px}
 }
+
+/* Explicit, always-visible language switcher on the privacy page */
+.legal-language-options{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 4px;padding:10px 12px;border:1px solid #514064;border-radius:14px;background:linear-gradient(110deg,#21182d,#15111d);width:fit-content;max-width:100%}
+.legal-language-options span{font-size:12px;font-weight:800;color:#d7c2f4;margin-right:4px}
+.legal-language-options button{appearance:none;border:1px solid #514064;border-radius:10px;padding:9px 13px;background:#17121f;color:#e5d9f4;font-size:13px;font-weight:750;cursor:pointer;min-height:38px}
+.legal-language-options button.selected{background:linear-gradient(135deg,#d2a8ff,#a86aff);border-color:#d2a8ff;color:#21102f;box-shadow:0 4px 15px #a86aff33}
+.legal-language-options button:focus-visible{outline:2px solid #e0c6ff;outline-offset:3px}
+@media(max-width:420px){.legal-language-options{gap:6px;padding:9px}.legal-language-options span{width:100%}.legal-language-options button{flex:1;padding:8px 10px}}
