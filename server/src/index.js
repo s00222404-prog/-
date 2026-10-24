@@ -444,7 +444,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
        WHERE l.user_id=$1 AND u.account_status='active'
        LIMIT 1
      `,[req.user.id,DEVELOPER_TELEGRAM_ID]);
-     return res.json({people:own.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:[...(p.profile_interests||[]),...(p.hobbies?p.hobbies.split(/[,;\\n]/).map(x=>x.trim()).filter(Boolean):[])].filter((value,index,array)=>value&&array.findIndex(item=>item.toLocaleLowerCase()===value.toLocaleLowerCase())===index)}))});
+     return res.json({people:own.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:[...(p.profile_interests||[]),...(p.hobbies?p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean):[])].filter((value,index,array)=>value&&array.findIndex(item=>item.toLocaleLowerCase()===value.toLocaleLowerCase())===index)}))});
    }
    const q=await pool.query(`
      WITH viewer AS (
@@ -492,7 +492,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
      ORDER BY CASE WHEN user_id=$1 THEN 1 ELSE 0 END, RANDOM()
      LIMIT 50
    `,[req.user.id,DEVELOPER_TELEGRAM_ID,viewerBand]);
-   res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:[...(p.profile_interests||[]),...(p.hobbies?p.hobbies.split(/[,;\\n]/).map(x=>x.trim()).filter(Boolean):[])].filter((value,index,array)=>value&&array.findIndex(item=>item.toLocaleLowerCase()===value.toLocaleLowerCase())===index)}))});
+   res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:[...(p.profile_interests||[]),...(p.hobbies?p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean):[])].filter((value,index,array)=>value&&array.findIndex(item=>item.toLocaleLowerCase()===value.toLocaleLowerCase())===index)}))});
  }));
 app.post('/api/likes/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
