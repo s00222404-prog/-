@@ -317,10 +317,6 @@ async function getUserAgeBand(userId) {
 app.get('/api/age-status',auth,wrap(async(req,res)=>{
   const q=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
   const u=q.rows[0]; const age=ageOnDate(u.verified_birth_date); const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18; const selfAge=ageOnDate(u.birth_date); const ageBand=selfAge!==null&&selfAge>=14&&selfAge<18?'teen':adultAccess?'adult':'restricted';
-
-  const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18;
-
-  const ageBand=selfAge!==null&&selfAge>=14&&selfAge<18?'teen':adultAccess?'adult':'restricted';
   res.json({route:!u.birth_date?'age_gate':selfAge!==null&&selfAge<14?'underage':ageBand==='teen'?'teen':adultAccess?'adult':'adult_verification',ageBand,adultAccess,status:u.age_verification_status});
 }));
 
