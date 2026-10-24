@@ -764,8 +764,23 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   if(!evidenceValidation.valid)return res.status(400).json({error:'Доказательство должно быть корректным фото, видео или PDF размером не более 2 МиБ.'});
   const targetExists=await pool.query("SELECT id,first_name,username FROM users WHERE id=$1 AND account_status='active'",[id]);
   if(!targetExists.rowCount)return res.status(404).json({error:'Профиль не найден или недоступен'});
-  const allowedReasons=['Спам','Оскорбления или угрозы','Фейковая анкета','Неприемлемый контент','Подозрение на мошенничество','Преследование или угрозы безопасности','Другое'];
-  if(!allowedReasons.includes(reason.trim()))return res.status(400).json({error:'Выбери причину из списка жалоб'});
+  const allowedReasons={
+    spam:'Спам или навязчивая реклама',
+    scam:'Мошенничество или попытка обмана',
+    harassment:'Оскорбления, травля или преследование',
+    threats:'Угрозы или запугивание',
+    hate_speech:'Разжигание ненависти или дискриминация',
+    sexual:'Сексуальные домогательства или нежелательные сообщения',
+    inappropriate:'Неприемлемый или откровенный контент',
+    fake:'Поддельная анкета или выдача себя за другого',
+    impersonation:'Использование чужих фото или личности',
+    privacy:'Публикация личных данных без согласия',
+    underage:'Нарушение правил возрастных групп',
+    dangerous:'Опасный или незаконный контент',
+    other:'Другая причина'
+  };
+  const reasonLabel=allowedReasons[reason.trim()];
+  if(!reasonLabel)return res.status(400).json({error:'Выбери причину из списка жалоб'});
   const authenticatedHandle=(req.user.username||'').trim();
   const suppliedReporterHandle=typeof reporterUsername==='string'?reporterUsername.trim().replace(/^@/,''):'';
   if(suppliedReporterHandle&&authenticatedHandle&&suppliedReporterHandle.toLowerCase()!==authenticatedHandle.toLowerCase())return res.status(400).json({error:'Указанный отправитель не совпадает с аккаунтом Telegram'});
@@ -781,7 +796,7 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
     const post=await pool.query('SELECT id FROM listings WHERE id=$1 AND user_id=$2',[safeListingId,id]);
     if(!post.rowCount)return res.status(400).json({error:'Публикация не принадлежит выбранному профилю'});
   }
-  const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reason.trim(),details.trim(),reporterHandle,reportedHandle,evidence,reportType,safeListingId]);
+  const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reasonLabel,details.trim(),reporterHandle,reportedHandle,evidence,reportType,safeListingId]);
   if(!process.env.BOT_TOKEN){
     console.error('Report #'+inserted.rows[0].id+' saved, but BOT_TOKEN is missing; admin notification not sent.');
     return res.status(503).json({error:'Жалоба сохранена, но уведомление администрации не отправлено. Команда уже получила технический сигнал.'});
@@ -791,7 +806,7 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
     const roles=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator')");
     const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...roles.rows.map(x=>String(x.telegram_id))]);
     const target=targetExists.rows[0];
-    const reportText=['🚨 Новая жалоба VIBE #'+inserted.rows[0].id,'Тип: '+(reportType==='post'?'на публикацию':'на профиль'),'На пользователя: '+(target.first_name||'неизвестно')+' ('+(target.username?'@'+reportedHandle:reportedHandle)+')','От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Причина: '+reason.trim(),'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'приложены файлом в Telegram':'не приложены'),'Открой /reports в боте для модерации.'].join(String.fromCharCode(10));
+    const reportText=['🚨 Новая жалоба VIBE #'+inserted.rows[0].id,'Тип: '+(reportType==='post'?'на публикацию':'на профиль'),'На пользователя: '+(target.first_name||'неизвестно')+' ('+(target.username?'@'+reportedHandle:reportedHandle)+')','От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Причина: '+reasonLabel,'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'приложены файлом в Telegram':'не приложены'),'Открой /reports в боте для модерации.'].join(String.fromCharCode(10));
     await Promise.all([...ids].map(async telegramId=>{
       try{
         const sent=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText})});
