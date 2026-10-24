@@ -178,7 +178,7 @@ function App() {
   const messagesEndRef = useRef(null);
   const [draft, setDraft] = useState('');
   const [uploadingMedia, setUploadingMedia] = useState(false);
-  const [listing, setListing] = useState({name:'',age:'',city:'',country:'',hobbies:'',description:''});
+  const [listing, setListing] = useState({name:'',age:'',birthDate:'',gender:'',city:'',country:'',hobbies:'',interests:'',goal:'both',description:''});
   const [publishing, setPublishing] = useState(false);
   const [listingStep, setListingStep] = useState(1);
 
@@ -265,7 +265,7 @@ function App() {
       const me = await request('/api/me');
       setUser(me.user);
       const u = me.user;
-      if (!u.birth_date) setProfileOpen(true);
+      if (!u.birth_date) setProfileOpen(false);
       setProfile({
         birthDate: u.birth_date ? String(u.birth_date).slice(0, 10) : '',
         gender: u.gender || '',
@@ -278,7 +278,8 @@ function App() {
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
       const mine = await request('/api/listings/mine').catch(() => ({listing:null}));
-      if (mine.listing) { setListing({name:mine.listing.name,age:String(mine.listing.age),city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',description:mine.listing.description||''}); setListingMediaUrl(mine.listing.media_url||''); setListingMediaType(mine.listing.media_type||'image'); }
+      if (mine.listing) { setListing(current=>({...current,name:mine.listing.name,age:String(mine.listing.age),birthDate:u.birth_date?String(u.birth_date).slice(0,10):'',gender:u.gender||'',city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',interests:Array.isArray(u.interests)?u.interests.join(', '):'',goal:u.goal||'both',description:mine.listing.description||''})); setListingMediaUrl(mine.listing.media_url||''); setListingMediaType(mine.listing.media_type||'image'); } else { setListing(current=>({...current,birthDate:u.birth_date?String(u.birth_date).slice(0,10):'',gender:u.gender||'',city:u.city||'',interests:Array.isArray(u.interests)?u.interests.join(', '):'',goal:u.goal||'both',description:u.bio||''})); setTab('listing'); setListingStep(1); }
+      if (!u.birth_date) { setTab('listing'); setListingStep(1); }
       const chatData = await request('/api/chats');
       setChats(chatData.chats || []);
       const referrals = await request('/api/referrals').catch(() => ({count:0}));
@@ -490,49 +491,60 @@ function App() {
     e.preventDefault();
     setPublishing(true); setError(''); setNotice('');
     try {
-      if (!user?.birth_date) {
-        setProfileOpen(true);
-        throw new Error('Сначала заполни профиль и укажи дату рождения.');
+      if (!listing.birthDate) {
+        setListingStep(1);
+        throw new Error('Укажи дату рождения, чтобы создать профиль.');
       }
-      // Re-read the saved profile before publishing: React state may be stale after profile edits.
+      const age = calculateAgeFromBirthDate(listing.birthDate);
+      if (age === null) {
+        setListingStep(1);
+        throw new Error('Проверь дату рождения.');
+      }
+      if (age < 14) {
+        setListingStep(1);
+        throw new Error('VIBE доступен с 14 лет. Возрастные группы разделены: 14–17 лет и 18+.');
+      }
+      const interests = [...new Set(listing.interests.split(',').map(x=>x.trim()).filter(Boolean))].slice(0,20);
+      // Save the private account profile first, then submit the public listing for review.
+      await request('/api/me', {method:'PUT',body:JSON.stringify({
+        birthDate:listing.birthDate,
+        gender:listing.gender||null,
+        bio:listing.description,
+        city:listing.city.trim(),
+        photoUrl:profile.photoUrl||(listingMediaType==='image'?listingMediaUrl:null),
+        goal:listing.goal||'both',
+        interests
+      })});
       const freshProfile = await request('/api/me');
       const currentUser = freshProfile.user;
       setUser(currentUser);
+      setProfile({birthDate:currentUser.birth_date?String(currentUser.birth_date).slice(0,10):listing.birthDate,gender:currentUser.gender||listing.gender||'',bio:currentUser.bio||listing.description,city:currentUser.city||listing.city,photoUrl:currentUser.photo_url||profile.photoUrl||(listingMediaType==='image'?listingMediaUrl:''),goal:currentUser.goal||listing.goal||'both',interests:Array.isArray(currentUser.interests)?currentUser.interests.join(', '):listing.interests});
       const birthDate = currentUser?.age_verification_status === 'verified' && currentUser?.verified_birth_date
         ? String(currentUser.verified_birth_date).slice(0, 10)
         : currentUser?.birth_date ? String(currentUser.birth_date).slice(0, 10) : '';
-      if (!birthDate) {
-        setProfileOpen(true);
-        throw new Error('Сначала сохрани дату рождения в профиле, затем отправь анкету.');
-      }
       const verifiedAge = calculateAgeFromBirthDate(birthDate);
-      if (verifiedAge === null) {
-        setProfileOpen(true);
-        throw new Error('Не удалось прочитать дату рождения из профиля. Открой профиль, проверь дату и сохрани изменения.');
-      }
-      if (verifiedAge < 14) {
-        setProfileOpen(true);
-        throw new Error('По сохранённой дате рождения тебе меньше 14 лет. Проверь дату в профиле; доступ к VIBE начинается с 14 лет.');
-      }
+      if (verifiedAge === null || verifiedAge < 14) throw new Error('Не удалось подтвердить возраст для создания анкеты.');
       const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:verifiedAge,mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
       const savedListing={...result.listing,age:String(result.listing.age)};
-      setListing({name:savedListing.name,age:String(savedListing.age),city:savedListing.city,country:savedListing.country,hobbies:savedListing.hobbies||'',description:savedListing.description||''});
+      setListing(current=>({...current,...savedListing,age:String(savedListing.age),birthDate,gender:currentUser.gender||'',interests:Array.isArray(currentUser.interests)?currentUser.interests.join(', '):'',goal:currentUser.goal||'both'}));
       setListingMediaUrl(savedListing.media_url || ''); setListingMediaType(savedListing.media_type || 'image');
       setListingStep(1);
       const discovery=await request('/api/discover'); setPeople(discovery.people||[]);
-      setNotice('Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь пользоваться главным меню и открыть ленту анкет самостоятельно.');
+      setNotice('Профиль сохранён, анкета отправлена на проверку. Она появится в ленте после одобрения.');
       setTab('listing');
-    } catch(e) { setError(e.message||'Не удалось отправить анкету.'); }
+    } catch(e) { setError(e.message||'Не удалось создать профиль.'); }
     finally { setPublishing(false); }
   }
 
   function continueListingWizard() {
     setError('');
     if (listingStep === 1) {
-      if (listing.name.trim().length < 2 || listing.city.trim().length < 2 || listing.country.trim().length < 2) {
-        setError('Укажи имя, город и страну. Имя — не короче 2 символов.');
+      if (listing.name.trim().length < 2 || !listing.birthDate || listing.city.trim().length < 2 || listing.country.trim().length < 2) {
+        setError('Укажи имя, дату рождения, город и страну. Имя — не короче 2 символов.');
         return;
       }
+      const age = calculateAgeFromBirthDate(listing.birthDate);
+      if (age === null || age < 14) { setError('VIBE доступен с 14 лет. Проверь дату рождения.'); return; }
       setListingStep(2);
       return;
     }
@@ -659,7 +671,7 @@ function App() {
     {!loading && tab === 'listing' && <section className="panel profile-panel listing-wizard">
       <div className="listing-wizard-heading">
         <span className="listing-wizard-icon"><PlusCircle size={22}/></span>
-        <div><span className="feed-kicker">ТВОЯ ИСТОРИЯ</span><h2>{listingStep===1?'Начнём с основ':listingStep===2?'Расскажи о себе':'Последний шаг'}</h2><p>Создай понятную, настоящую анкету. Перед публикацией её проверит модерация.</p></div>
+        <div><span className="feed-kicker">ТВОЯ ИСТОРИЯ</span><h2>{listingStep===1?'Начнём с основ':listingStep===2?'Расскажи о себе':'Последний шаг'}</h2><p>Заполни профиль и выбери интересы. Анкета появится в ленте после проверки.</p></div>
       </div>
       <div className="listing-stepper" aria-label="Шаг создания анкеты">
         {[{n:1,label:'Основное'},{n:2,label:'О тебе'},{n:3,label:'Медиа и отправка'}].map(step=><div key={step.n} className={'listing-step '+(listingStep===step.n?'current':listingStep>step.n?'complete':'')}><span>{listingStep>step.n?'✓':step.n}</span><small>{step.label}</small></div>)}
@@ -667,6 +679,8 @@ function App() {
       <form onSubmit={listingStep===3?publishListing:e=>{e.preventDefault();continueListingWizard();}}>
         {listingStep===1 && <div className="listing-step-content">
           <label>Как тебя показывать?<input autoFocus value={listing.name} onChange={e=>setListing({...listing,name:e.target.value})} minLength={2} maxLength={60} placeholder="Имя или никнейм" required/></label>
+          <label>Дата рождения<input type="date" value={listing.birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setListing({...listing,birthDate:e.target.value})} required/><span className="field-hint">Нужна для возрастной группы и безопасности. В ленте показывается возраст, а не дата рождения.</span></label>
+          <label>Пол<select value={listing.gender} onChange={e=>setListing({...listing,gender:e.target.value})}><option value="">Не хочу указывать</option><option value="woman">Женский</option><option value="man">Мужской</option><option value="nonbinary">Небинарный</option><option value="prefer_not_to_say">Предпочитаю не указывать</option></select></label>
           <div className="listing-two-columns">
             <label>Город<input value={listing.city} onChange={e=>setListing({...listing,city:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Берлин" required/></label>
             <label>Страна<input value={listing.country} onChange={e=>setListing({...listing,country:e.target.value})} minLength={2} maxLength={80} placeholder="Германия" required/></label>
@@ -675,10 +689,13 @@ function App() {
           <button className="save listing-next" type="submit">Продолжить <ArrowRight size={17}/></button>
         </div>}
         {listingStep===2 && <div className="listing-step-content">
-          <label>Хобби и занятия<textarea autoFocus value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, рисование, прогулки…"/></label>
+          <label>Цель знакомства<select value={listing.goal} onChange={e=>setListing({...listing,goal:e.target.value})}><option value="both">Общение и отношения</option><option value="friendship">Дружба</option><option value="chat">Общение</option><option value="relationship">Отношения</option></select></label>
+          <label>Твои интересы<textarea autoFocus value={listing.interests} onChange={e=>setListing({...listing,interests:e.target.value})} maxLength={500} placeholder="Музыка, игры, кино, спорт…"/></label>
+          <div className="interest-suggestions onboarding-interest-suggestions"><span>Выбери то, что тебе нравится</span><div>{['Музыка','Игры','Кино','Спорт','Книги','Природа','Технологии','Рисование','Путешествия','Животные','Фотография','Танцы'].map(interest=><button key={interest} type="button" className={listing.interests.split(',').map(value=>value.trim().toLocaleLowerCase()).includes(interest.toLocaleLowerCase())?'selected':''} onClick={()=>setListing(current=>{const values=current.interests.split(',').map(value=>value.trim()).filter(Boolean);const exists=values.some(value=>value.toLocaleLowerCase()===interest.toLocaleLowerCase());return {...current,interests:(exists?values.filter(value=>value.toLocaleLowerCase()!==interest.toLocaleLowerCase()):[...values,interest]).slice(0,20).join(', ')};})}>{interest}</button>)}</div></div>
           <label>Немного о тебе<textarea value={listing.description} onChange={e=>setListing({...listing,description:e.target.value})} minLength={5} maxLength={1000} placeholder="Что тебе нравится? О чём интересно поговорить?" required/></label>
+          <label>Хобби и занятия (необязательно)<textarea value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, рисование, прогулки…"/></label>
           <p className="field-hint">Не добавляй телефон, адрес, пароли или чужие личные данные. Оскорбления и сексуализированный контент запрещены.</p>
-          <div className="listing-wizard-actions"><button className="skip" type="button" onClick={()=>{setListingStep(1);setError('');}}>Назад</button><button className="save" type="submit">К медиа <ArrowRight size={17}/></button></div>
+          <div className="listing-wizard-actions"><button className="skip" type="button" onClick={()=>{setListingStep(1);setError('');}}>Назад</button><button className="save" type="submit">К фото <ArrowRight size={17}/></button></div>
         </div>}
         {listingStep===3 && <div className="listing-step-content">
           <div className="listing-age-summary"><span className="listing-age-icon"><ShieldCheck size={20}/></span><div><b>Возраст из профиля</b><p>{calculateAgeFromBirthDate(String(user?.birth_date||'').slice(0,10)) ?? '—'} лет · возраст не вводится вручную</p></div></div>
