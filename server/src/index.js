@@ -1124,8 +1124,9 @@ app.post('/telegram/webhook', (req,res) => {
       }
       markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'},{text:'✉️ Написать в поддержку',callback_data:'support:new'}],[{text:'🛡 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}],[{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
     }else if(cmd==='/адм'||cmd==='/admin'){
-      reply=ok?'VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'⛔ This command is available to administrators only.';
-      if(ok)markup={remove_keyboard:true};
+      const adminAllowed=(roleRank[role]??0)>=roleRank.admin && (isDeveloper || await isAdminUnlocked(from.id));
+      reply=adminAllowed?'🛡 VIBE | ADMIN PANEL\nYour role: '+(role==='developer'?'Developer':ROLE_LABELS[role])+'\nChoose an action from the keyboard below.':'🔒 Админ-меню недоступно. Проверь назначенную роль и введи пароль ещё раз.';
+      if(adminAllowed)markup=adminReplyKeyboard(role);
      }else if(cmd==='/бан'||cmd==='/ban'){
       if(!ok || (roleRank[role]??0)<roleRank.moderator){
         reply='⛔ Для блокировки нужен ранг модератора или выше.';
