@@ -537,8 +537,8 @@ function App() {
   function continueListingWizard() {
     setError('');
     if (listingStep === 1) {
-      if (listing.name.trim().length < 2 || listing.city.trim().length < 2 || listing.country.trim().length < 2) {
-        setError('Укажи имя, город и страну. Имя — не короче 2 символов.');
+      if (listing.name.trim().length < 2 || !listing.birthDate || listing.city.trim().length < 2 || listing.country.trim().length < 2) {
+        setError('Укажи имя, дату рождения, город и страну. Имя — не короче 2 символов.');
         return;
       }
       setListingStep(2);
@@ -675,6 +675,8 @@ function App() {
       <form onSubmit={listingStep===3?publishListing:e=>{e.preventDefault();continueListingWizard();}}>
         {listingStep===1 && <div className="listing-step-content">
           <label>Как тебя показывать?<input autoFocus value={listing.name} onChange={e=>setListing({...listing,name:e.target.value})} minLength={2} maxLength={60} placeholder="Имя или никнейм" required/></label>
+          <label>Дата рождения<input type="date" value={listing.birthDate} max={new Date().toISOString().slice(0,10)} onChange={e=>setListing({...listing,birthDate:e.target.value})} required/><span className="field-hint">Нужна для возрастной группы и безопасности. В ленте показывается возраст, а не дата рождения.</span></label>
+          <label>Пол<select value={listing.gender} onChange={e=>setListing({...listing,gender:e.target.value})}><option value="">Не хочу указывать</option><option value="woman">Женский</option><option value="man">Мужской</option><option value="nonbinary">Небинарный</option><option value="prefer_not_to_say">Предпочитаю не указывать</option></select></label>
           <div className="listing-two-columns">
             <label>Город<input value={listing.city} onChange={e=>setListing({...listing,city:e.target.value})} minLength={2} maxLength={80} placeholder="Например, Берлин" required/></label>
             <label>Страна<input value={listing.country} onChange={e=>setListing({...listing,country:e.target.value})} minLength={2} maxLength={80} placeholder="Германия" required/></label>
@@ -683,10 +685,13 @@ function App() {
           <button className="save listing-next" type="submit">Продолжить <ArrowRight size={17}/></button>
         </div>}
         {listingStep===2 && <div className="listing-step-content">
-          <label>Хобби и занятия<textarea autoFocus value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, рисование, прогулки…"/></label>
+          <label>Цель знакомства<select value={listing.goal} onChange={e=>setListing({...listing,goal:e.target.value})}><option value="both">Общение и отношения</option><option value="friendship">Дружба</option><option value="chat">Общение</option><option value="relationship">Отношения</option></select></label>
+          <label>Твои интересы<textarea autoFocus value={listing.interests} onChange={e=>setListing({...listing,interests:e.target.value})} maxLength={500} placeholder="Музыка, игры, кино, спорт…"/></label>
+          <div className="interest-suggestions onboarding-interest-suggestions"><span>Выбери то, что тебе нравится</span><div>{['Музыка','Игры','Кино','Спорт','Книги','Природа','Технологии','Рисование','Путешествия','Животные','Фотография','Танцы'].map(interest=><button key={interest} type="button" className={listing.interests.split(',').map(value=>value.trim().toLocaleLowerCase()).includes(interest.toLocaleLowerCase())?'selected':''} onClick={()=>setListing(current=>{const values=current.interests.split(',').map(value=>value.trim()).filter(Boolean);const exists=values.some(value=>value.toLocaleLowerCase()===interest.toLocaleLowerCase());return {...current,interests:(exists?values.filter(value=>value.toLocaleLowerCase()!==interest.toLocaleLowerCase()):[...values,interest]).slice(0,20).join(', ')};})}>{interest}</button>)}</div></div>
           <label>Немного о тебе<textarea value={listing.description} onChange={e=>setListing({...listing,description:e.target.value})} minLength={5} maxLength={1000} placeholder="Что тебе нравится? О чём интересно поговорить?" required/></label>
+          <label>Хобби и занятия (необязательно)<textarea value={listing.hobbies} onChange={e=>setListing({...listing,hobbies:e.target.value})} maxLength={300} placeholder="Музыка, спорт, игры, рисование, прогулки…"/></label>
           <p className="field-hint">Не добавляй телефон, адрес, пароли или чужие личные данные. Оскорбления и сексуализированный контент запрещены.</p>
-          <div className="listing-wizard-actions"><button className="skip" type="button" onClick={()=>{setListingStep(1);setError('');}}>Назад</button><button className="save" type="submit">К медиа <ArrowRight size={17}/></button></div>
+          <div className="listing-wizard-actions"><button className="skip" type="button" onClick={()=>{setListingStep(1);setError('');}}>Назад</button><button className="save" type="submit">К фото <ArrowRight size={17}/></button></div>
         </div>}
         {listingStep===3 && <div className="listing-step-content">
           <div className="listing-age-summary"><span className="listing-age-icon"><ShieldCheck size={20}/></span><div><b>Возраст из профиля</b><p>{calculateAgeFromBirthDate(String(user?.birth_date||'').slice(0,10)) ?? '—'} лет · возраст не вводится вручную</p></div></div>
