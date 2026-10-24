@@ -178,7 +178,7 @@ function App() {
   const messagesEndRef = useRef(null);
   const [draft, setDraft] = useState('');
   const [uploadingMedia, setUploadingMedia] = useState(false);
-  const [listing, setListing] = useState({name:'',age:'',city:'',country:'',hobbies:'',description:''});
+  const [listing, setListing] = useState({name:'',age:'',birthDate:'',gender:'',city:'',country:'',hobbies:'',interests:'',goal:'both',description:''});
   const [publishing, setPublishing] = useState(false);
   const [listingStep, setListingStep] = useState(1);
 
@@ -265,7 +265,7 @@ function App() {
       const me = await request('/api/me');
       setUser(me.user);
       const u = me.user;
-      if (!u.birth_date) setProfileOpen(true);
+      if (!u.birth_date) setProfileOpen(false);
       setProfile({
         birthDate: u.birth_date ? String(u.birth_date).slice(0, 10) : '',
         gender: u.gender || '',
@@ -278,7 +278,7 @@ function App() {
       const discovery = await request('/api/discover');
       setPeople(discovery.people || []);
       const mine = await request('/api/listings/mine').catch(() => ({listing:null}));
-      if (mine.listing) { setListing({name:mine.listing.name,age:String(mine.listing.age),city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',description:mine.listing.description||''}); setListingMediaUrl(mine.listing.media_url||''); setListingMediaType(mine.listing.media_type||'image'); }
+      if (mine.listing) { setListing(current=>({...current,name:mine.listing.name,age:String(mine.listing.age),birthDate:u.birth_date?String(u.birth_date).slice(0,10):'',gender:u.gender||'',city:mine.listing.city,country:mine.listing.country,hobbies:mine.listing.hobbies||'',interests:Array.isArray(u.interests)?u.interests.join(', '):'',goal:u.goal||'both',description:mine.listing.description||''})); setListingMediaUrl(mine.listing.media_url||''); setListingMediaType(mine.listing.media_type||'image'); } else { setListing(current=>({...current,birthDate:u.birth_date?String(u.birth_date).slice(0,10):'',gender:u.gender||'',city:u.city||'',interests:Array.isArray(u.interests)?u.interests.join(', '):'',goal:u.goal||'both',description:u.bio||''})); setTab('listing'); setListingStep(1); }
       const chatData = await request('/api/chats');
       setChats(chatData.chats || []);
       const referrals = await request('/api/referrals').catch(() => ({count:0}));
@@ -490,39 +490,47 @@ function App() {
     e.preventDefault();
     setPublishing(true); setError(''); setNotice('');
     try {
-      if (!user?.birth_date) {
-        setProfileOpen(true);
-        throw new Error('Сначала заполни профиль и укажи дату рождения.');
+      if (!listing.birthDate) {
+        setListingStep(1);
+        throw new Error('Укажи дату рождения, чтобы создать профиль.');
       }
-      // Re-read the saved profile before publishing: React state may be stale after profile edits.
+      const age = calculateAgeFromBirthDate(listing.birthDate);
+      if (age === null) {
+        setListingStep(1);
+        throw new Error('Проверь дату рождения.');
+      }
+      if (age < 14) {
+        setListingStep(1);
+        throw new Error('VIBE доступен с 14 лет. Возрастные группы разделены: 14–17 лет и 18+.');
+      }
+      const interests = [...new Set(listing.interests.split(',').map(x=>x.trim()).filter(Boolean))].slice(0,20);
+      // Save the private account profile first, then submit the public listing for review.
+      await request('/api/me', {method:'PUT',body:JSON.stringify({
+        birthDate:listing.birthDate,
+        gender:listing.gender||null,
+        bio:listing.description,
+        city:listing.city.trim(),
+        photoUrl:profile.photoUrl||null,
+        goal:listing.goal||'both',
+        interests
+      })});
       const freshProfile = await request('/api/me');
       const currentUser = freshProfile.user;
       setUser(currentUser);
       const birthDate = currentUser?.age_verification_status === 'verified' && currentUser?.verified_birth_date
         ? String(currentUser.verified_birth_date).slice(0, 10)
         : currentUser?.birth_date ? String(currentUser.birth_date).slice(0, 10) : '';
-      if (!birthDate) {
-        setProfileOpen(true);
-        throw new Error('Сначала сохрани дату рождения в профиле, затем отправь анкету.');
-      }
       const verifiedAge = calculateAgeFromBirthDate(birthDate);
-      if (verifiedAge === null) {
-        setProfileOpen(true);
-        throw new Error('Не удалось прочитать дату рождения из профиля. Открой профиль, проверь дату и сохрани изменения.');
-      }
-      if (verifiedAge < 14) {
-        setProfileOpen(true);
-        throw new Error('По сохранённой дате рождения тебе меньше 14 лет. Проверь дату в профиле; доступ к VIBE начинается с 14 лет.');
-      }
+      if (verifiedAge === null || verifiedAge < 14) throw new Error('Не удалось подтвердить возраст для создания анкеты.');
       const result=await request('/api/listings',{method:'POST',body:JSON.stringify({...listing,age:verifiedAge,mediaUrl:listingMediaUrl||null,mediaType:listingMediaType})});
       const savedListing={...result.listing,age:String(result.listing.age)};
-      setListing({name:savedListing.name,age:String(savedListing.age),city:savedListing.city,country:savedListing.country,hobbies:savedListing.hobbies||'',description:savedListing.description||''});
+      setListing(current=>({...current,...savedListing,age:String(savedListing.age),birthDate,gender:currentUser.gender||'',interests:Array.isArray(currentUser.interests)?currentUser.interests.join(', '):'',goal:currentUser.goal||'both'}));
       setListingMediaUrl(savedListing.media_url || ''); setListingMediaType(savedListing.media_type || 'image');
       setListingStep(1);
       const discovery=await request('/api/discover'); setPeople(discovery.people||[]);
-      setNotice('Анкета сохранена и отправлена на проверку. Она станет видна другим после одобрения. Ты можешь пользоваться главным меню и открыть ленту анкет самостоятельно.');
+      setNotice('Профиль сохранён, анкета отправлена на проверку. Она появится в ленте после одобрения.');
       setTab('listing');
-    } catch(e) { setError(e.message||'Не удалось отправить анкету.'); }
+    } catch(e) { setError(e.message||'Не удалось создать профиль.'); }
     finally { setPublishing(false); }
   }
 
