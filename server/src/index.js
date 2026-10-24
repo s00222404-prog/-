@@ -9,7 +9,7 @@ import { validateTelegramInitData } from './telegram.js';
 import { EXTRA_ADMIN_COMMANDS, handleExtraAdminCommand } from './admin-commands.js';
 import { profileTextProblem } from './moderation/text-policy.js';
 import { validateReportEvidence } from './moderation/evidence-policy.js';
-import { ageOnDate } from './age-policy.js';
+import { ageOnDate, ageBandForUser } from './age-policy.js';
 
 const app = express();
 const { Pool } = pg;
@@ -290,19 +290,21 @@ async function getUserAgeBand(userId) {
   const q = await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1', [userId]);
   if (!q.rowCount) return 'restricted';
   const u = q.rows[0];
-  const today = new Date();
-  const ageOn = ageOnDate;
-  const selfReportedAge = ageOn(u.birth_date);
-  if (selfReportedAge !== null && selfReportedAge >= 14 && selfReportedAge <= 17) return 'teen';
-  const verifiedAge = ageOn(u.verified_birth_date);
-  if (u.age_verification_status === 'verified' && verifiedAge !== null && verifiedAge >= 18) return 'adult';
-  return 'restricted';
+  return ageBandForUser({
+    birthDate: u.birth_date,
+    verifiedBirthDate: u.verified_birth_date,
+    verificationStatus: u.age_verification_status
+  });
 }
 
 app.get('/api/age-status',auth,wrap(async(req,res)=>{
   const q=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
-  const u=q.rows[0]; const age=ageOnDate(u.verified_birth_date); const adultAccess=u.age_verification_status==='verified'&&age!==null&&age>=18; const selfAge=ageOnDate(u.birth_date); const ageBand=selfAge!==null&&selfAge>=14&&selfAge<18?'teen':adultAccess?'adult':'restricted';
-  res.json({route:!u.birth_date?'age_gate':selfAge!==null&&selfAge<14?'underage':ageBand==='teen'?'teen':adultAccess?'adult':'adult_verification',ageBand,adultAccess,status:u.age_verification_status});
+  const u=q.rows[0];
+  const ageBand=ageBandForUser({birthDate:u.birth_date,verifiedBirthDate:u.verified_birth_date,verificationStatus:u.age_verification_status});
+  const adultAccess=ageBand==='adult';
+  const selfAge=ageOnDate(u.birth_date);
+  const route=!u.birth_date?'age_gate':ageBand==='teen'?'teen':ageBand==='adult'?'adult':selfAge!==null&&selfAge<14?'underage':'adult_verification';
+  res.json({route,ageBand,adultAccess,status:u.age_verification_status});
 }));
 
 app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
