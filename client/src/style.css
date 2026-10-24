@@ -1310,3 +1310,27 @@ button:disabled { cursor: not-allowed !important; opacity: .58; transform: none 
   .listing-wizard .media-picker,.listing-wizard .save{transition:none}
   .listing-step-content{animation:none}
 }
+
+
+/* Fix actual discovery listing fields and hierarchy (not just page scale) */
+.app-shell:has(.tiktok-feed) .feed-post{width:100%;max-width:760px;margin-inline:auto;border:1px solid rgba(220,195,255,.2);border-radius:24px}
+.app-shell:has(.tiktok-feed) .feed-identity{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.app-shell:has(.tiktok-feed) .feed-name{display:block;line-height:1.08}
+.app-shell:has(.tiktok-feed) .feed-profile-copy{right:104px;max-width:620px;gap:10px}
+.app-shell:has(.tiktok-feed) .feed-profile-copy .profile-location{display:inline-flex;align-items:center;gap:6px;width:fit-content;padding:7px 10px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(12,9,18,.52);backdrop-filter:blur(10px)}
+.app-shell:has(.tiktok-feed) .feed-profile-copy .feed-hobbies{margin:0;color:#f1e7fb;font-size:12px;line-height:1.45}
+.app-shell:has(.tiktok-feed) .feed-profile-copy .feed-hobbies strong{color:#d5b2ff;margin-right:5px}
+.app-shell:has(.tiktok-feed) .feed-profile-copy .feed-description{margin:0;font-size:clamp(13px,1.35vw,15px);line-height:1.5;max-width:560px}
+.app-shell:has(.tiktok-feed) .feed-profile-copy .profile-interests{display:flex;flex-wrap:wrap;gap:6px;margin-top:1px}
+.app-shell:has(.tiktok-feed) .feed-profile-copy .profile-interests span{padding:6px 9px;border:1px solid rgba(221,190,255,.3);border-radius:999px;background:rgba(25,16,36,.72);color:#f0dfff;font-size:11px;line-height:1.2}
+.app-shell:has(.tiktok-feed) .feed-post-footer{gap:8px}
+.app-shell:has(.tiktok-feed) .feed-post-footer>span:last-child{margin-left:auto;padding:7px 10px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(12,9,18,.52)}
+@media(max-width:620px){
+ .app-shell:has(.tiktok-feed) .feed-post{border-radius:18px}
+ .app-shell:has(.tiktok-feed) .feed-profile-copy{left:15px;right:70px;bottom:18px;gap:8px}
+ .app-shell:has(.tiktok-feed) .feed-identity{gap:7px}
+ .app-shell:has(.tiktok-feed) .feed-name{font-size:25px}
+ .app-shell:has(.tiktok-feed) .feed-profile-copy .feed-hobbies{font-size:11px}
+ .app-shell:has(.tiktok-feed) .feed-profile-copy .feed-description{-webkit-line-clamp:3;font-size:12px}
+ .app-shell:has(.tiktok-feed) .feed-profile-copy .profile-interests span{font-size:9px;padding:5px 7px}
+}
