@@ -489,7 +489,11 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
    res.json({people:q.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:p.hobbies?p.hobbies.split(',').map(x=>x.trim()).filter(Boolean):[]}))});
  }));
 app.post('/api/likes/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
-  const id=Number(req.params.userId); if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
+  const id=Number(req.params.userId);
+  const isDeveloper=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID;
+  // Developer-only self-test returns a simulated success and does not write fake likes.
+  if(isDeveloper && id===Number(req.user.id)) return res.json({liked:true,matched:true,testMode:true,message:'Developer self-like test passed'});
+  if(!Number.isSafeInteger(id)||id===req.user.id)return res.status(400).json({error:'Invalid user'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(id);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Симпатии доступны только пользователям твоей возрастной стороны VIBE.'});
   const q=await pool.query(`SELECT u.id FROM users u WHERE u.id=$1 AND u.account_status='active'
@@ -538,6 +542,8 @@ app.get('/api/chats',auth,wrap(async(req,res)=>{
 }));
 app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
   const other=Number(req.params.userId);
+  const isDeveloper=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID;
+  if(isDeveloper && other===Number(req.user.id)) return res.json({messages:[],testMode:true});
   if(!Number.isSafeInteger(other)||other===Number(req.user.id))return res.status(400).json({error:'Invalid user'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(other);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Личные сообщения доступны только внутри твоей возрастной стороны VIBE.'});
@@ -551,8 +557,11 @@ app.get('/api/chats/:userId/messages',auth,wrap(async(req,res)=>{
 }));
 app.post('/api/chats/:userId/messages',auth,userActionRateLimit,wrap(async(req,res)=>{
   const other=Number(req.params.userId); const body=req.body?.body;
-  if(!Number.isSafeInteger(other)||other===Number(req.user.id)||typeof body!=='string'||!body.trim()||body.trim().length>4000)return res.status(400).json({error:'Некорректное сообщение'});
+  const isDeveloper=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID;
+  if(!Number.isSafeInteger(other)||typeof body!=='string'||!body.trim()||body.trim().length>4000)return res.status(400).json({error:'Некорректное сообщение'});
   if(profileTextProblem([body]))return res.status(400).json({error:'Сообщение содержит запрещённые ругательства, оскорбления или пошлые выражения. Измени текст и попробуй снова.'});
+  if(isDeveloper && other===Number(req.user.id)) return res.status(201).json({message:{id:'test-'+Date.now(),sender_id:req.user.id,body:body.trim(),created_at:new Date().toISOString()},testMode:true});
+  if(other===Number(req.user.id))return res.status(400).json({error:'Invalid user'});
   const viewerBand=await getUserAgeBand(req.user.id), targetBand=await getUserAgeBand(other);
   if(!['teen','adult'].includes(viewerBand)||targetBand!==viewerBand)return res.status(403).json({error:'Личные сообщения доступны только внутри твоей возрастной стороны VIBE.'});
   const target=await pool.query("SELECT id FROM users WHERE id=$1 AND account_status='active'",[other]);
