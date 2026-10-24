@@ -277,3 +277,63 @@ export function translateUiText(value, language) {
   }
   return result;
 }
+
+
+const translatedNodes = new WeakMap();
+const translatedAttributes = new WeakMap();
+const TRANSLATABLE_ATTRIBUTES = ['placeholder', 'title', 'aria-label', 'alt'];
+
+export function observeUiTranslations(language, root = document.getElementById('root')) {
+  if (!root) return () => {};
+  let applying = false;
+  const translateNode = node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const raw = node.nodeValue || '';
+      if (!raw.trim()) return;
+      let state = translatedNodes.get(node);
+      if (!state) state = { original: raw, translated: null };
+      else if (raw !== state.translated) state.original = raw;
+      const next = translateUiText(state.original, language);
+      state.translated = next;
+      translatedNodes.set(node, state);
+      if (raw !== next) node.nodeValue = next;
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const element = node;
+    if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'PATH'].includes(element.tagName)) return;
+    for (const attr of TRANSLATABLE_ATTRIBUTES) {
+      if (!element.hasAttribute(attr)) continue;
+      const raw = element.getAttribute(attr) || '';
+      let map = translatedAttributes.get(element);
+      if (!map) { map = new Map(); translatedAttributes.set(element, map); }
+      let state = map.get(attr);
+      if (!state) state = { original: raw, translated: null };
+      else if (raw !== state.translated) state.original = raw;
+      const next = translateUiText(state.original, language);
+      state.translated = next;
+      map.set(attr, state);
+      if (raw !== next) element.setAttribute(attr, next);
+    }
+    for (const child of element.childNodes) translateNode(child);
+  };
+  const run = () => {
+    if (applying) return;
+    applying = true;
+    try { translateNode(root); } finally { applying = false; }
+  };
+  run();
+  const observer = new MutationObserver(records => {
+    if (applying) return;
+    applying = true;
+    try {
+      for (const record of records) {
+        if (record.type === 'characterData') translateNode(record.target);
+        else if (record.type === 'attributes') translateNode(record.target);
+        else for (const node of record.addedNodes) translateNode(node);
+      }
+    } finally { applying = false; }
+  });
+  observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: TRANSLATABLE_ATTRIBUTES });
+  return () => observer.disconnect();
+}
