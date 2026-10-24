@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import pg from 'pg';
 
 // Keep database construction in one module so the API and background jobs can
@@ -11,7 +12,7 @@ if (!process.env.DATABASE_URL) {
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false' }
+    ? { rejectUnauthorized: true }
     : undefined,
   max: Number.parseInt(process.env.DATABASE_POOL_MAX || '10', 10),
   idleTimeoutMillis: 30_000,
