@@ -156,6 +156,8 @@ function App() {
   const [reportEvidenceName, setReportEvidenceName] = useState('');
   const [feedSearch, setFeedSearch] = useState('');
   const [feedCity, setFeedCity] = useState('all');
+  const [feedGoal, setFeedGoal] = useState('all');
+  const [feedInterest, setFeedInterest] = useState('all');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [listingMediaUrl, setListingMediaUrl] = useState('');
   const [listingMediaType, setListingMediaType] = useState('image');
@@ -495,13 +497,37 @@ function App() {
 
   const normalizedFeedSearch = feedSearch.trim().toLocaleLowerCase();
   const cityOptions = [...new Set(people.map(person => person.city).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const interestOptions = [...new Set(people.flatMap(person => [...(person.interests || []), ...(person.hobbies || '').split(/[,;\\n]/).map(value => value.trim())]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const filteredPeople = people.filter(person => {
-    const searchable = [person.name, person.username, person.city, person.country, person.description, person.bio, ...(person.interests || [])]
+    const searchable = [person.name, person.username, person.city, person.country, person.description, person.bio, person.hobbies, ...(person.interests || [])]
       .filter(Boolean).join(' ').toLocaleLowerCase();
     const matchesSearch = !normalizedFeedSearch || searchable.includes(normalizedFeedSearch);
     const matchesCity = feedCity === 'all' || person.city === feedCity;
-    return matchesSearch && matchesCity;
+    const matchesGoal = feedGoal === 'all' || person.goal === feedGoal || person.goal === 'both';
+    const personInterests = [...(person.interests || []), ...(person.hobbies || '').split(/[,;\\n]/).map(value => value.trim())].filter(Boolean).map(value => value.toLocaleLowerCase());
+    const matchesInterest = feedInterest === 'all' || personInterests.includes(feedInterest.toLocaleLowerCase());
+    return matchesSearch && matchesCity && matchesGoal && matchesInterest;
   });
+  const profileCompletionItems = [
+    { label: 'Фото профиля', done: Boolean(profile.photoUrl || user?.photo_url) },
+    { label: 'Город', done: Boolean(profile.city.trim()) },
+    { label: 'Описание', done: Boolean(profile.bio.trim()) },
+    { label: 'Интересы', done: Boolean(profile.interests.split(',').some(value => value.trim())) },
+    { label: 'Цель общения', done: Boolean(profile.goal) }
+  ];
+  const profileCompletion = Math.round(profileCompletionItems.filter(item => item.done).length / profileCompletionItems.length * 100);
+  const dailyPrompts = {
+    ru: ['Какую песню ты можешь слушать бесконечно?', 'Как выглядит твой идеальный выходной?', 'Какое увлечение ты хотел бы попробовать?', 'Какой фильм ты советуешь всем посмотреть?'],
+    de: ['Welches Lied könntest du endlos hören?', 'Wie sieht dein perfekter freier Tag aus?', 'Welches Hobby möchtest du ausprobieren?', 'Welchen Film würdest du allen empfehlen?'],
+    en: ['What song could you listen to forever?', 'What does your perfect day off look like?', 'What hobby would you like to try?', 'Which film would you recommend to everyone?']
+  };
+  const weeklyThemes = {
+    ru: [{ title: 'Музыка', subtitle: 'Поделись тем, что у тебя на повторе' }, { title: 'Игры', subtitle: 'Найди людей с похожими интересами' }, { title: 'Творчество', subtitle: 'Покажи, что тебя вдохновляет' }, { title: 'Кино и сериалы', subtitle: 'Обсуди любимые истории' }],
+    de: [{ title: 'Musik', subtitle: 'Teile, was bei dir gerade läuft' }, { title: 'Gaming', subtitle: 'Finde Menschen mit ähnlichen Interessen' }, { title: 'Kreativität', subtitle: 'Zeig, was dich inspiriert' }, { title: 'Filme & Serien', subtitle: 'Sprich über deine Lieblingsgeschichten' }],
+    en: [{ title: 'Music', subtitle: 'Share what is on repeat for you' }, { title: 'Gaming', subtitle: 'Find people with similar interests' }, { title: 'Creativity', subtitle: 'Show what inspires you' }, { title: 'Films & series', subtitle: 'Talk about your favourite stories' }]
+  };
+  const dayIndex = Math.floor(Date.now() / 86400000);
+  const weekIndex = Math.floor(dayIndex / 7);
 
   if (maintenance) return <main className="app-shell"><section className="panel" style={{margin:'10vh auto',maxWidth:560,textAlign:'center',padding:28}}><div style={{fontSize:48}}>🔒</div><h1>VIBE временно закрыт</h1><p style={{whiteSpace:'pre-wrap',lineHeight:1.6}}>{maintenance.reason || 'Проект временно недоступен.'}</p><p>Пожалуйста, попробуйте зайти позже.</p></section></main>;
   if (user?.account_status === 'banned') return <main className={tab === 'discover' ? 'app-shell feed-mode' : 'app-shell'}><section className="panel" role="alert" style={{margin:'10vh auto',maxWidth:560,textAlign:'center'}}><div className="panel-icon"><ShieldAlert/></div><h1>Ваш аккаунт забанен</h1><p>Доступ к VIBE закрыт.</p><p><b>Кем заблокирован:</b> {user.ban_issuer_label || (user.ban_issuer === 'developer' ? 'разработчиком' : 'модератором')}</p><p><b>Причина:</b> {user.moderation_note || user.reason || 'Причина не указана'}</p></section></main>;
@@ -514,11 +540,17 @@ function App() {
     {error && /Для взрослой возрастной группы сначала требуется подтверждение возраста\\.|Age verification is required before accessing the adults-only area\\.|Vor dem Zugang zum Erwachsenenbereich ist eine Altersprüfung erforderlich\\./i.test(error) ? <div className="report-overlay" role="presentation"><section className="panel report-dialog" role="dialog" aria-modal="true" aria-labelledby="age-verification-title"><div className="panel-icon"><Lock size={22}/></div><h2 id="age-verification-title">{({ru:'Подтверждение возраста 18+',de:'Altersprüfung für 18+',en:'Age verification for 18+'})[language] || 'Age verification for 18+'}</h2><p>{({ru:'Для доступа к взрослой группе VIBE необходимо пройти ручную проверку возраста.',de:'Für den Zugang zum Erwachsenenbereich von VIBE ist eine manuelle Altersprüfung erforderlich.',en:'Manual age verification is required to access the VIBE adults-only area.'})[language] || 'Manual age verification is required to access the VIBE adults-only area.'}</p><p>{({ru:'Нажмите кнопку ниже, чтобы обратиться в поддержку VIBE через бота. После рассмотрения заявки вы получите уведомление о результате.',de:'Tippe unten, um den VIBE-Support über den Bot zu kontaktieren. Du erhältst eine Benachrichtigung, sobald deine Anfrage geprüft wurde.',en:'Tap the button below to contact VIBE Support through the bot. You will be notified when your request has been reviewed.'})[language] || 'Tap the button below to contact VIBE Support through the bot. You will be notified when your request has been reviewed.'}</p><p className="field-hint">{({ru:'До подтверждения возраста доступ к взрослой группе закрыт.',de:'Der Zugang zum Erwachsenenbereich bleibt bis zur Altersbestätigung gesperrt.',en:'Access to the adults-only area remains locked until your age is verified.'})[language] || 'Access to the adults-only area remains locked until your age is verified.'}</p><a className="save" href="https://t.me/iBEDatig_Bot" target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',justifyContent:'center',textDecoration:'none',width:'100%',boxSizing:'border-box'}}>{({ru:'Связаться с поддержкой VIBE',de:'VIBE-Support kontaktieren',en:'Contact VIBE Support'})[language] || 'Contact VIBE Support'}</a><button className="skip" type="button" style={{width:'100%',marginTop:10}} onClick={()=>setError('')}>{({ru:'Закрыть',de:'Schließen',en:'Close'})[language] || 'Close'}</button></section></div> : <div className="notice" role="alert"><ShieldAlert size={16}/><span>{error}</span><button onClick={loadApp} title="Повторить"><RefreshCw size={15}/></button></div>}
     {loading && <div className="panel"><p>Подключаем VIBE…</p></div>}
     {!loading && tab === 'discover' && <section className="people tiktok-feed">
-      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам или городу.</p></div><span className="count">{filteredPeople.length} / {people.length}</span><button type="button" className="skip feed-exit" onClick={() => setTab("chats")} aria-label="Выйти из ленты анкет">× В меню</button></div>
+      <div className="feed-topline"><div><span className="feed-kicker"><Sparkles size={13}/> VIBE FEED</span><h2>Лента для тебя</h2><p>Найди людей по интересам, городу и цели общения.</p></div><span className="count">{filteredPeople.length} / {people.length}</span><button type="button" className="skip feed-exit" onClick={() => setTab("chats")} aria-label="Выйти из ленты анкет">× В меню</button></div>
+      <div className="discovery-inspiration-grid">
+        <article className="daily-prompt-card"><span className="inspiration-kicker"><Sparkles size={13}/> {({ru:'ВОПРОС ДНЯ',de:'FRAGE DES TAGES',en:'QUESTION OF THE DAY'})[language]}</span><p>{(dailyPrompts[language] || dailyPrompts.en)[dayIndex % dailyPrompts.en.length]}</p><button type="button" onClick={() => { setTab('listing'); setListingStep(2); setListing(current => ({...current, description: current.description ? current.description + '\\n' + (dailyPrompts[language] || dailyPrompts.en)[dayIndex % dailyPrompts.en.length] : (dailyPrompts[language] || dailyPrompts.en)[dayIndex % dailyPrompts.en.length]})); }}>{({ru:'Ответить в анкете',de:'Im Profil beantworten',en:'Answer in your profile'})[language]} <ArrowRight size={14}/></button></article>
+        <article className="weekly-theme-card"><span className="inspiration-kicker"><Sparkles size={13}/> {({ru:'ТЕМА НЕДЕЛИ',de:'THEMA DER WOCHE',en:'WEEKLY THEME'})[language]}</span><h3>{(weeklyThemes[language] || weeklyThemes.en)[weekIndex % weeklyThemes.en.length].title}</h3><p>{(weeklyThemes[language] || weeklyThemes.en)[weekIndex % weeklyThemes.en.length].subtitle}</p><button type="button" onClick={() => { setFeedSearch((weeklyThemes[language] || weeklyThemes.en)[weekIndex % weeklyThemes.en.length].title); setFeedInterest('all'); }}>{({ru:'Найти по теме',de:'Passende Profile finden',en:'Explore this theme'})[language]} <ArrowRight size={14}/></button></article>
+      </div>
       <div className="feed-tools" role="search">
         <label className="feed-search"><Compass size={17} aria-hidden="true"/><input value={feedSearch} onChange={e=>setFeedSearch(e.target.value)} placeholder="Поиск по имени, интересам или описанию" aria-label="Поиск по анкетам"/></label>
         <label className="feed-city-filter"><MapPin size={16} aria-hidden="true"/><select value={feedCity} onChange={e=>setFeedCity(e.target.value)} aria-label="Фильтр по городу"><option value="all">Все города</option>{cityOptions.map(city=><option key={city} value={city}>{city}</option>)}</select></label>
-        {(feedSearch || feedCity !== 'all') && <button type="button" className="feed-reset" onClick={()=>{setFeedSearch('');setFeedCity('all');}}>Сбросить</button>}
+        <label className="feed-city-filter"><Heart size={16} aria-hidden="true"/><select value={feedGoal} onChange={e=>setFeedGoal(e.target.value)} aria-label="Цель знакомства"><option value="all">Все цели</option><option value="friendship">Дружба</option><option value="chat">Общение</option><option value="relationship">Отношения</option></select></label>
+        <label className="feed-city-filter"><Sparkles size={16} aria-hidden="true"/><select value={feedInterest} onChange={e=>setFeedInterest(e.target.value)} aria-label="Интересы"><option value="all">Все интересы</option>{interestOptions.map(interest=><option key={interest} value={interest}>{interest}</option>)}</select></label>
+        {(feedSearch || feedCity !== 'all' || feedGoal !== 'all' || feedInterest !== 'all') && <button type="button" className="feed-reset" onClick={()=>{setFeedSearch('');setFeedCity('all');setFeedGoal('all');setFeedInterest('all');}}>Сбросить</button>}
       </div>
       {people.length === 0 && <div className="empty"><Sparkles/><h3>Лента пока пуста</h3><p>Публикации появятся, когда пользователи добавят фото или видео и их анкеты будут одобрены.</p><button className="save" onClick={() => setTab('listing')}><PlusCircle size={16}/> Добавить публикацию</button></div>}
       {people.length > 0 && filteredPeople.length === 0 && <div className="empty feed-no-results"><Compass/><h3>Ничего не найдено</h3><p>Попробуй изменить поисковый запрос или выбрать другой город.</p><button className="skip" onClick={()=>{setFeedSearch('');setFeedCity('all');}}>Сбросить фильтры</button></div>}
@@ -596,8 +628,9 @@ function App() {
     </section>}
     {profileOpen && <div className="report-overlay" onClick={e => { if (e.target === e.currentTarget && user?.birth_date) setProfileOpen(false); }}><section className="panel report-dialog profile-modal account-profile-modal">{user?.birth_date && <button className="back-chat" type="button" onClick={() => setProfileOpen(false)}>← Закрыть профиль</button>}{!user?.birth_date && <p className="field-hint">Сначала заполни обязательные данные профиля. Без даты рождения продолжить нельзя.</p>}<div className="account-avatar">{user?.photo_url ? <img src={user.photo_url} alt="Аватар" /> : <UserRound size={42}/>}</div><h2>{user?.username ? '@' + user.username : (user?.first_name || 'Пользователь')}</h2><RoleBadge role={user?.public_role} label={user?.role_label}/><div className="account-profile-stats"><div><span>Код аккаунта</span><strong>{user?.account_code || String(user?.id || '').padStart(6,'0')}</strong></div><div><span>Симпатии</span><strong><Heart size={17} fill="currentColor"/> {user?.likes_received || 0}</strong></div></div>
       <form className="profile-panel profile-editor-form" onSubmit={saveProfile}>
-        <h3>Настроить анкету</h3>
+        <h3>Настроить профиль</h3>
         <p className="field-hint">Эти данные помогают VIBE подбирать совместимые знакомства. Не указывай точный адрес.</p>
+        <div className="profile-completion" aria-label={'Профиль заполнен на ' + profileCompletion + '%'}><div className="profile-completion-top"><span>Заполнение профиля</span><strong>{profileCompletion}%</strong></div><div className="profile-completion-track"><span style={{width: profileCompletion + '%'}}/></div><div className="profile-completion-checks">{profileCompletionItems.map(item=><span key={item.label} className={item.done?'is-complete':''}>{item.done?'✓':'○'} {item.label}</span>)}</div></div>
         <label>Фото профиля
           {profile.photoUrl && <img className="profile-editor-photo" src={profile.photoUrl} alt="Предпросмотр фото профиля"/>}
           <span className="media-picker"><ImagePlus size={17}/>{uploadingMedia ? 'Обрабатываем фото…' : 'Выбрать фото'}<input type="file" accept="image/*" onChange={chooseMedia} disabled={uploadingMedia}/></span>
@@ -608,6 +641,7 @@ function App() {
         <label>О себе<textarea value={profile.bio} maxLength={500} onChange={e=>setProfile({...profile,bio:e.target.value})} placeholder="Расскажи немного о себе…"/></label>
         <label>Цель знакомства<select value={profile.goal} onChange={e=>setProfile({...profile,goal:e.target.value})}><option value="both">Общение и отношения</option><option value="friendship">Дружба</option><option value="chat">Общение</option><option value="relationship">Отношения</option></select></label>
         <label>Интересы через запятую<input value={profile.interests} maxLength={500} onChange={e=>setProfile({...profile,interests:e.target.value})} placeholder="Музыка, игры, кино, спорт"/></label>
+        <div className="interest-suggestions"><span>Популярные интересы</span><div>{['Музыка','Игры','Кино','Спорт','Книги','Природа','Технологии','Рисование'].map(interest=><button key={interest} type="button" className={profile.interests.split(',').map(value=>value.trim().toLocaleLowerCase()).includes(interest.toLocaleLowerCase())?'selected':''} onClick={()=>setProfile(current=>{const values=current.interests.split(',').map(value=>value.trim()).filter(Boolean);const exists=values.some(value=>value.toLocaleLowerCase()===interest.toLocaleLowerCase());return {...current,interests:(exists?values.filter(value=>value.toLocaleLowerCase()!==interest.toLocaleLowerCase()):[...values,interest]).slice(0,20).join(', ')};})}>{interest}</button>)}</div></div>
         <p className="field-hint">VIBE разделяет пользователей на подростковую сторону (14–17 лет) и взрослую сторону (18+). Доступ к взрослой стороне требует подтверждения возраста.</p>
         <button className="save" type="submit" disabled={saving || uploadingMedia || !profile.birthDate}><Lock size={15}/>{saving ? 'Сохраняем…' : 'Сохранить профиль'}</button>
         <button className="skip profile-public-listing-link" type="button" disabled={!user?.birth_date} onClick={() => { setProfileOpen(false); setTab('listing'); }}><PlusCircle size={15}/> Управлять публичной анкетой</button>
