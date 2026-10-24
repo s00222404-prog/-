@@ -1656,3 +1656,30 @@ button, a, [role="button"] {
 }
 .app-shell.feed-mode .feed-profile-copy {z-index:3!important}
 .app-shell.feed-mode .feed-action-rail {z-index:5!important}
+
+
+/* Give feed actions breathing room: balanced, non-squashed vertical rhythm */
+.app-shell.feed-mode .feed-action-rail {
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:clamp(24px,3.4dvh,38px)!important;
+  width:68px!important;
+  right:10px!important;
+  bottom:calc(100px + env(safe-area-inset-bottom))!important;
+}
+.app-shell.feed-mode .feed-action-rail button {
+  flex:0 0 auto!important;
+  min-height:58px!important;
+  min-width:58px!important;
+  padding:8px 4px!important;
+  gap:7px!important;
+  border-radius:16px!important;
+}
+.app-shell.feed-mode .feed-action-rail button svg {
+  width:27px!important;height:27px!important;
+}
+.app-shell.feed-mode .feed-action-rail button span {
+  font-size:12px!important;line-height:1.2!important;
+}
