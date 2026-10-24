@@ -175,6 +175,20 @@ const EXTRA_TRANSLATIONS = {
   }
 };
 export function translateUiText(value, language) {
+  if (language === 'ru' || !value) return value;
+  const dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}) };
+  const text = String(value);
+  const trimmed = text.trim();
+  if (Object.prototype.hasOwnProperty.call(dict, trimmed)) {
+    return text.replace(trimmed, dict[trimmed]);
+  }
+  // Translate known phrases inside longer UI text, but only at word boundaries.
+  // Longest phrases run first so a short key cannot damage a longer translation.
+  let result = text;
+  const entries = Object.entries(dict).filter(([source]) => source && source.length > 1)
+    .sort((a, b) => b[0].length - a[0].length);
+  for (const [source, target] of entries) {
+    const escaped = source.replace(/[.*+?^${}()|[\]\\]/g, '\\export function translateUiText(value, language) {
   if (language === 'ru') return value;
   const dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}) };
   const text = value.trim();
@@ -182,4 +196,14 @@ export function translateUiText(value, language) {
   // usernames, locations and mixed-language sentences when dictionary keys overlap.
   if (Object.prototype.hasOwnProperty.call(dict, text)) return value.replace(text, dict[text]);
   return value;
+}');
+    try {
+      const pattern = new RegExp('(?<![\\p{L}\\p{N}_])' + escaped + '(?![\\p{L}\\p{N}_])', 'giu');
+      result = result.replace(pattern, target);
+    } catch {
+      // Fallback for older engines without Unicode property escapes.
+      result = result.split(source).join(target);
+    }
+  }
+  return result;
 }
