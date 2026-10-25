@@ -1015,7 +1015,7 @@ app.post('/telegram/webhook', (req,res) => {
       } else await answer('Unsupported language');
       return;
     }
-    const ownAccount=from?.id ? await pool.query('SELECT account_status,moderation_note,ban_issuer FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]) : {rowCount:0,rows:[]};
+    const ownAccount=from?.id ? await pool.query('SELECT id,account_status,moderation_note,ban_issuer,profile_review_status,language FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]) : {rowCount:0,rows:[]};
     if(m&&(cmd==='/closeproject'||cmd==='/закрытьпроект')){
       if(!isDeveloper){await send('⛔ Эта команда доступна только разработчику.');return;}
       const reason=parts.slice(1).join(' ').trim();
@@ -1102,6 +1102,31 @@ app.post('/telegram/webhook', (req,res) => {
     }
     if(m&&roleRank[role]>=roleRank.admin&&!isDeveloper&&!/^\/(start|help|помощь|вход|adminlogin|switchrole|myrole|роль)(?:@\S+)?$/i.test(cmd)&&!await isAdminUnlocked(from.id)){await send('🔒 Админ-команды закрыты паролем.');return;}
 
+    if(m && ownAccount.rowCount && String(from.id)!==DEVELOPER_TELEGRAM_ID) {
+      const accountBlocked=['banned','restricted','suspended'].includes(ownAccount.rows[0].account_status);
+      const profileRestricted=['restricted','flagged','reviewing'].includes(ownAccount.rows[0].profile_review_status);
+      if(cmd==='/appeal' && (accountBlocked || profileRestricted)) {
+        const appealType=accountBlocked?'account':'profile';
+        await pool.query("INSERT INTO moderation_appeal_sessions(telegram_id,user_id,appeal_type) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET user_id=EXCLUDED.user_id,appeal_type=EXCLUDED.appeal_type,created_at=NOW()",[String(from.id),ownAccount.rows[0].id,appealType]);
+        await send(appealType==='account'?'⚖️ Напиши одним сообщением, почему ты считаешь блокировку ошибочной. Укажи только нужные для рассмотрения сведения; не отправляй пароли или документы.':'⚖️ Напиши одним сообщением, почему решение по твоей анкете нужно пересмотреть. Не отправляй пароли или документы.');
+        return;
+      }
+      if(!txt.startsWith('/')) {
+        const pending=await pool.query('SELECT user_id,appeal_type FROM moderation_appeal_sessions WHERE telegram_id=$1',[String(from.id)]);
+        if(pending.rowCount) {
+          if(txt.trim().length<10 || txt.trim().length>1500) { await send('Апелляция должна содержать от 10 до 1500 символов.'); return; }
+          const saved=await pool.query("INSERT INTO moderation_appeals(user_id,appeal_type,message) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING id",[pending.rows[0].user_id,pending.rows[0].appeal_type,txt.trim()]);
+          await pool.query('DELETE FROM moderation_appeal_sessions WHERE telegram_id=$1',[String(from.id)]);
+          if(!saved.rowCount) { await send('У тебя уже есть открытая апелляция. Дождись решения команды VIBE.'); return; }
+          const recipients=await staffTelegramIds();
+          const note='⚖️ НОВАЯ АПЕЛЛЯЦИЯ VIBE #'+saved.rows[0].id+'\\nТип: '+pending.rows[0].appeal_type+'\\nПользователь ID: '+pending.rows[0].user_id+'\\nПричина: '+txt.trim();
+          const delivered=await Promise.all(recipients.map(async staffId=>{try{const response=await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:staffId,text:note})});const result=await response.json().catch(()=>({}));return response.ok&&result.ok;}catch{return false;}}));
+          if(!delivered.some(Boolean)) console.error('Telegram appeal #'+saved.rows[0].id+' saved but staff notification failed.');
+          await send('✅ Апелляция №'+saved.rows[0].id+' сохранена. Команда VIBE рассмотрит её и сообщит результат здесь.');
+          return;
+        }
+      }
+    }
     if(ownAccount.rowCount && ownAccount.rows[0].account_status==='banned' && String(from.id)!==DEVELOPER_TELEGRAM_ID){
       const issuer=(ownAccount.rows[0].ban_issuer||'moderator')==='developer'?'разработчиком':'модератором';
       const bannedText='⛔ Ваш аккаунт забанен.\nКем заблокирован: '+issuer+'.\nПричина: '+(ownAccount.rows[0].moderation_note||'Причина не указана')+'\nДоступ к VIBE заблокирован.';
