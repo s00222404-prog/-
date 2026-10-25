@@ -841,8 +841,19 @@ app.post('/api/admin/appeals/:id/decision', auth, adminOnly, wrap(async (req,res
   if(!Number.isSafeInteger(id)||id<1||!['approved','rejected','reviewing'].includes(decision)) return res.status(400).json({error:'Некорректное решение по апелляции.'});
   const result=await pool.query("UPDATE moderation_appeals SET status=$1,decision_note=$2,reviewed_by=$3,updated_at=NOW() WHERE id=$4 AND status IN ('open','reviewing') RETURNING id,user_id,appeal_type,listing_id,status",[decision,note,String(req.user.telegram_id),id]);
   if(!result.rowCount) return res.status(404).json({error:'Открытая апелляция не найдена.'});
-  await logModerationAction({actorId:req.user.telegram_id,actorRole:req.adminRole,action:'appeal_'+decision,targetUserId:result.rows[0].user_id,listingId:result.rows[0].listing_id,reason:note,metadata:{appealId:id}});
-  res.json({ok:true,appeal:result.rows[0]});
+  const appeal=result.rows[0];
+  if(decision==='approved') {
+    if(appeal.appeal_type==='account') await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1",[appeal.user_id]);
+    if(appeal.appeal_type==='profile') await pool.query("UPDATE users SET profile_review_status='clear',updated_at=NOW() WHERE id=$1",[appeal.user_id]);
+    if(appeal.appeal_type==='listing' && appeal.listing_id) await pool.query("UPDATE listings SET status='published',updated_at=NOW() WHERE id=$1 AND user_id=$2",[appeal.listing_id,appeal.user_id]);
+  }
+  await logModerationAction({actorId:req.user.telegram_id,actorRole:req.adminRole,action:'appeal_'+decision,targetUserId:appeal.user_id,listingId:appeal.listing_id,reason:note,metadata:{appealId:id}});
+  const target=await pool.query('SELECT telegram_id,language FROM users WHERE id=$1',[appeal.user_id]);
+  if(target.rowCount && target.rows[0].telegram_id && process.env.BOT_TOKEN) {
+    const text=decision==='approved'?'✅ Апелляция VIBE #'+id+' одобрена. Решение модерации пересмотрено.':decision==='rejected'?'⚠️ Апелляция VIBE #'+id+' отклонена.':'ℹ️ Апелляция VIBE #'+id+' взята на дополнительное рассмотрение.';
+    fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:target.rows[0].telegram_id,text:text+(note?'\\nКомментарий команды: '+note:'')})}).catch(error=>console.error('Appeal decision notification failed:',error.message));
+  }
+  res.json({ok:true,appeal});
 }));
 
 app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
