@@ -403,6 +403,20 @@ app.post('/api/auth/google',authRateLimit,wrap(async(req,res)=>{
   const token=await issueWebSession(user.id);
   res.json({ok:true,token,user});
 }));
+app.post('/api/auth/supabase',authRateLimit,wrap(async(req,res)=>{
+  const accessToken=String(req.body?.access_token||'');
+  if(!accessToken||accessToken.length>10000)return res.status(400).json({error:'Не удалось получить подтверждение входа.'});
+  if(!process.env.SUPABASE_URL||!process.env.SUPABASE_PUBLISHABLE_KEY)return res.status(503).json({error:'Supabase пока не настроен на сервере VIBE.'});
+  const verify=await fetch(process.env.SUPABASE_URL.replace(/\\/$/,'')+'/auth/v1/user',{headers:{apikey:process.env.SUPABASE_PUBLISHABLE_KEY,Authorization:'Bearer '+accessToken}});
+  if(!verify.ok)return res.status(401).json({error:'Supabase не подтвердил вход. Попробуй ещё раз.'});
+  const identity=await verify.json();
+  const email=normalizeEmail(identity.email);
+  if(!identity.id||!email||!identity.email_confirmed_at)return res.status(403).json({error:'Сначала подтверди адрес электронной почты.'});
+  const user=await createOrGetEmailUser(email);
+  if(user.account_status!=='active')return res.status(403).json({error:'Доступ к аккаунту ограничен.',banned:user.account_status==='banned'});
+  const token=await issueWebSession(user.id);
+  res.json({ok:true,token,user});
+}));
 app.post('/api/auth/logout',auth,wrap(async(req,res)=>{
   const bearer=String(req.get('Authorization')||'').match(/^Bearer ([A-Za-z0-9_-]{32,})$/);
   if(bearer){const tokenHash=createHash('sha256').update(bearer[1]).digest('hex');await pool.query('DELETE FROM web_sessions WHERE token_hash=$1',[tokenHash]);}
