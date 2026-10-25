@@ -332,3 +332,31 @@ button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline
  .mobile-people-list .online-person-row b{font-size:13px}
  .mobile-people-list .online-person-row small{font-size:11px}
 }
+
+
+/* VIBE branded date picker — replaces the platform's native Android calendar */
+.vibe-date-picker{position:relative;width:100%;min-width:0}
+.vibe-date-trigger{display:flex;align-items:center;gap:11px;width:100%;min-height:48px;padding:10px 13px;border:1px solid #b99aff38;border-radius:14px;background:linear-gradient(115deg,#a77aff12,#f06db008),#ffffff04;color:var(--text,#f4edf9);font:inherit;font-size:13px;text-align:left;cursor:pointer;transition:border-color .18s,box-shadow .18s,background .18s}
+.vibe-date-trigger:hover,.vibe-date-trigger.is-open{border-color:#b99aff9c;background:linear-gradient(115deg,#a77aff20,#f06db012),#ffffff05;box-shadow:0 0 0 3px #a77aff0d}
+.vibe-date-icon{display:grid;place-items:center;position:relative;width:30px;height:30px;flex:0 0 30px;border:1px solid #b99aff45;border-radius:10px;background:#a77aff1c;color:#d8c0ff}
+.vibe-date-icon:before{content:"";width:14px;height:13px;border:1.6px solid currentColor;border-radius:4px;position:absolute;top:9px}
+.vibe-date-icon:after{content:"";position:absolute;top:13px;width:12px;height:1px;background:currentColor;box-shadow:-4px -6px 0 -0.1px currentColor,4px -6px 0 -0.1px currentColor}
+.vibe-date-trigger>span:nth-child(2){flex:1;min-width:0}
+.vibe-date-placeholder{color:var(--muted,#a99bbd)}
+.vibe-date-trigger-caret{font-size:19px;color:#c9afff;transform:translateY(-2px)}
+.vibe-calendar-popover{position:absolute;z-index:260;top:calc(100% + 9px);left:0;width:min(100%,340px);min-width:min(290px,calc(100vw - 48px));padding:14px;border:1px solid #b99aff45;border-radius:21px;background:radial-gradient(ellipse at 100% 0%,#8755c22a,transparent 44%),#191423;color:#f2eafa;box-shadow:0 20px 65px #0009,0 0 0 1px #ffffff04;animation:vibe-calendar-in .16s ease-out}
+@keyframes vibe-calendar-in{from{opacity:0;transform:translateY(-5px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+.vibe-calendar-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 3px 13px;border-bottom:1px solid #ffffff12}
+.vibe-calendar-top>div{display:grid;gap:5px}.vibe-calendar-top small{font-size:9px;font-weight:800;letter-spacing:1.6px;color:#bba3df}.vibe-calendar-top b{font-size:18px;letter-spacing:-.35px}
+.vibe-calendar-orb{display:grid;place-items:center;width:38px;height:38px;border:1px solid #b99aff42;border-radius:13px;background:linear-gradient(135deg,#a77aff2a,#f06db015);color:#d6b8ff;font-size:19px}
+.vibe-calendar-month{display:grid;grid-template-columns:36px 1fr 36px;align-items:center;gap:5px;padding:12px 0 10px}
+.vibe-calendar-month b{text-align:center;font-size:13px;font-weight:750}
+.vibe-calendar-month button{display:grid;place-items:center;width:34px;height:34px;border:1px solid #ffffff12;border-radius:11px;background:#ffffff06;color:#d8c4f6;cursor:pointer}
+.vibe-calendar-month button:hover:not(:disabled){border-color:#b99aff65;background:#a77aff1c}.vibe-calendar-month button:disabled{opacity:.25;cursor:default}
+.vibe-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.vibe-calendar-weekdays{margin-bottom:5px}.vibe-calendar-weekdays span{display:grid;place-items:center;height:28px;color:#a99bbd;font-size:10px;font-weight:750}
+.vibe-calendar-day{display:grid;place-items:center;min-width:0;aspect-ratio:1;border:1px solid transparent;border-radius:10px;background:transparent;color:#e8e0f2;font:inherit;font-size:12px;cursor:pointer;transition:background .14s,border-color .14s,transform .14s}
+.vibe-calendar-day:hover:not(:disabled){border-color:#b99aff45;background:#a77aff20;transform:scale(1.04)}
+.vibe-calendar-day.is-outside{color:#71667f}.vibe-calendar-day.is-today{border-color:#b99aff65;color:#d8bdff;font-weight:800}.vibe-calendar-day.is-selected{border-color:#d5baff;background:linear-gradient(135deg,#9a7cff,#c17de9);color:#fff;font-weight:850;box-shadow:0 4px 14px #a77aff40}.vibe-calendar-day:disabled{opacity:.2;cursor:default}
+.vibe-calendar-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid #ffffff12;color:#a99bbd;font-size:10px}.vibe-calendar-bottom button{border:0;background:transparent;color:#cbb0ff;font:inherit;font-weight:750;cursor:pointer}
+@media(max-width:650px){.vibe-calendar-popover{width:100%;min-width:0;padding:12px;border-radius:18px}.vibe-calendar-grid{gap:3px}.vibe-calendar-day{border-radius:9px;font-size:12px}}
