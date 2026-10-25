@@ -715,6 +715,7 @@ app.post('/api/blocks/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
 }));
 app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
   if (await getRoleForUser(req.user) !== 'developer') return res.status(403).json({error:'Тестовые жалобы доступны только разработчику VIBE.'});
+  if (await getUserAgeBand(req.user.id) === 'restricted') return res.status(403).json({error:'Тестовая жалоба недоступна: аккаунт не соответствует возрастной политике VIBE.'});
   const {reason,details='',reporterUsername,evidence='',targetName='Демо-профиль',targetUsername='',targetAge=null,reportType='profile'}=req.body||{};
   if(typeof reason!=='string'||!reason.trim()||reason.trim().length>100)return res.status(400).json({error:'Укажи обязательную причину жалобы'});
   if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
@@ -761,6 +762,7 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
 }));
 app.get('/api/dev/demo-reports',auth,wrap(async(req,res)=>{
   if (await getRoleForUser(req.user) !== 'developer') return res.status(403).json({error:'Доступ только для разработчика VIBE.'});
+  if (await getUserAgeBand(req.user.id) === 'restricted') return res.status(403).json({error:'Тестовая модерация доступна только аккаунтам, соответствующим возрастной политике VIBE.'});
   await pool.query(`CREATE TABLE IF NOT EXISTS demo_reports (
     id BIGSERIAL PRIMARY KEY,
     reporter_id BIGINT NOT NULL,
@@ -780,6 +782,7 @@ app.get('/api/dev/demo-reports',auth,wrap(async(req,res)=>{
 }));
 app.patch('/api/dev/demo-reports/:id',auth,wrap(async(req,res)=>{
   if (await getRoleForUser(req.user) !== 'developer') return res.status(403).json({error:'Доступ только для разработчика VIBE.'});
+  if (await getUserAgeBand(req.user.id) === 'restricted') return res.status(403).json({error:'Тестовая модерация доступна только аккаунтам, соответствующим возрастной политике VIBE.'});
   const id=Number(req.params.id);
   const {status}=req.body||{};
   if(!Number.isSafeInteger(id)||id<1||!['reviewing','resolved','dismissed'].includes(status)) return res.status(400).json({error:'Недопустимый статус тестовой жалобы.'});
