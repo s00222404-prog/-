@@ -8,8 +8,12 @@ const bannedProfileTerms = [
   'kurwa','chuj','pizda','blyat','suka','cyka','hui','pizdec','pidor','pidaras','zaeb','nahui','huy','huylo','jebac','kurw','dziwka',
 ];
 
-const compact = (value) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\s._*\-+!@#$%^&()\[\]{}:;'"~`/\\|]+/g, '');
 const normalize = (value) => value.normalize('NFKC').toLocaleLowerCase();
+const confusables = { 'а':'a','е':'e','о':'o','р':'p','с':'c','х':'x','у':'y','і':'i','ј':'j','к':'k','м':'m','т':'t','в':'b','н':'h','０':'0','１':'1','３':'3','４':'4','５':'5','７':'7' };
+const compact = (value) => normalize(value)
+  .replace(/[а-яёіј０-９]/g, char => confusables[char] || char)
+  .replace(/[@]/g,'a').replace(/0/g,'o').replace(/1/g,'i').replace(/3/g,'e').replace(/4/g,'a').replace(/5/g,'s').replace(/7/g,'t')
+  .replace(/[\\s._*\\-+!#$%^&()\\[\\]{}:;'\"~`/\\\\|]+/g, '');
 
 export function profileTextProblem(values) {
   const text = normalize(values.filter(v => typeof v === 'string').join(' '));
@@ -30,8 +34,9 @@ export function profileTextProblem(values) {
     // Short words such as "sex" and "rape" must not match inside harmless
     // words like "Essex" and "grape". Punctuation-obfuscated forms still match.
     if (normalizedTerm.length <= 4) {
+      const canonicalTerm = compact(normalizedTerm);
       return tokens.some(token => token === normalizedTerm || token.startsWith(normalizedTerm)) || compactTokens.some(token =>
-        token.hasSeparators && token.value.includes(compact(normalizedTerm))
+        token.value === canonicalTerm || (token.hasSeparators && token.value.includes(canonicalTerm))
       );
     }
 
