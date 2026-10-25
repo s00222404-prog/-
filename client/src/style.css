@@ -283,9 +283,9 @@ button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline
   .sidebar-tip{padding:11px}
 }
 @media (min-width: 721px) and (max-width: 980px){
-  .app-frame{grid-template-columns:155px minmax(0,1fr);gap:13px;padding:13px}
+  .app-frame{grid-template-columns:145px minmax(0,1fr) 185px;gap:10px;padding:10px}
   .sidebar{top:13px;height:calc(100dvh - 26px);min-height:0}
-  .right-rail{display:none}
+  .right-rail{display:block;grid-column:3;top:10px;max-height:calc(100dvh - 20px);overflow:auto;scrollbar-width:thin}
   .main-area{grid-column:2;min-width:0}
   .page-heading{gap:8px;margin-bottom:14px}
   .page-heading h1{font-size:clamp(25px,3.2vw,33px);letter-spacing:-1.1px}
@@ -311,3 +311,24 @@ button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline
 .online-person-row .avatar{position:relative;flex:0 0 auto}.online-people-list{max-height:360px;overflow-y:auto;scrollbar-width:thin}.online-person-row{min-width:0}
 .online-dot{position:absolute;right:0;bottom:0;width:10px;height:10px;border:2px solid #1b1727;border-radius:50%;background:#6ce6ae}
 @media (max-width:720px){.right-rail{display:none}}
+
+
+/* Mobile access to the same people list without forcing a desktop rail off-screen. */
+.mobile-online-button{display:none}
+.mobile-people-overlay{display:none}
+@media(max-width:720px){
+ .mobile-online-button{display:flex;align-items:center;gap:11px;width:100%;min-height:45px;margin:10px 0 4px;padding:11px 13px;border:1px solid #b99aff35;border-radius:13px;background:linear-gradient(110deg,#a77aff18,#f06db00a);color:var(--text);font:inherit;font-size:12px;font-weight:700;text-align:left;cursor:pointer}
+ .mobile-online-button svg{flex:0 0 auto;color:#c6a5ff}
+ .mobile-online-button span{flex:1}
+ .mobile-online-button i{display:grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:8px;background:#a87bff24;color:#e0caff;font-size:10px;font-style:normal}
+ .mobile-people-overlay{position:fixed;z-index:240;inset:0;display:flex;align-items:flex-end;justify-content:center;padding:12px 10px max(10px,env(safe-area-inset-bottom));background:#08060dbd;backdrop-filter:blur(9px)}
+ .mobile-people-panel{display:flex;flex-direction:column;gap:14px;width:min(100%,520px);max-height:min(78dvh,680px);padding:18px 15px;border:1px solid #ffffff20;border-radius:24px;background:#1b1727;color:var(--text);box-shadow:0 20px 70px #0008;overflow:hidden}
+ .mobile-people-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+ .mobile-people-header>span{display:grid;gap:6px;min-width:0}
+ .mobile-people-header b{font-size:19px;letter-spacing:-.4px}
+ .mobile-people-header small{max-width:340px;color:var(--muted);font-size:11px;line-height:1.45}
+ .mobile-people-list{max-height:none;min-height:0;flex:1;overflow-y:auto;padding-right:2px}
+ .mobile-people-list .online-person-row{padding:10px 7px}
+ .mobile-people-list .online-person-row b{font-size:13px}
+ .mobile-people-list .online-person-row small{font-size:11px}
+}
