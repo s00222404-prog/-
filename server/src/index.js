@@ -565,7 +565,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
        SELECT l.user_id AS id,l.id AS listing_id,l.user_id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,u.photo_url,u.username,u.goal,u.interests AS profile_interests,
          CASE WHEN u.telegram_id::text=$2 THEN 'developer' ELSE COALESCE(NULLIF(u.public_status,''),'none') END AS public_role
        FROM listings l JOIN users u ON u.id=l.user_id
-       WHERE l.user_id=$1 AND u.account_status='active'
+       WHERE l.user_id=$1 AND l.status='published' AND u.account_status='active'
        LIMIT 1
      `,[req.user.id,DEVELOPER_TELEGRAM_ID]);
      return res.json({people:own.rows.map(p=>({...p,role_label:p.public_role==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[p.public_role]||null),bio:p.description,interests:[...(p.profile_interests||[]),...(p.hobbies?p.hobbies.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean):[])].filter((value,index,array)=>value&&array.findIndex(item=>item.toLocaleLowerCase()===value.toLocaleLowerCase())===index)}))});
@@ -602,7 +602,7 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
        FROM listings l
        JOIN users u ON u.id=l.user_id
        CROSS JOIN viewer
-       WHERE (l.status='published' OR l.user_id=$1)
+       WHERE l.status='published'
          AND u.account_status='active'
          AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
          AND (l.user_id=$1 OR (l.status='published' AND (
