@@ -9,8 +9,20 @@ export function databasePoolOptions(env = process.env) {
     throw new Error('DATABASE_POOL_MAX must be an integer between 1 and 50');
   }
 
+  let connectionString = env.DATABASE_URL;
+  if (env.NODE_ENV === 'production') {
+    // Keep TLS validation explicit; avoid URL sslmode options overriding the driver setting.
+    try {
+      const parsed = new URL(connectionString);
+      for (const key of ['sslmode', 'ssl', 'sslcert', 'sslkey', 'sslrootcert']) parsed.searchParams.delete(key);
+      connectionString = parsed.toString();
+    } catch {
+      throw new Error('DATABASE_URL must be a valid PostgreSQL connection URL');
+    }
+  }
+
   return {
-    connectionString: env.DATABASE_URL,
+    connectionString,
     ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined,
     max,
     idleTimeoutMillis: 30_000,
