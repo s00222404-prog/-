@@ -710,6 +710,98 @@ const APP_TEXT_TRANSLATIONS = {
   }
 };
 
+
+const PANEL_TRANSLATIONS = {
+  en: {
+    "ТВОИ ЛЮДИ. ТВОЙ РИТМ.": "YOUR PEOPLE. YOUR RHYTHM.",
+    "Открыть меню": "Open menu",
+    "Показать меню": "Show menu",
+    "Скрыть меню": "Hide menu",
+    "Показать боковую панель": "Show sidebar",
+    "Открыть боковую панель": "Open sidebar",
+    "Закрыть боковую панель": "Close sidebar",
+    "Твоя панель": "Your panel",
+    "Закрыть": "Close",
+    "Поиск": "Search",
+    "Город": "City",
+    "Все города": "All cities",
+    "Сбросить": "Reset",
+    "Добавить": "Add",
+    "Добавить историю": "Add story",
+    "Нравится": "Like",
+    "Пропустить": "Skip",
+    "Онлайн": "Online",
+    "Сейчас онлайн": "Online now",
+    "Настройки интерфейса": "Interface settings",
+    "Язык интерфейса": "Interface language",
+    "Сохранить изменения": "Save changes",
+    "Отмена": "Cancel",
+    "Назад": "Back",
+    "Далее": "Next",
+    "Сохранить": "Save",
+    "Загрузка…": "Loading…",
+    "Нет результатов": "No results",
+    "Попробуй изменить фильтры поиска.": "Try changing your search filters.",
+    "Здесь пока тихо": "It’s quiet here for now",
+    "Чаты появятся здесь": "Your chats will appear here",
+    "Начни разговор": "Start a conversation",
+    "Сообщение": "Message",
+    "Отправить": "Send",
+    "Твой профиль": "Your profile",
+    "Профиль": "Profile",
+    "Интересы": "Interests",
+    "Лента": "Discover",
+    "Симпатии": "Likes",
+    "Сообщения": "Messages",
+    "Настройки": "Settings",
+    "Выйти из аккаунта": "Sign out"
+  },
+  de: {
+    "ТВОИ ЛЮДИ. ТВОЙ РИТМ.": "DEINE LEUTE. DEIN RHYTHMUS.",
+    "Открыть меню": "Menü öffnen",
+    "Показать меню": "Menü anzeigen",
+    "Скрыть меню": "Menü ausblenden",
+    "Показать боковую панель": "Seitenleiste anzeigen",
+    "Открыть боковую панель": "Seitenleiste öffnen",
+    "Закрыть боковую панель": "Seitenleiste schließen",
+    "Твоя панель": "Deine Übersicht",
+    "Закрыть": "Schließen",
+    "Поиск": "Suche",
+    "Город": "Stadt",
+    "Все города": "Alle Städte",
+    "Сбросить": "Zurücksetzen",
+    "Добавить": "Hinzufügen",
+    "Добавить историю": "Story hinzufügen",
+    "Нравится": "Gefällt mir",
+    "Пропустить": "Überspringen",
+    "Онлайн": "Online",
+    "Сейчас онлайн": "Jetzt online",
+    "Настройки интерфейса": "Oberflächeneinstellungen",
+    "Язык интерфейса": "Oberflächensprache",
+    "Сохранить изменения": "Änderungen speichern",
+    "Отмена": "Abbrechen",
+    "Назад": "Zurück",
+    "Далее": "Weiter",
+    "Сохранить": "Speichern",
+    "Загрузка…": "Wird geladen…",
+    "Нет результатов": "Keine Ergebnisse",
+    "Попробуй изменить фильтры поиска.": "Versuche, die Suchfilter zu ändern.",
+    "Здесь пока тихо": "Hier ist es noch ruhig",
+    "Чаты появятся здесь": "Deine Chats erscheinen hier",
+    "Начни разговор": "Beginne ein Gespräch",
+    "Сообщение": "Nachricht",
+    "Отправить": "Senden",
+    "Твой профиль": "Dein Profil",
+    "Профиль": "Profil",
+    "Интересы": "Interessen",
+    "Лента": "Entdecken",
+    "Симпатии": "Likes",
+    "Сообщения": "Nachrichten",
+    "Настройки": "Einstellungen",
+    "Выйти из аккаунта": "Abmelden"
+  }
+};
+
 export function translateUiText(value, language) {
   if (!value) return value;
   const text = String(value);
@@ -718,13 +810,13 @@ export function translateUiText(value, language) {
   let dict;
   if (language === 'ru') {
     dict = {};
-    for (const sourceDict of [UI_TRANSLATIONS.en, UI_TRANSLATIONS.de, EXTRA_TRANSLATIONS.en, EXTRA_TRANSLATIONS.de, APP_TEXT_TRANSLATIONS.en, APP_TEXT_TRANSLATIONS.de]) {
+    for (const sourceDict of [UI_TRANSLATIONS.en, UI_TRANSLATIONS.de, EXTRA_TRANSLATIONS.en, EXTRA_TRANSLATIONS.de, APP_TEXT_TRANSLATIONS.en, APP_TEXT_TRANSLATIONS.de, PANEL_TRANSLATIONS.en, PANEL_TRANSLATIONS.de]) {
       for (const [ru, translated] of Object.entries(sourceDict || {})) {
         if (translated && !Object.prototype.hasOwnProperty.call(dict, translated)) dict[translated] = ru;
       }
     }
   } else {
-    dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}), ...(APP_TEXT_TRANSLATIONS[language] || {}) };
+    dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}), ...(APP_TEXT_TRANSLATIONS[language] || {}), ...(PANEL_TRANSLATIONS[language] || {}) };
   }
   const trimmed = text.trim();
   if (Object.prototype.hasOwnProperty.call(dict, trimmed)) return text.replace(trimmed, dict[trimmed]);
