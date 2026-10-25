@@ -244,6 +244,8 @@ delete EXTRA_TRANSLATIONS.de_reports;
 
 const APP_TEXT_TRANSLATIONS = {
   en: {
+    'Твой вайб — твои люди':'Your vibe — your people',
+    'Заполняй профиль и находи людей, с которыми есть о чём поговорить.':'Complete your profile and find people you have something to talk about.',
     'Файл должен быть не больше 3 МБ.':'The file must be 3 MB or smaller.',
     'Не удалось прочитать файл.':'Could not read the file.',
     'Сервер VIBE пока не настроен.':'The VIBE server is not configured yet.',
@@ -311,6 +313,8 @@ const APP_TEXT_TRANSLATIONS = {
     'Арт':'Art'
   },
   de: {
+    'Твой вайб — твои люди':'Dein Vibe – deine Leute',
+    'Заполняй профиль и находи людей, с которыми есть о чём поговорить.':'Vervollständige dein Profil und finde Menschen, mit denen du dich gut unterhalten kannst.',
     'Файл должен быть не больше 3 МБ.':'Die Datei darf höchstens 3 MB groß sein.',
     'Не удалось прочитать файл.':'Die Datei konnte nicht gelesen werden.',
     'Сервер VIBE пока не настроен.':'Der VIBE-Server ist noch nicht eingerichtet.',
