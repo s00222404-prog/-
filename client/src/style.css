@@ -503,3 +503,14 @@ button,input,textarea,select{min-width:0;max-width:100%}
  .auth-legal{margin-top:10px;line-height:1.45}
  .auth-footer{padding-top:10px}
 }
+
+
+/* Mobile access to the full desktop right sidebar. */
+.mobile-rail-trigger,.mobile-rail-heading{display:none}
+@media(max-width:720px){
+ .mobile-rail-trigger{display:grid}
+ .mobile-rail-backdrop{position:fixed;inset:0;z-index:140;background:rgba(5,4,12,.72);border:0;backdrop-filter:blur(5px)}
+ .right-rail.mobile-rail-open{display:block;position:fixed;z-index:141;top:calc(8px + env(safe-area-inset-top));right:8px;bottom:calc(82px + env(safe-area-inset-bottom));width:min(88vw,360px);max-width:360px;height:auto;max-height:none;overflow-y:auto;overflow-x:hidden;padding:12px;border:1px solid var(--line);border-radius:22px;background:var(--panel,#15111e);box-shadow:0 24px 70px #0009;overscroll-behavior:contain}
+ .mobile-rail-heading{display:flex;position:sticky;top:-12px;z-index:2;align-items:center;justify-content:space-between;gap:10px;margin:-12px -12px 12px;padding:12px;background:var(--panel,#15111e);border-bottom:1px solid var(--line);border-radius:22px 22px 0 0;color:var(--text)}
+ .right-rail.mobile-rail-open .rail-card{margin-bottom:10px}
+}
