@@ -8,8 +8,8 @@ test('allows no optional media', () => {
 });
 
 test('accepts valid base64 image and video with matching selected type', () => {
-  assert.equal(validateListingMedia('data:image/png;base64,aGVsbG8=', 'image').valid, true);
-  assert.equal(validateListingMedia('data:video/mp4;base64,aGVsbG8=', 'video').valid, true);
+  assert.equal(validateListingMedia('data:image/png;base64,iVBORw0KGgo=', 'image').valid, true);
+  assert.equal(validateListingMedia('data:video/mp4;base64,AAAADGZ0eXAAAAAA', 'video').valid, true);
 });
 
 test('rejects mismatched media type and malformed data URLs', () => {
