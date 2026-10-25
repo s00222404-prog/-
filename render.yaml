@@ -27,7 +27,6 @@ services:
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
-      - key: GOOGLE_CLIENT_ID
         sync: false
       - key: RESEND_API_KEY
         sync: false
@@ -59,5 +58,4 @@ services:
         sync: false
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
-      - key: VITE_GOOGLE_CLIENT_ID
         sync: false
