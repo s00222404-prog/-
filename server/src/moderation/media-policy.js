@@ -1,5 +1,5 @@
 const MAX_LISTING_MEDIA_BYTES = 3 * 1024 * 1024;
-const ALLOWED_MEDIA = /^(image\/[a-zA-Z0-9.+-]+|video\/[a-zA-Z0-9.+-]+)$/;
+const ALLOWED_MEDIA = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm']);
 
 export function validateListingMedia(value, mediaType = 'image') {
   if (!['image', 'video'].includes(mediaType)) {
@@ -13,7 +13,7 @@ export function validateListingMedia(value, mediaType = 'image') {
   }
 
   const match = value.match(/^data:([^;,]+);base64,([A-Za-z0-9+/]+={0,2})$/);
-  if (!match || !ALLOWED_MEDIA.test(match[1])) {
+  if (!match || !ALLOWED_MEDIA.has(match[1].toLowerCase())) {
     return { valid: false, error: 'Media must be a base64 image or video.' };
   }
   if ((mediaType === 'image' && !match[1].startsWith('image/')) ||
