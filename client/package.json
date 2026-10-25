@@ -6,9 +6,15 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build && mkdir -p dist/rules dist/privacy && cp dist/index.html dist/rules/index.html && cp dist/index.html dist/privacy/index.html",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "android:init": "cap add android",
+    "android:sync": "npm run build && cap sync android",
+    "android:open": "cap open android",
+    "android:run": "npm run android:sync && cap run android"
   },
   "dependencies": {
+    "@capacitor/android": "~8.5.3",
+    "@capacitor/core": "~8.5.3",
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.7",
     "typescript": "^5.7.2",
@@ -17,5 +23,7 @@
     "lucide-react": "^0.468.0",
     "@supabase/supabase-js": "^2.76.1"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@capacitor/cli": "~8.5.3"
+  }
 }
