@@ -244,6 +244,15 @@ delete EXTRA_TRANSLATIONS.de_reports;
 
 const APP_TEXT_TRANSLATIONS = {
   en: {
+    'Твой профиль':'Your profile',
+    'До 3 МБ · необязательно':'Up to 3 MB · optional',
+    'Не указывать':'Prefer not to say',
+    'Женщина':'Woman',
+    'Мужчина':'Man',
+    'Предпочитаю не указывать':'Prefer not to say',
+    'Выбери несколько':'Choose several',
+    'Не указывай адрес, школу, телефон или другие точные личные данные.':'Do not share your address, school, phone number, or other precise personal details.',
+    'БЕЗОПАСНОСТЬ VIBE':'VIBE SAFETY',
     'Твой вайб — твои люди':'Your vibe — your people',
     'Заполняй профиль и находи людей, с которыми есть о чём поговорить.':'Complete your profile and find people you have something to talk about.',
     'Файл должен быть не больше 3 МБ.':'The file must be 3 MB or smaller.',
@@ -370,7 +379,16 @@ const APP_TEXT_TRANSLATIONS = {
     "Участник":"Member",
   },
   de: {
-    'Твой вайб — твои люди':'Dein Vibe – deine Leute',
+    'Твой профиль':'Dein Profil',
+    'До 3 МБ · необязательно':'Bis zu 3 MB · optional',
+    'Не указывать':'Nicht angeben',
+    'Женщина':'Frau',
+    'Мужчина':'Mann',
+    'Предпочитаю не указывать':'Möchte ich nicht angeben',
+    'Выбери несколько':'Wähle mehrere aus',
+    'Не указывай адрес, школу, телефон или другие точные личные данные.':'Teile nicht deine Adresse, Schule, Telefonnummer oder andere genaue persönliche Daten.',
+    'БЕЗОПАСНОСТЬ VIBE':'VIBE-SICHERHEIT',
+    'Твой вайб — твои Leute':'Dein Vibe – deine Leute',
     'Заполняй профиль и находи людей, с которыми есть о чём поговорить.':'Vervollständige dein Profil und finde Menschen, mit denen du dich gut unterhalten kannst.',
     'Файл должен быть не больше 3 МБ.':'Die Datei darf höchstens 3 MB groß sein.',
     'Не удалось прочитать файл.':'Die Datei konnte nicht gelesen werden.',
