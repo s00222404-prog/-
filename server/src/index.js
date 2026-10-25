@@ -1228,6 +1228,7 @@ app.post('/telegram/webhook', (req,res) => {
         if(targetId===DEVELOPER_TELEGRAM_ID){await notifyDeveloperAttempt({actorId:from?.id,actorName:from?.first_name,actorUsername:from?.username,action:'Изменение роли разработчика',source:'Telegram-кнопка ролей'});await answer('Нельзя изменить роль Разработчика');return;}
         if(act==='none') await pool.query('DELETE FROM admin_roles WHERE telegram_id=$1',[targetId]);
         else await pool.query(`INSERT INTO admin_roles(telegram_id,username,role,assigned_by) VALUES($1,$2,$3,$4) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,role=EXCLUDED.role,assigned_by=EXCLUDED.assigned_by,updated_at=NOW()`,[targetId,target.rows[0].username,act,String(from.id)]);
+        await logModerationAction({actorId:from.id,actorRole:'developer',action:act==='none'?'staff_role_removed':'staff_role_assigned',targetUserId:id,reason:act==='none'?'Administrative role removed':'Administrative role assigned: '+act});
         await answer(act==='none'?'Админ-права сняты':'Назначены админ-права: '+(ROLE_LABELS[act]||act));
         await card(id,true);
         return;
@@ -1274,8 +1275,8 @@ app.post('/telegram/webhook', (req,res) => {
       }
       if(act==='ban'){const reasonsKeyboard={inline_keyboard:Object.entries(BAN_REASONS).map(([key,item])=>[{text:item.label,callback_data:'br:'+id+':'+key}])};await answer('Выбери причину бана');await send('⛔ Выберите причину блокировки для '+q.rows[0].first_name+'. После нажатия аккаунт будет заблокирован, а выбранная причина сохранится в системе.',reasonsKeyboard);return;}
       if(act==='unban'){if(q.rows[0].account_status!=='banned'){await answer('Аккаунт не заблокирован. Другие ограничения этой кнопкой не снимаются.');return;}const restored=await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1 AND account_status='banned' RETURNING id",[id]);if(!restored.rowCount){await answer('Аккаунт уже не заблокирован.');return;}await answer('Блокировка снята.');await edit('✅ Бан снят.');return;}
-      if(act==='profile'){await pool.query("UPDATE users SET bio='',city=NULL,photo_url=NULL,gender=NULL,goal='friendship',interests='{}',discoverable=FALSE,profile_review_status='restricted',moderation_note='Profile deleted by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await answer('Анкета удалена');await edit('🧹 Анкета удалена. Аккаунт сохранён.');return;}
-      if(act==='account'){await pool.query('DELETE FROM users WHERE id=$1',[id]);await answer('Учётная запись удалена.');await edit('🗑 Аккаунт удалён вместе с анкетой, лайками, чатами и жалобами. Пользователь сможет зарегистрироваться снова с тем же Telegram-аккаунтом.');return;}
+      if(act==='profile'){await pool.query("UPDATE users SET bio='',city=NULL,photo_url=NULL,gender=NULL,goal='friendship',interests='{}',discoverable=FALSE,profile_review_status='restricted',moderation_note='Profile deleted by Telegram admin',updated_at=NOW() WHERE id=$1",[id]);await logModerationAction({actorId:from.id,actorRole,action:'profile_removed',targetUserId:id,reason:'Profile removed by Telegram moderator'});await answer('Анкета удалена');await edit('🧹 Анкета удалена. Аккаунт сохранён.');return;}
+      if(act==='account'){await logModerationAction({actorId:from.id,actorRole,action:'account_deleted',targetUserId:id,reason:'Account deleted by Telegram moderator'});await pool.query('DELETE FROM users WHERE id=$1',[id]);await answer('Учётная запись удалена.');await edit('🗑 Аккаунт удалён вместе с анкетой, лайками, чатами и жалобами. Пользователь сможет зарегистрироваться снова с тем же Telegram-аккаунтом.');return;}
     }
     if(!m)return;
     let reply,markup;
