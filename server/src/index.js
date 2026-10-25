@@ -11,6 +11,7 @@ import { profileTextProblem } from './moderation/text-policy.js';
 import { validateReportEvidence } from './moderation/evidence-policy.js';
 import { validateListingMedia } from './moderation/media-policy.js';
 import { ageOnDate, ageBandForUser } from './age-policy.js';
+import { isDeveloperEmail } from './developer-email-policy.js';
 
 const app = express();
 // Render terminates TLS and forwards the original client IP through one trusted proxy.
@@ -199,6 +200,14 @@ async function getRole(telegramId) {
   const current=active.rows[0]?.role;
   return current && roleRank[current]!==undefined && roleRank[current]<=roleRank[assigned] ? current : assigned;
 }
+async function getRoleForUser(user) {
+  // Email-based developer access is available only on an explicitly marked test API.
+  // Leave VIBE_TEST_MODE unset on the production API.
+  if (String(process.env.VIBE_TEST_MODE || '').toLowerCase() === 'true' && isDeveloperEmail(user?.email)) return 'developer';
+  if (user?.telegram_id === null || user?.telegram_id === undefined || user?.telegram_id === '') return 'none';
+  return getRole(user.telegram_id);
+}
+
 async function getAssignedRole(telegramId) {
   const id = String(telegramId);
   if (id === DEVELOPER_TELEGRAM_ID) return 'developer';
@@ -222,6 +231,8 @@ async function logModerationAction({actorId,actorRole,action,targetUserId=null,l
 
 async function canManage(req,res,next) {
   try {
+    // Full account-moderation privileges remain tied to the existing Telegram role system.
+    // Email allowlisting grants access only to the isolated demo-report test workflow below.
     const role = await getRole(req.user.telegram_id);
     if (roleRank[role] < roleRank.admin) return res.status(403).json({error:'Admin access denied'});
     if (role !== 'developer' && !await isAdminUnlocked(req.user.telegram_id)) {
@@ -365,7 +376,7 @@ app.post('/api/auth/telegram',authRateLimit,wrap(async(req,res)=>{
   if (['suspended','restricted'].includes(u.account_status)) return res.status(403).json({ error: 'Доступ к аккаунту ограничен', restricted: true, reason: u.moderation_note || 'Причина не указана' });
   res.json({user:u});
 }));
-app.get('/api/me',auth,wrap(async(req,res)=>{const [r,likes]=await Promise.all([pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1',[String(req.user.telegram_id)]),pool.query('SELECT COUNT(*)::int AS count FROM likes WHERE to_user=$1',[req.user.id])]);const role=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(r.rows[0]?.role||'none');const status=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(req.user.public_status||'none');res.json({user:{...req.user,account_code:String(req.user.id).padStart(6,'0'),likes_received:likes.rows[0]?.count||0,admin_access:roleRank[role]>=roleRank.admin,public_role:status,role_label:status==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[status]||null)}});}));
+app.get('/api/me',auth,wrap(async(req,res)=>{const [role,likes]=await Promise.all([getRoleForUser(req.user),pool.query('SELECT COUNT(*)::int AS count FROM likes WHERE to_user=$1',[req.user.id])]);const status=role==='developer'?'developer':(req.user.public_status||'none');res.json({user:{...req.user,role,account_code:String(req.user.id).padStart(6,'0'),likes_received:likes.rows[0]?.count||0,admin_access:roleRank[role]>=roleRank.admin,public_role:status,role_label:status==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[status]||null)}});}));
 app.get('/api/referrals',auth,wrap(async(req,res)=>{const q=await pool.query('SELECT COUNT(*)::int AS count FROM referrals WHERE referrer_user_id=$1',[req.user.id]);res.json({count:q.rows[0]?.count||0,account_code:String(req.user.id).padStart(6,'0')});}));
 app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
@@ -705,6 +716,8 @@ app.post('/api/blocks/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   res.json({blocked:true});
 }));
 app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
+  if (await getRoleForUser(req.user) !== 'developer') return res.status(403).json({error:'Тестовые жалобы доступны только разработчику VIBE.'});
+  if (await getUserAgeBand(req.user.id) === 'restricted') return res.status(403).json({error:'Тестовая жалоба недоступна: аккаунт не соответствует возрастной политике VIBE.'});
   const {reason,details='',reporterUsername,evidence='',targetName='Демо-профиль',targetUsername='',targetAge=null,reportType='profile'}=req.body||{};
   if(typeof reason!=='string'||!reason.trim()||reason.trim().length>100)return res.status(400).json({error:'Укажи обязательную причину жалобы'});
   if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
@@ -748,6 +761,50 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
   const notificationSent=deliveries.some(Boolean);
   if(!notificationSent)console.error('Demo report #'+saved.rows[0].id+' saved, but no admin notification was delivered.');
   res.status(201).json({ok:true,reported:true,reportId:saved.rows[0].id,review:'saved',notificationSent,message:notificationSent?'Тестовая жалоба сохранена и отправлена команде.':'Тестовая жалоба сохранена, но уведомление команде не доставлено. Повторно отправлять её не нужно.'});
+}));
+app.get('/api/dev/demo-reports',auth,wrap(async(req,res)=>{
+  if (await getRoleForUser(req.user) !== 'developer') return res.status(403).json({error:'Доступ только для разработчика VIBE.'});
+  if (await getUserAgeBand(req.user.id) === 'restricted') return res.status(403).json({error:'Тестовая модерация доступна только аккаунтам, соответствующим возрастной политике VIBE.'});
+  await pool.query(`CREATE TABLE IF NOT EXISTS demo_reports (
+    id BIGSERIAL PRIMARY KEY,
+    reporter_id BIGINT NOT NULL,
+    reporter_username TEXT NOT NULL DEFAULT '',
+    target_name TEXT NOT NULL,
+    target_username TEXT NOT NULL DEFAULT '',
+    target_age INTEGER,
+    reason TEXT NOT NULL,
+    details TEXT NOT NULL DEFAULT '',
+    evidence TEXT,
+    report_type TEXT NOT NULL DEFAULT 'profile',
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  const q=await pool.query('SELECT id,reporter_id,reporter_username,target_name,target_username,target_age,reason,details,report_type,status,created_at FROM demo_reports ORDER BY created_at DESC LIMIT 100');
+  res.json({reports:q.rows});
+}));
+app.patch('/api/dev/demo-reports/:id',auth,wrap(async(req,res)=>{
+  if (await getRoleForUser(req.user) !== 'developer') return res.status(403).json({error:'Доступ только для разработчика VIBE.'});
+  if (await getUserAgeBand(req.user.id) === 'restricted') return res.status(403).json({error:'Тестовая модерация доступна только аккаунтам, соответствующим возрастной политике VIBE.'});
+  const id=Number(req.params.id);
+  const {status}=req.body||{};
+  if(!Number.isSafeInteger(id)||id<1||!['reviewing','resolved','dismissed'].includes(status)) return res.status(400).json({error:'Недопустимый статус тестовой жалобы.'});
+  await pool.query(`CREATE TABLE IF NOT EXISTS demo_reports (
+    id BIGSERIAL PRIMARY KEY,
+    reporter_id BIGINT NOT NULL,
+    reporter_username TEXT NOT NULL DEFAULT '',
+    target_name TEXT NOT NULL,
+    target_username TEXT NOT NULL DEFAULT '',
+    target_age INTEGER,
+    reason TEXT NOT NULL,
+    details TEXT NOT NULL DEFAULT '',
+    evidence TEXT,
+    report_type TEXT NOT NULL DEFAULT 'profile',
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  const q=await pool.query('UPDATE demo_reports SET status=$1 WHERE id=$2 RETURNING id,status',[status,id]);
+  if(!q.rowCount)return res.status(404).json({error:'Тестовая жалоба не найдена.'});
+  res.json({updated:true,report:q.rows[0]});
 }));
 app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);

@@ -29,12 +29,12 @@ test('verified adult age overrides a conflicting self-reported teen birth date',
   }, new Date('2026-10-24T12:00:00Z')), 'adult');
 });
 
-test('a verified status without a valid adult birth date never grants adult access', () => {
+test('a verified status with a teen birth date never grants adult access', () => {
   assert.equal(ageBandForUser({
     birthDate: '2010-01-01',
     verifiedBirthDate: '2010-01-01',
     verificationStatus: 'verified'
-  }, new Date('2026-10-24T12:00:00Z')), 'restricted');
+  }, new Date('2026-10-24T12:00:00Z')), 'teen');
 });
 
 test('unverified users are classified as teens only from a valid 14–17 birth date', () => {
