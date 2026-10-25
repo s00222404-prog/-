@@ -559,6 +559,8 @@ button,input,textarea,select{min-width:0;max-width:100%}
 }
 
 @media(max-width:650px){
+  /* Mobile drawer must override the desktop collapsed-sidebar rule. */
+  .app-frame.sidebar-collapsed.mobile-sidebar-open .sidebar{display:flex!important;visibility:visible!important;}
   .app-frame.mobile-sidebar-open .sidebar{
     display:flex!important;position:fixed;z-index:151;left:0;top:0;bottom:0;
     width:min(82vw,310px);height:100dvh;min-height:0;overflow-y:auto;
