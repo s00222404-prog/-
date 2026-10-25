@@ -252,6 +252,13 @@ const reportRateLimit = rateLimit({
   legacyHeaders: false,
   message: { error: 'Слишком много жалоб. Попробуй позже.' },
 });
+const storyRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Слишком много историй. Попробуй позже.' },
+});
 
 async function auth(req,res,next) {
   try {
@@ -428,7 +435,8 @@ app.get('/api/stories',auth,userActionRateLimit,wrap(async(req,res)=>{
    ORDER BY s.created_at DESC LIMIT 100`,[req.user.id,viewerBand]);
  res.json({stories:q.rows.map(s=>({...s,is_mine:String(s.author_id)===String(req.user.id)}))});
 }));
-app.post('/api/stories',auth,userActionRateLimit,wrap(async(req,res)=>{
+app.post('/api/stories',auth,storyRateLimit,wrap(async(req,res)=>{
+ await pool.query('DELETE FROM stories WHERE expires_at <= NOW()');
  const viewerBand=await getUserAgeBand(req.user.id);
  if(!['teen','adult'].includes(viewerBand))return res.status(403).json({error:'Истории доступны после подтверждения подходящей возрастной группы.'});
  const {mediaUrl,mediaType='image',caption=''}=req.body||{};
