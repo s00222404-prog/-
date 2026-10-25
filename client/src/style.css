@@ -574,3 +574,18 @@ button,input,textarea,select{min-width:0;max-width:100%}
 @keyframes mobileSidebarIn{from{transform:translateX(-24px);opacity:.65}to{transform:translateX(0);opacity:1}}
 @keyframes mobileBackdropIn{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.app-frame.mobile-sidebar-open .sidebar,.mobile-sidebar-backdrop{animation:none!important}}
+
+/* Closing states stay mounted long enough to animate instead of disappearing abruptly. */
+@media(max-width:650px){
+ .app-frame.mobile-sidebar-closing .sidebar{animation:mobileSidebarOut .24s cubic-bezier(.4,0,.7,.2) both;pointer-events:none}
+ .mobile-sidebar-backdrop.is-closing{animation:mobileBackdropOut .24s ease both;pointer-events:none}
+}
+.mobile-rail-backdrop{opacity:1;transition:opacity .24s ease}
+.mobile-rail-backdrop.is-closing{opacity:0;pointer-events:none}
+.right-rail.mobile-rail-open{opacity:1;transform:translateX(0);transition:transform .24s cubic-bezier(.22,.75,.25,1),opacity .2s ease}
+.right-rail.mobile-rail-open.is-closing{opacity:0;transform:translateX(28px);pointer-events:none}
+@keyframes mobileSidebarOut{to{transform:translateX(-100%);opacity:.6}}
+@keyframes mobileBackdropOut{to{opacity:0}}
+@media(prefers-reduced-motion:reduce){
+ .app-frame.mobile-sidebar-closing .sidebar,.mobile-sidebar-backdrop.is-closing,.mobile-rail-backdrop,.right-rail.mobile-rail-open{animation:none!important;transition:none!important}
+}
