@@ -307,34 +307,11 @@ app.get('/health',wrap(async(_req,res)=>{const q=await pool.query("SELECT enable
 function normalizeEmail(value) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
-function hashEmailCode(email, code) {
-  return createHash('sha256').update(email + ':' + code + ':' + (process.env.EMAIL_CODE_PEPPER || process.env.BOT_TOKEN || 'vibe-email-code')).digest('hex');
-}
-function safeEqualHex(a, b) {
-  try { const aa=Buffer.from(a,'hex'), bb=Buffer.from(b,'hex'); return aa.length===bb.length && aa.length>0 && timingSafeEqual(aa,bb); } catch { return false; }
-}
 async function issueWebSession(userId) {
   const token=randomBytes(32).toString('base64url');
   const tokenHash=createHash('sha256').update(token).digest('hex');
   await pool.query('INSERT INTO web_sessions(user_id,token_hash,expires_at) VALUES($1,$2,NOW()+INTERVAL \'30 days\')',[userId,tokenHash]);
   return token;
-}
-async function sendLoginCode(email, code) {
-  if (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) {
-    const error=new Error('Вход по почте пока не настроен. Необходимо настроить RESEND_API_KEY и EMAIL_FROM на сервере VIBE.');
-    error.status=503; throw error;
-  }
-  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({
-    from:process.env.EMAIL_FROM,to:[email],subject:'Код входа в VIBE',
-    html:'<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;color:#241b35"><h1>VIBE</h1><p>Твой код для входа:</p><p style="font-size:32px;font-weight:bold;letter-spacing:8px">'+code+'</p><p>Код действует 10 минут. Никому его не сообщай.</p><p>Если ты не запрашивал вход, просто проигнорируй это письмо.</p></div>',
-    text:'Твой код для входа в VIBE: '+code+'. Код действует 10 минут. Никому его не сообщай.'
-  })});
-  if (!response.ok) {
-    const body=await response.text().catch(()=> '');
-    console.error('VIBE email delivery failed:',response.status,body.slice(0,300));
-    const error=new Error('Не удалось отправить письмо. Проверь адрес и попробуй позже.');
-    error.status=502; throw error;
-  }
 }
 async function createOrGetEmailUser(email) {
   const localPart=email.split('@')[0].replace(/[^\p{L}\p{N}._-]/gu,'').slice(0,50);
@@ -346,35 +323,7 @@ async function createOrGetEmailUser(email) {
     RETURNING id,telegram_id,email,email_verified_at,username,first_name,birth_date,verified_birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status,ban_issuer`,[email,firstName]);
   return q.rows[0];
 }
-app.post('/api/auth/email/request',authRateLimit,wrap(async(req,res)=>{
-  const email=normalizeEmail(req.body?.email);
-  if(email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({error:'Укажи корректный адрес электронной почты.'});
-  const recent=await pool.query("SELECT COUNT(*)::int AS count FROM email_login_codes WHERE LOWER(email)=LOWER($1) AND created_at>NOW()-INTERVAL '15 minutes'",[email]);
-  if(Number(recent.rows[0]?.count||0)>=3)return res.status(429).json({error:'Для этой почты уже запрошено несколько кодов. Попробуй позже.'});
-  const code=String(randomInt(0,1000000)).padStart(6,'0');
-  await pool.query('UPDATE email_login_codes SET consumed_at=NOW() WHERE LOWER(email)=LOWER($1) AND consumed_at IS NULL',[email]);
-  await pool.query("INSERT INTO email_login_codes(email,code_hash,expires_at,request_ip) VALUES($1,$2,NOW()+INTERVAL '10 minutes',$3)",[email,hashEmailCode(email,code),String(req.ip||'').slice(0,64)]);
-  try { await sendLoginCode(email,code); }
-  catch(e) { await pool.query('UPDATE email_login_codes SET consumed_at=NOW() WHERE LOWER(email)=LOWER($1) AND consumed_at IS NULL',[email]); return res.status(e.status||502).json({error:e.message}); }
-  res.json({ok:true,message:'Если адрес доступен, код уже отправлен. Проверь почту и папку «Спам».'});
-}));
-app.post('/api/auth/email/verify',authRateLimit,wrap(async(req,res)=>{
-  const email=normalizeEmail(req.body?.email), code=String(req.body?.code||'').trim();
-  if(email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||! /^\d{6}$/.test(code))return res.status(400).json({error:'Укажи почту и шестизначный код из письма.'});
-  const q=await pool.query("SELECT id,code_hash,attempts FROM email_login_codes WHERE LOWER(email)=LOWER($1) AND consumed_at IS NULL AND expires_at>NOW() ORDER BY created_at DESC LIMIT 1",[email]);
-  if(!q.rowCount||Number(q.rows[0].attempts)>=5)return res.status(400).json({error:'Код неверный или истёк. Запроси новый код.'});
-  const record=q.rows[0];
-  if(!safeEqualHex(hashEmailCode(email,code),record.code_hash)){
-    await pool.query('UPDATE email_login_codes SET attempts=attempts+1 WHERE id=$1',[record.id]);
-    return res.status(400).json({error:'Код неверный или истёк. Проверь его и попробуй ещё раз.'});
-  }
-  await pool.query('UPDATE email_login_codes SET consumed_at=NOW() WHERE id=$1',[record.id]);
-  const user=await createOrGetEmailUser(email);
-  if(user.account_status!=='active')return res.status(403).json({error:'Доступ к аккаунту ограничен.',banned:user.account_status==='banned'});
-  const token=await issueWebSession(user.id);
-  res.json({ok:true,token,user});
-}));
-// Google sign-in is intentionally disabled; VIBE supports email and Telegram only.
+// Email authentication is handled by Supabase Auth on the client and verified below.
 app.post('/api/auth/supabase',authRateLimit,wrap(async(req,res)=>{
   const accessToken=String(req.body?.access_token||'');
   if(!accessToken||accessToken.length>10000)return res.status(400).json({error:'Не удалось получить подтверждение входа.'});
