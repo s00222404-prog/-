@@ -27,10 +27,6 @@ services:
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
-        sync: false
-        sync: false
-        sync: false
-        sync: false
 
   - type: web
     name: vibe-client
@@ -54,5 +50,4 @@ services:
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
-        sync: false
         sync: false
