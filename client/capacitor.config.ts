@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     // Keep the UI bundled in the APK. Do not set server.url to the website:
-    // this makes the app launch the same built React UI offline-first.
+    // this keeps the same built React UI inside the APK; API features need internet.
     androidScheme: 'https',
   },
   android: {
