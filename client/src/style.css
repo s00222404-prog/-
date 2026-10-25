@@ -434,3 +434,31 @@ button,input,textarea,select{min-width:0;max-width:100%}
  .filter-button{flex:0 0 auto}
  .mobile-nav button{font-size:8px}
 }
+
+
+/* Fit the app shell to the visible viewport; scroll content inside its own column, not the whole page. */
+@media (min-width:721px){
+ html,body,#root{height:100%;min-height:0;overflow:hidden}
+ .app-frame{height:100dvh;min-height:0;max-height:100dvh;overflow:hidden;align-items:stretch}
+ .sidebar{height:calc(100dvh - 48px);min-height:0;max-height:calc(100dvh - 48px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin}
+ .main-area{height:calc(100dvh - 48px);min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;padding-bottom:12px}
+ .right-rail{height:calc(100dvh - 48px);min-height:0;max-height:calc(100dvh - 48px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin}
+}
+@media (min-width:1181px) and (max-height:760px){
+ .app-frame{padding:14px;gap:14px;grid-template-columns:clamp(175px,17vw,220px) minmax(0,1fr) clamp(220px,20vw,258px)}
+ .sidebar,.main-area,.right-rail{height:calc(100dvh - 28px);max-height:calc(100dvh - 28px)}
+ .sidebar-caption{margin-bottom:18px}
+ .side-nav button{padding:10px 12px}
+ .sidebar-tip{padding:13px}
+ .rail-card{padding:12px;margin-bottom:10px}
+}
+@media (max-width:1180px) and (min-width:721px){
+ .app-frame{height:100dvh;min-height:0;max-height:100dvh;overflow:hidden}
+ .sidebar{height:calc(100dvh - 2 * clamp(8px,1vw,14px));max-height:calc(100dvh - 2 * clamp(8px,1vw,14px));min-height:0}
+ .main-area{height:calc(100dvh - 2 * clamp(8px,1vw,14px));min-height:0;overflow-y:auto;overflow-x:hidden}
+ .right-rail{height:calc(100dvh - 2 * clamp(8px,1vw,14px));max-height:calc(100dvh - 2 * clamp(8px,1vw,14px));min-height:0;overflow-y:auto}
+}
+@media (max-width:720px){
+ html,body,#root{height:auto;min-height:100%;overflow-x:clip;overflow-y:auto}
+ .app-frame{height:auto;min-height:100dvh;max-height:none;overflow:visible}
+}
