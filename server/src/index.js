@@ -214,6 +214,12 @@ async function ensureTargetBelowActor(targetTelegramId, actorRole) {
   return true;
 }
 
+async function logModerationAction({actorId,actorRole,action,targetUserId=null,listingId=null,reason='',metadata={}}) {
+  try {
+    await pool.query('INSERT INTO moderation_audit_log(actor_telegram_id,actor_role,action,target_user_id,listing_id,reason,metadata) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)',[String(actorId),String(actorRole),String(action),targetUserId,listingId,String(reason||''),JSON.stringify(metadata||{})]);
+  } catch (error) { console.error('Moderation audit write failed:', error.message); }
+}
+
 async function canManage(req,res,next) {
   try {
     const role = await getRole(req.user.telegram_id);
@@ -1079,6 +1085,8 @@ app.post('/telegram/webhook', (req,res) => {
     };
     if(cb){
       const [prefix,act,idRaw]=(cb.data||'').split(':'), id=Number(idRaw);
+      const privilegedCallback = prefix==='l' || prefix==='br' || (prefix==='u' && ['ban','unban','profile','account'].includes(act)) || prefix==='role' || prefix==='pubstatus';
+      if(privilegedCallback && roleRank[role]>=roleRank.admin && role!=='developer' && !await isAdminUnlocked(from.id)) { await answer('🔒 Сначала разблокируй админ-сессию паролем в боте.'); return; }
       if(prefix==='support') {
         if(act==='new') {
           await pool.query("INSERT INTO telegram_support_sessions(telegram_id,mode,ticket_id,updated_at) VALUES($1,'new_ticket',NULL,NOW()) ON CONFLICT(telegram_id) DO UPDATE SET mode='new_ticket',ticket_id=NULL,updated_at=NOW()",[String(from.id)]);
@@ -1113,6 +1121,7 @@ app.post('/telegram/webhook', (req,res) => {
         const status=act==='approve'?'published':'rejected';
         const updated=await pool.query("UPDATE listings SET status=$1,updated_at=NOW() WHERE id=$2 AND status='pending' RETURNING id",[status,id]);
         if(!updated.rowCount){await answer('Анкета уже обработана другим модератором.');return;}
+        await logModerationAction({actorId:from.id,actorRole,action:act==='approve'?'listing_approved':'listing_rejected',targetUserId:found.rows[0].user_id,listingId:id,reason:act==='reject'?'Rejected by moderator':'Approved by moderator'});
         const message=act==='approve'?'✅ Твоя анкета VIBE «'+found.rows[0].name+'» прошла проверку и теперь доступна в рекомендациях.':'⚠️ Анкета VIBE «'+found.rows[0].name+'» не прошла проверку. Пожалуйста, исправьте данные и отправьте анкету повторно.';
         await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:found.rows[0].telegram_id,text:message})}).catch(e=>console.error('Listing decision notification failed:',e.message));
         await answer(act==='approve'?'Анкета одобрена и опубликована.':'Анкета отклонена.');
@@ -1153,6 +1162,7 @@ app.post('/telegram/webhook', (req,res) => {
         if((roleRank[actorRole]??0)<roleRank.moderator){await answer('Блокировать аккаунты может только модератор или роль выше.');return;}
         if(!await ensureTargetBelowActor(String(target.rows[0].telegram_id),actorRole)){await answer('Нельзя банить пользователя с равным или более высоким назначенным рангом');return;}
         await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3",[selected.reason,actorRole==='developer'?'developer':'moderator',targetId]);
+        await logModerationAction({actorId:from.id,actorRole,action:'account_banned',targetUserId:targetId,reason:selected.reason});
         await answer('Аккаунт заблокирован: '+selected.label);
         await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:target.rows[0].telegram_id,text:'⛔ Ваш аккаунт забанен.\nКем заблокирован: '+(actorRole==='developer'?'разработчиком':'модератором')+'.\nПричина: '+selected.reason+'\nДоступ к VIBE заблокирован.'})}).catch(e=>console.error('Ban notice failed:',e.message));
         await edit('⛔ АККАУНТ ЗАБЛОКИРОВАН\nПользователь: '+target.rows[0].first_name+' (код '+String(targetId).padStart(6,'0')+')\nКем: '+(actorRole==='developer'?'разработчиком':'модератором')+'\nПричина: '+selected.reason);
