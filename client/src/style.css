@@ -196,3 +196,21 @@ button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline
 
 /* Accessible, consistently shaped clickable verification badges */
 .verified-button,.developer-check-button{appearance:none;-webkit-appearance:none;border:0;padding:0;line-height:1;cursor:pointer;font:inherit;flex:0 0 auto}.verified-button{display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px}.developer-check-button{box-sizing:border-box}.developer-check-button:focus-visible,.verified-button:focus-visible{outline:2px solid #c4a4ff;outline-offset:3px}
+
+
+/* Modern live photo crop editor */
+.photo-editor-stage{position:relative;isolation:isolate;flex:0 0 auto;width:clamp(132px,30vw,184px);aspect-ratio:4/5;overflow:hidden;border:1px solid #c7a5ff75;border-radius:24px;background:radial-gradient(ellipse at 50% 0%,#7f4cbd55,transparent 65%),#100c19;box-shadow:0 14px 38px #0005,0 0 0 5px #b18aff0d}
+.photo-editor-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;transition:transform .14s ease-out,object-position .14s ease-out}
+.photo-editor-grid{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,transparent 32.9%,#ffffff35 33.2%,transparent 33.7%,transparent 66.2%,#ffffff35 66.5%,transparent 66.9%),linear-gradient(0deg,transparent 32.9%,#ffffff35 33.2%,transparent 33.7%,transparent 66.2%,#ffffff35 66.5%,transparent 66.9%);opacity:.75}
+.photo-editor-stage:after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,#09061140,transparent 22%,transparent 68%,#09061170)}
+.photo-editor-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#d9c4ff;background:radial-gradient(circle at 50% 35%,#8b5cf640,transparent 50%)}
+.photo-editor-empty span{font-size:42px;font-weight:800;letter-spacing:-2px}
+.photo-editor-corner{position:absolute;z-index:2;width:19px;height:19px;border-color:#fff;border-style:solid;filter:drop-shadow(0 1px 4px #0008);pointer-events:none}
+.photo-editor-corner.top-left{top:12px;left:12px;border-width:2px 0 0 2px;border-radius:5px 0 0}
+.photo-editor-corner.top-right{top:12px;right:12px;border-width:2px 2px 0 0;border-radius:0 5px 0 0}
+.photo-editor-corner.bottom-left{bottom:12px;left:12px;border-width:0 0 2px 2px;border-radius:0 0 0 5px}
+.photo-editor-corner.bottom-right{bottom:12px;right:12px;border-width:0 2px 2px 0;border-radius:0 0 5px}
+.photo-editor-chip{position:absolute;z-index:3;left:10px;bottom:10px;display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #ffffff35;border-radius:999px;background:#100b1dcc;color:#f2eaff;font-size:8px;font-weight:800;letter-spacing:1px;backdrop-filter:blur(10px)}
+.profile-photo-panel{align-items:flex-start}
+.profile-photo-copy{flex:1}
+@media(max-width:420px){.photo-editor-stage{width:118px;border-radius:19px}.photo-editor-corner{width:15px;height:15px}.photo-editor-corner.top-left,.photo-editor-corner.top-right{top:9px}.photo-editor-corner.bottom-left,.photo-editor-corner.bottom-right{bottom:9px}.photo-editor-corner.top-left,.photo-editor-corner.bottom-left{left:9px}.photo-editor-corner.top-right,.photo-editor-corner.bottom-right{right:9px}.photo-editor-chip{left:7px;bottom:7px;font-size:7px}.profile-photo-panel{gap:12px;padding:12px}}
