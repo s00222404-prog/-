@@ -310,7 +310,7 @@ const APP_TEXT_TRANSLATIONS = {
     'Прогулки':'Walks',
     'Поездки':'Trips',
     'Животные':'Animals',
-    'Арт':'Art'
+    'Арт':'Art',
     "Путешествия":"Travel",
     "Творчество":"Creativity",
     "Аниме":"Anime",
