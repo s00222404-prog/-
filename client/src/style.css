@@ -375,3 +375,62 @@ button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline
  .sidebar{display:none}
  .right-rail{display:none}
 }
+
+
+/* Responsive pass: prevent horizontal page scrolling and scale the layout to the actual viewport. */
+html{width:100%;max-width:100%;overflow-x:clip}
+body{width:100%;max-width:100%;overflow-x:clip}
+#root{width:100%;min-width:0;max-width:100%;overflow-x:clip}
+*,*::before,*::after{box-sizing:border-box}
+.app-frame{width:100%;min-width:0;overflow-x:clip}
+.main-area,.sidebar,.right-rail,.rail-card,.feed-card,.person-card,.modal-card{min-width:0;max-width:100%}
+img,video,canvas,iframe{max-width:100%}
+button,input,textarea,select{min-width:0;max-width:100%}
+@media (min-width:1181px) and (max-width:1450px){
+ .app-frame{grid-template-columns:clamp(175px,17vw,220px) minmax(0,1fr) clamp(220px,20vw,258px);gap:clamp(12px,1.5vw,22px);padding:clamp(12px,1.6vw,24px)}
+ .sidebar{top:clamp(12px,1.6vw,24px);height:calc(100dvh - clamp(24px,3.2vw,48px));min-height:0}
+ .right-rail{top:clamp(12px,1.6vw,24px);max-height:calc(100dvh - clamp(24px,3.2vw,48px));overflow-y:auto;scrollbar-width:thin}
+}
+@media (min-width:721px) and (max-width:1180px){
+ .app-frame{grid-template-columns:clamp(125px,16vw,175px) minmax(0,1fr) clamp(160px,19vw,210px);gap:clamp(8px,1vw,14px);padding:clamp(8px,1vw,14px);align-items:start}
+ .sidebar{position:sticky;top:8px;height:calc(100dvh - 16px);min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
+ .sidebar-caption{margin-bottom:18px}
+ .sidebar-tip{padding:12px}
+ .main-area{grid-column:2;min-width:0;width:100%}
+ .right-rail{display:block;grid-column:3;position:sticky;top:8px;max-height:calc(100dvh - 16px);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
+ .mobile-nav{display:none}
+ .people-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .person-media{height:clamp(220px,32vw,380px)}
+ .topbar{min-width:0}
+}
+@media (max-width:900px) and (min-width:721px){
+ .app-frame{grid-template-columns:116px minmax(0,1fr) 150px;gap:7px;padding:7px}
+ .side-nav button{gap:7px;padding:10px 7px;font-size:11px}
+ .sidebar-tip{font-size:11px}
+ .sidebar-tip p{font-size:10px}
+ .right-rail .rail-card{padding:11px}
+ .right-rail .rail-kicker{font-size:8px;letter-spacing:.7px}
+ .people-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:720px){
+ html,body,#root{min-height:100%;overflow-x:clip}
+ .app-frame{display:block;width:100%;min-height:100dvh;padding:10px 10px calc(82px + env(safe-area-inset-bottom));overflow-x:clip}
+ .main-area{width:100%;min-width:0}
+ .mobile-nav{left:0;right:0;bottom:0;padding-bottom:calc(9px + env(safe-area-inset-bottom));}
+ .page-heading h1{overflow-wrap:anywhere}
+ .toolbar,.search-box,.filter-panel,.feed-heading,.feed-card,.form-panel,.form-grid,.form-field{min-width:0;max-width:100%}
+ .people-grid{grid-template-columns:minmax(0,1fr)}
+ .person-media{width:100%;max-width:100%}
+ .modal-backdrop{width:100%;max-width:100%;overflow-y:auto;overscroll-behavior:contain}
+ .modal-card{width:100%;max-width:100%;min-width:0}
+}
+@media (max-width:420px){
+ .app-frame{padding-left:8px;padding-right:8px}
+ .mobile-header{flex-wrap:wrap}
+ .page-heading{gap:8px}
+ .page-heading h1{font-size:clamp(25px,8vw,31px)}
+ .toolbar{flex-wrap:wrap}
+ .search-box{flex:1 1 160px}
+ .filter-button{flex:0 0 auto}
+ .mobile-nav button{font-size:8px}
+}
