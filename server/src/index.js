@@ -782,7 +782,7 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
     const roles=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator')");
     const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...roles.rows.map(x=>String(x.telegram_id))]);
     const target=targetExists.rows[0];
-    const reportText=['🚨 Новая жалоба VIBE #'+inserted.rows[0].id,'Тип: '+(reportType==='post'?'на публикацию':'на профиль'),'На пользователя: '+(target.first_name||'неизвестно')+' ('+(target.username?'@'+reportedHandle:reportedHandle)+')','От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Причина: '+reasonLabel,'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'приложены файлом в Telegram':'не приложены'),'Открой /reports в боте для модерации.'].join(String.fromCharCode(10));
+    const reportText=['🚨 Новая жалоба VIBE #'+inserted.rows[0].id,'Тип: '+(reportType==='post'?'на публикацию':'на профиль'),'На пользователя: '+(target.first_name||'неизвестно')+' ('+(target.username?'@'+reportedHandle:reportedHandle)+')','От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Причина: '+reasonLabel,'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'сохранены в системе; откройте панель жалоб':'не приложены'),'Открой /reports в боте для модерации.'].join(String.fromCharCode(10));
     await Promise.all([...ids].map(async telegramId=>{
       try{
         const sent=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:telegramId,text:reportText})});
