@@ -28,11 +28,8 @@ services:
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
         sync: false
-      - key: RESEND_API_KEY
         sync: false
-      - key: EMAIL_FROM
         sync: false
-      - key: EMAIL_CODE_PEPPER
         sync: false
 
   - type: web
