@@ -514,3 +514,24 @@ button,input,textarea,select{min-width:0;max-width:100%}
  .mobile-rail-heading{display:flex;position:sticky;top:-12px;z-index:2;align-items:center;justify-content:space-between;gap:10px;margin:-12px -12px 12px;padding:12px;background:var(--panel,#15111e);border-bottom:1px solid var(--line);border-radius:22px 22px 0 0;color:var(--text)}
  .right-rail.mobile-rail-open .rail-card{margin-bottom:10px}
 }
+
+.theme-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.theme-option{display:flex;align-items:center;gap:9px;min-width:0;padding:9px;border:1px solid var(--line);border-radius:13px;background:var(--panel);text-align:left;font-size:12px}.theme-option.active{border-color:var(--pink);box-shadow:0 0 0 1px color-mix(in srgb,var(--pink) 30%,transparent)}.theme-option>span:nth-child(2){flex:1}.theme-swatch{width:26px;height:26px;flex:none;border-radius:9px;border:1px solid #ffffff30}.theme-option svg{color:var(--pink);flex:none}
+[data-vibe-theme="ocean"]{--bg:#07131f;--panel:#101f32;--panel2:#172b43;--muted:#8daac6;--pink:#42cfff;--violet:#5578ff}
+[data-vibe-theme="forest"]{--bg:#081812;--panel:#10271d;--panel2:#193729;--muted:#94b9a2;--pink:#45dda0;--violet:#218b65}
+[data-vibe-theme="sunset"]{--bg:#1d1017;--panel:#2b1823;--panel2:#402130;--muted:#c4a0ad;--pink:#ff8a5b;--violet:#e24c91}
+[data-vibe-theme="lavender"]{--bg:#150f20;--panel:#21172f;--panel2:#30203f;--muted:#b6a3c9;--pink:#c4a1ff;--violet:#8055d9}
+[data-vibe-theme="rose"]{--bg:#1d1018;--panel:#2b1723;--panel2:#3b2030;--muted:#c6a0b2;--pink:#ff7aa2;--violet:#b92d6b}
+[data-vibe-theme="ice"]{--bg:#0b1720;--panel:#132532;--panel2:#1b3444;--muted:#9bb9c9;--pink:#8cecff;--violet:#508bd6}
+[data-vibe-theme="midnight"]{--bg:#0b0d1c;--panel:#151831;--panel2:#202442;--muted:#a0a6c9;--pink:#818cf8;--violet:#515b8e}
+[data-vibe-theme="emerald"]{--bg:#071a17;--panel:#102a25;--panel2:#183b34;--muted:#9bc5ba;--pink:#52e0ad;--violet:#087d67}
+[data-vibe-theme="amber"]{--bg:#1b1308;--panel:#2b2010;--panel2:#403018;--muted:#c7b18a;--pink:#ffd166;--violet:#d97706}
+[data-vibe-theme="ruby"]{--bg:#1c0b12;--panel:#2d111c;--panel2:#421a29;--muted:#c6a0ad;--pink:#ff526b;--violet:#941c3c}
+[data-vibe-theme="sapphire"]{--bg:#091225;--panel:#101e38;--panel2:#192b4a;--muted:#9baecc;--pink:#56a5ff;--violet:#2340a5}
+[data-vibe-theme="mint"]{--bg:#0c1915;--panel:#152720;--panel2:#20392f;--muted:#a2c4b5;--pink:#9df5d0;--violet:#42a98b}
+[data-vibe-theme="peach"]{--bg:#1d1210;--panel:#2b1b1a;--panel2:#402623;--muted:#c7aaa1;--pink:#ffc09f;--violet:#ed6c85}
+[data-vibe-theme="mono"]{--bg:#111113;--panel:#1e1e22;--panel2:#2b2b31;--muted:#aaaab4;--pink:#d4d4d8;--violet:#777780}
+[data-vibe-theme="cyber"]{--bg:#120b1c;--panel:#21112d;--panel2:#301a40;--muted:#b9a0c9;--pink:#e84dff;--violet:#36e7ff}
+[data-vibe-theme="aurora"]{--bg:#0b1320;--panel:#142332;--panel2:#1d3443;--muted:#9eb8c9;--pink:#58f0cf;--violet:#9666ff}
+[data-vibe-theme="coffee"]{--bg:#1a120e;--panel:#2a1d16;--panel2:#3a2a20;--muted:#b9a08b;--pink:#c69c78;--violet:#68452f}
+[data-vibe-theme="cherry"]{--bg:#1b0e1d;--panel:#29142e;--panel2:#3a1d42;--muted:#c0a0c8;--pink:#ff4d8d;--violet:#a23cb2}
+[data-vibe-theme="graphite"]{--bg:#101216;--panel:#1b1f26;--panel2:#292e38;--muted:#a7afbc;--pink:#aeb8ca;--violet:#626d7e}
