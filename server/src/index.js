@@ -720,6 +720,7 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
   if(typeof reason!=='string'||!reason.trim()||reason.trim().length>100)return res.status(400).json({error:'Укажи обязательную причину жалобы'});
   if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
   if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
+  if(targetAge!==null&&targetAge!==undefined&&targetAge!==''&&(!Number.isInteger(Number(targetAge))||Number(targetAge)<0||Number(targetAge)>120))return res.status(400).json({error:'Некорректный возраст демо-профиля'});
   const reportReasonLabels = {
     spam: 'Спам или навязчивая реклама',
     scam: 'Мошенничество или попытка обмана',
@@ -739,24 +740,26 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
   if(!reportReasonLabel)return res.status(400).json({error:'Выбери причину из списка жалоб'});
   const evidenceValidation=validateReportEvidence(evidence);
   if(!evidenceValidation.valid)return res.status(400).json({error:'Доказательство должно быть корректным фото, видео или PDF размером не более 2 МиБ.'});
-  if(!process.env.BOT_TOKEN)return res.status(503).json({error:'Не удалось отправить жалобу: бот временно недоступен.'});
   const reporterHandle=(req.user.username||'').trim()||('vibe-user-'+req.user.id);
   const safeName=String(targetName).slice(0,80);
   const safeUsername=String(targetUsername).replace(/[^A-Za-z0-9_@]/g,'').slice(0,40);
   const reportText=['🚨 Жалоба на демо-профиль VIBE','Тип: '+(reportType==='post'?'публикация':'профиль'),'Профиль: '+safeName+(targetAge?' · '+Number(targetAge):'')+(safeUsername?' (@'+safeUsername.replace(/^@/,'')+')':''),'От: '+(req.user.first_name||'пользователь')+' ('+reporterHandle+')','Telegram ID отправителя: '+req.user.id,'Причина: '+reportReasonLabel,'Подробности: '+(details.trim()||'—'),'Доказательства: '+(evidence?'прикреплены в форме':'не приложены'),'Рассмотреть жалобу вручную; демо-профиль не является записью реального пользователя в базе.'].join(String.fromCharCode(10));
   await pool.query(`CREATE TABLE IF NOT EXISTS demo_reports (id BIGSERIAL PRIMARY KEY, reporter_id BIGINT NOT NULL, reporter_username TEXT NOT NULL DEFAULT '', target_name TEXT NOT NULL, target_username TEXT NOT NULL DEFAULT '', target_age INTEGER, reason TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', evidence TEXT, report_type TEXT NOT NULL DEFAULT 'profile', status TEXT NOT NULL DEFAULT 'open', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
   const saved=await pool.query('INSERT INTO demo_reports(reporter_id,reporter_username,target_name,target_username,target_age,reason,details,evidence,report_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,reporterHandle,safeName,safeUsername,targetAge?Number(targetAge):null,reportReasonLabel,details.trim(),evidence||null,reportType]);
-  const staff=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator')");
-  const recipients=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(row=>String(row.telegram_id))]);
-  const deliveries=await Promise.all([...recipients].map(async chat_id=>{
-    try {
-      const sent=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id,text:reportText})});
-      const result=await sent.json().catch(()=>({}));
-      if(!sent.ok||!result.ok)console.error('Demo report notification rejected:',String(chat_id),result.description||sent.status);
-      return sent.ok&&result.ok;
-    } catch(e) { console.error('Demo report notification failed:',String(chat_id),e.message); return false; }
-  }));
-  const notificationSent=deliveries.some(Boolean);
+  let notificationSent=false;
+  if(process.env.BOT_TOKEN){
+    const staff=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator')");
+    const recipients=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(row=>String(row.telegram_id))]);
+    const deliveries=await Promise.all([...recipients].map(async chat_id=>{
+      try {
+        const sent=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id,text:reportText})});
+        const result=await sent.json().catch(()=>({}));
+        if(!sent.ok||!result.ok)console.error('Demo report notification rejected:',String(chat_id),result.description||sent.status);
+        return sent.ok&&result.ok;
+      } catch(e) { console.error('Demo report notification failed:',String(chat_id),e.message); return false; }
+    }));
+    notificationSent=deliveries.some(Boolean);
+  }
   if(!notificationSent)console.error('Demo report #'+saved.rows[0].id+' saved, but no admin notification was delivered.');
   res.status(201).json({ok:true,reported:true,reportId:saved.rows[0].id,review:'saved',notificationSent,message:notificationSent?'Тестовая жалоба сохранена и отправлена команде.':'Тестовая жалоба сохранена, но уведомление команде не доставлено. Повторно отправлять её не нужно.'});
 }));
@@ -807,7 +810,7 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reasonLabel,details.trim(),reporterHandle,reportedHandle,evidence,reportType,safeListingId]);
   if(!process.env.BOT_TOKEN){
     console.error('Report #'+inserted.rows[0].id+' saved, but BOT_TOKEN is missing; admin notification not sent.');
-    return res.status(503).json({error:'Жалоба сохранена, но уведомление администрации не отправлено. Команда уже получила технический сигнал.'});
+    return res.status(201).json({reported:true,reportId:inserted.rows[0].id,notificationsDelivered:0,notificationSent:false,message:'Жалоба сохранена. Уведомление команде задерживается; повторно отправлять жалобу не нужно.'});
   }
   let delivered=0;
   try{
@@ -951,7 +954,9 @@ app.patch('/api/admin/reports/:id',auth,adminOnly,wrap(async(req,res)=>{
       const accountStatus={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];
       await c.query("UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3",[accountStatus,note.trim()||'Admin action: '+action,f.rows[0].reported_id,req.adminRole==='developer'?'developer':'moderator']);
     }
-    await c.query('COMMIT');res.json({updated:true});
+    await c.query('COMMIT');
+     await logModerationAction({actorId:req.user.telegram_id,actorRole:req.adminRole,action:'report_'+status+(action!=='none'?'_'+action:''),targetUserId:f.rows[0].reported_id,reason:note.trim(),metadata:{reportId:id,action,status}});
+     res.json({updated:true});
   }catch(e){try{await c.query('ROLLBACK');}catch{}throw e;}finally{c.release();}
 }));
 app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
@@ -974,7 +979,9 @@ app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
       const accountStatus={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];
       await c.query("UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3",[accountStatus,note.trim()||'Admin action: '+action,f.rows[0].user_id,req.adminRole==='developer'?'developer':'moderator']);
     }
-    await c.query('COMMIT');res.json({updated:true});
+    await c.query('COMMIT');
+     await logModerationAction({actorId:req.user.telegram_id,actorRole:req.adminRole,action:'flag_'+status+(action!=='none'?'_'+action:''),targetUserId:f.rows[0].user_id,reason:note.trim(),metadata:{flagId:id,action,status}});
+     res.json({updated:true});
   }catch(e){try{await c.query('ROLLBACK');}catch{}throw e;}finally{c.release();}
 }));
 
