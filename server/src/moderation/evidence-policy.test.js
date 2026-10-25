@@ -7,7 +7,7 @@ test('allows an empty optional evidence field', () => {
 });
 
 test('accepts an image data URL within the 2 MiB limit', () => {
-  const data = Buffer.alloc(32, 7).toString('base64');
+  const data = Buffer.concat([Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]), Buffer.alloc(24, 7)]).toString('base64');
   assert.deepEqual(validateReportEvidence('data:image/png;base64,' + data), {
     valid: true, bytes: 32, mime: 'image/png'
   });
