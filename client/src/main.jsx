@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {createClient} from '@supabase/supabase-js';
 import {createRoot} from 'react-dom/client';
-import {Heart,Compass,MessageCircle,UserRound,Plus,ArrowLeft,ArrowRight,MapPin,Sparkles,SlidersHorizontal,Send,ShieldAlert,Camera,Check,Lock,LogIn,ImagePlus,Settings,Search,CheckCircle2,Users,MoreHorizontal,X,RefreshCw,Trash2} from 'lucide-react';
+import {Heart,Compass,MessageCircle,UserRound,Plus,ArrowLeft,ArrowRight,MapPin,Sparkles,SlidersHorizontal,Send,ShieldAlert,Camera,Check,Lock,LogIn,ImagePlus,Settings,Search,CheckCircle2,Users,MoreHorizontal,X,Menu,RefreshCw,Trash2} from 'lucide-react';
 import './style.css';
 import {observeUiTranslations} from './i18n.js';
 
