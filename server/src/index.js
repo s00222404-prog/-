@@ -225,7 +225,7 @@ async function canManage(req,res,next) {
     next();
   } catch (e) { next(e); }
 }
-app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',') }));
+app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim()).filter(Boolean) }));
 app.use(express.json({ limit: '5mb' }));
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);
 
@@ -341,7 +341,8 @@ async function createOrGetEmailUser(email) {
   const firstName=localPart || 'Участник VIBE';
   const q=await pool.query(`INSERT INTO users(email,email_verified_at,first_name)
     VALUES($1,NOW(),$2)
-    ON CONFLICT(email) DO UPDATE SET email_verified_at=COALESCE(users.email_verified_at,NOW()),updated_at=NOW()
+    ON CONFLICT (LOWER(email)) WHERE email IS NOT NULL
+    DO UPDATE SET email_verified_at=COALESCE(users.email_verified_at,NOW()),updated_at=NOW()
     RETURNING id,telegram_id,email,email_verified_at,username,first_name,birth_date,verified_birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status,ban_issuer`,[email,firstName]);
   return q.rows[0];
 }
@@ -373,36 +374,7 @@ app.post('/api/auth/email/verify',authRateLimit,wrap(async(req,res)=>{
   const token=await issueWebSession(user.id);
   res.json({ok:true,token,user});
 }));
-app.post('/api/auth/google',authRateLimit,wrap(async(req,res)=>{
-  const credential=String(req.body?.credential||'');
-  if(!credential||credential.length>10000)return res.status(400).json({error:'Не удалось получить подтверждение Google.'});
-  if(!process.env.GOOGLE_CLIENT_ID)return res.status(503).json({error:'Google-вход пока не настроен на сервере VIBE.'});
-  const verifyResponse=await fetch('https://oauth2.googleapis.com/tokeninfo?id_token='+encodeURIComponent(credential));
-  if(!verifyResponse.ok)return res.status(401).json({error:'Google не подтвердил вход. Попробуй ещё раз.'});
-  const identity=await verifyResponse.json();
-  if(identity.aud!==process.env.GOOGLE_CLIENT_ID||identity.email_verified!=='true'||!identity.sub||!identity.email)
-    return res.status(401).json({error:'Не удалось проверить Google-аккаунт.'});
-  const email=normalizeEmail(identity.email);
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'Google вернул некорректный адрес почты.'});
-  const name=String(identity.name||email.split('@')[0]||'Участник VIBE').trim().slice(0,60)||'Участник VIBE';
-  const picture=typeof identity.picture==='string'&&identity.picture.startsWith('https://')?identity.picture:null;
-  const existing=await pool.query('SELECT id,google_sub FROM users WHERE google_sub=$1 OR LOWER(email)=LOWER($2) ORDER BY CASE WHEN google_sub=$1 THEN 0 ELSE 1 END LIMIT 1',[identity.sub,email]);
-  let user;
-  if(existing.rowCount){
-    if(existing.rows[0].google_sub&&existing.rows[0].google_sub!==identity.sub)return res.status(409).json({error:'Этот адрес уже связан с другим Google-аккаунтом. Войди через почту.'});
-    const updated=await pool.query(`UPDATE users SET google_sub=$1,email=COALESCE(email,$2),email_verified_at=COALESCE(email_verified_at,NOW()),photo_url=COALESCE(photo_url,$3),updated_at=NOW()
-      WHERE id=$4 RETURNING id,telegram_id,email,email_verified_at,username,first_name,birth_date,verified_birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status,ban_issuer`,[identity.sub,email,picture,existing.rows[0].id]);
-    user=updated.rows[0];
-  }else{
-    const inserted=await pool.query(`INSERT INTO users(email,email_verified_at,google_sub,first_name,photo_url)
-      VALUES($1,NOW(),$2,$3,$4)
-      RETURNING id,telegram_id,email,email_verified_at,username,first_name,birth_date,verified_birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status,ban_issuer`,[email,identity.sub,name,picture]);
-    user=inserted.rows[0];
-  }
-  if(user.account_status!=='active')return res.status(403).json({error:'Доступ к аккаунту ограничен.',banned:user.account_status==='banned'});
-  const token=await issueWebSession(user.id);
-  res.json({ok:true,token,user});
-}));
+// Google sign-in is intentionally disabled; VIBE supports email and Telegram only.
 app.post('/api/auth/supabase',authRateLimit,wrap(async(req,res)=>{
   const accessToken=String(req.body?.access_token||'');
   if(!accessToken||accessToken.length>10000)return res.status(400).json({error:'Не удалось получить подтверждение входа.'});
@@ -487,12 +459,29 @@ app.get('/api/age-status',auth,wrap(async(req,res)=>{
   res.json({route,ageBand,adultAccess,status:u.age_verification_status});
 }));
 
-app.get('/api/stories',auth,wrap(async(req,res)=>{
+app.get('/api/stories',auth,userActionRateLimit,wrap(async(req,res)=>{
  await pool.query('DELETE FROM stories WHERE expires_at <= NOW()');
- const q=await pool.query("SELECT s.id,s.user_id AS author_id,s.media_url,s.media_type,s.caption,s.created_at,s.expires_at,u.first_name AS name FROM stories s JOIN users u ON u.id=s.user_id WHERE s.expires_at>NOW() ORDER BY s.created_at DESC LIMIT 100");
+ const viewerBand=await getUserAgeBand(req.user.id);
+ const q=await pool.query(`SELECT s.id,s.user_id AS author_id,s.media_url,s.media_type,s.caption,s.created_at,s.expires_at,u.first_name AS name
+   FROM stories s JOIN users u ON u.id=s.user_id
+   WHERE s.expires_at>NOW()
+     AND u.account_status='active'
+     AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
+     AND (
+       s.user_id=$1
+       OR ($2='teen' AND COALESCE(u.age_verification_status,'') <> 'verified'
+           AND u.birth_date > CURRENT_DATE-INTERVAL '18 years'
+           AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years')
+       OR ($2='adult' AND u.age_verification_status='verified'
+           AND u.verified_birth_date IS NOT NULL
+           AND u.verified_birth_date <= CURRENT_DATE-INTERVAL '18 years')
+     )
+   ORDER BY s.created_at DESC LIMIT 100`,[req.user.id,viewerBand]);
  res.json({stories:q.rows.map(s=>({...s,is_mine:String(s.author_id)===String(req.user.id)}))});
 }));
 app.post('/api/stories',auth,userActionRateLimit,wrap(async(req,res)=>{
+ const viewerBand=await getUserAgeBand(req.user.id);
+ if(!['teen','adult'].includes(viewerBand))return res.status(403).json({error:'Истории доступны после подтверждения подходящей возрастной группы.'});
  const {mediaUrl,mediaType='image',caption=''}=req.body||{};
  if(typeof mediaUrl!=='string'||mediaUrl.length>4_300_000||!['data:image/jpeg;base64,','data:image/png;base64,','data:image/webp;base64,','data:video/mp4;base64,','data:video/webm;base64,'].some(prefix=>mediaUrl.startsWith(prefix)))return res.status(400).json({error:'Выбери фото или видео подходящего формата размером до 3 МБ.'});
  if(!['image','video'].includes(mediaType)||((mediaUrl.startsWith('data:video/')?'video':'image')!==mediaType))return res.status(400).json({error:'Тип файла не совпадает с медиа.'});
