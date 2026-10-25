@@ -135,3 +135,33 @@ CREATE TABLE IF NOT EXISTS referrals (
   CHECK (referrer_user_id <> referred_user_id)
 );
 CREATE INDEX IF NOT EXISTS referrals_referrer_created_idx ON referrals(referrer_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS moderation_audit_log (
+  id BIGSERIAL PRIMARY KEY,
+  actor_telegram_id TEXT NOT NULL,
+  actor_role TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_user_id BIGINT,
+  listing_id BIGINT,
+  reason TEXT NOT NULL DEFAULT '',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS moderation_audit_created_idx ON moderation_audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS moderation_audit_target_idx ON moderation_audit_log(target_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS moderation_appeals (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  appeal_type TEXT NOT NULL CHECK (appeal_type IN ('account','profile','listing')),
+  listing_id BIGINT REFERENCES listings(id) ON DELETE SET NULL,
+  message TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','reviewing','approved','rejected')),
+  decision_note TEXT NOT NULL DEFAULT '',
+  reviewed_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS moderation_appeals_one_open_per_user_idx ON moderation_appeals(user_id) WHERE status IN ('open','reviewing');
+CREATE INDEX IF NOT EXISTS moderation_appeals_status_created_idx ON moderation_appeals(status, created_at DESC);
+
