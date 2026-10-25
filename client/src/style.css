@@ -255,3 +255,9 @@ button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline
  .listing-wizard-actions{margin:0 -2px}
  .listing-wizard-actions>*{flex:1}
 }
+
+
+/* Branded action for removing the selected listing media */
+.listing-media-preview .remove-media-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:0 15px;border:1px solid #a889ff66;border-radius:12px;background:linear-gradient(135deg,#9a7cff2b,#e17dff18);color:#e2d4ff;font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:transform .18s ease,border-color .18s ease,background .18s ease}
+.listing-media-preview .remove-media-button:hover{border-color:#c5aaff;background:linear-gradient(135deg,#9a7cff45,#e17dff30);transform:translateY(-1px)}
+.listing-media-preview .remove-media-button:focus-visible{outline:2px solid #c5aaff;outline-offset:3px}
