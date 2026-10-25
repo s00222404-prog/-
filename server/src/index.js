@@ -1377,10 +1377,12 @@ app.post('/telegram/webhook', (req,res) => {
     }else if(cmd==='/start'){
       let firstVisit = false;
       let needsLanguage = true;
+      let userLanguage = 'en';
       let firstName = (from?.first_name || '').trim();
       if(from?.id&&from?.first_name) {
         const existing = await pool.query('SELECT language FROM users WHERE telegram_id=$1 LIMIT 1',[String(from.id)]);
         firstVisit = existing.rowCount === 0;
+        userLanguage = ['ru','de','en'].includes(existing.rows[0]?.language) ? existing.rows[0].language : 'en';
         needsLanguage = firstVisit || !existing.rows[0]?.language;
         const u=await pool.query('INSERT INTO users(telegram_id,username,first_name) VALUES($1,$2,$3) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,first_name=EXCLUDED.first_name,updated_at=NOW() RETURNING id,account_status,moderation_note',[String(from.id),from.username??null,from.first_name]);
         const referralMatch = /^ref_(\d{6})$/.exec(parts[1] || '');
@@ -1403,8 +1405,18 @@ app.post('/telegram/webhook', (req,res) => {
         reply='✨ Welcome to VIBE! Please choose your language:';
         markup={inline_keyboard:[[{text:'🇬🇧 English',callback_data:'lang:set:en'},{text:'🇩🇪 Deutsch',callback_data:'lang:set:de'},{text:'🇷🇺 Русский',callback_data:'lang:set:ru'}]]};
       } else {
-        reply='С возвращением'+(firstName ? ', '+firstName : '')+'! 💜\n\nЯ могу помочь с анкетой, чатами, правилами или жалобой. Напиши вопрос обычным сообщением или выбери действие ниже.';
-        markup={inline_keyboard:[[{text:'💜 Открыть VIBE',web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:'❓ Помощь',callback_data:'help:main'},{text:'✉️ Написать в поддержку',callback_data:'support:new'}],[{text:'🛡 Правила',url:'https://vibe-client-sroc.onrender.com/rules'}],[{text:'🔒 Конфиденциальность',url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
+        const returningGreetings = {
+          en: 'Welcome back'+(firstName ? ', '+firstName : '')+'! 💜\\n\\nReady to meet new people and get chatting? Your profile is your backstage pass — keep it updated, and jump back into VIBE whenever you like.',
+          de: 'Willkommen zurück'+(firstName ? ', '+firstName : '')+'! 💜\\n\\nLust auf neue Bekanntschaften und gute Gespräche? Dein Profil ist dein Backstage-Pass — halte es aktuell und schau wieder bei VIBE vorbei.',
+          ru: 'С возвращением'+(firstName ? ', '+firstName : '')+'! 💜\\n\\nГотов(а) знакомиться и общаться? Анкета — твой пропуск за кулисы: обнови её и возвращайся в VIBE за новыми разговорами!'
+        };
+        const labels = {
+          en: ['💜 Open VIBE','❓ Help','✉️ Support','🛡 Rules','🔒 Privacy'],
+          de: ['💜 VIBE öffnen','❓ Hilfe','✉️ Support','🛡 Regeln','🔒 Datenschutz'],
+          ru: ['💜 Открыть VIBE','❓ Помощь','✉️ Поддержка','🛡 Правила','🔒 Конфиденциальность']
+        }[userLanguage];
+        reply=returningGreetings[userLanguage];
+        markup={inline_keyboard:[[{text:labels[0],web_app:{url:'https://vibe-client-sroc.onrender.com'}}],[{text:labels[1],callback_data:'help:main'},{text:labels[2],callback_data:'support:new'}],[{text:labels[3],url:'https://vibe-client-sroc.onrender.com/rules'}],[{text:labels[4],url:'https://vibe-client-sroc.onrender.com/privacy'}]]};
       }
     }else if(cmd==='/адм'||cmd==='/admin'){
       const adminAllowed=(roleRank[role]??0)>=roleRank.admin && (isDeveloper || await isAdminUnlocked(from.id));
