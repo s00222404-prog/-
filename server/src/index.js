@@ -720,6 +720,7 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
   if(typeof reason!=='string'||!reason.trim()||reason.trim().length>100)return res.status(400).json({error:'Укажи обязательную причину жалобы'});
   if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
   if(!['profile','post'].includes(reportType))return res.status(400).json({error:'Неизвестный тип жалобы'});
+  if(targetAge!==null&&targetAge!==undefined&&targetAge!==''&&(!Number.isInteger(Number(targetAge))||Number(targetAge)<0||Number(targetAge)>120))return res.status(400).json({error:'Некорректный возраст демо-профиля'});
   const reportReasonLabels = {
     spam: 'Спам или навязчивая реклама',
     scam: 'Мошенничество или попытка обмана',
