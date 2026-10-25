@@ -861,6 +861,7 @@ app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
   if((roleRank[actorRole]??0)<roleRank.moderator) return res.status(403).json({error:'Для блокировки аккаунтов нужна роль модератора или выше'});
   if(!await ensureTargetBelowActor(String(targetUser.telegram_id),actorRole)) return res.status(403).json({error:'Нельзя банить пользователя с равным или более высоким назначенным рангом'});
   const q=await pool.query("UPDATE users SET account_status='banned',discoverable=FALSE,moderation_note=$1,ban_issuer=$2,updated_at=NOW() WHERE id=$3 RETURNING id,first_name,username,telegram_id",[reason,actorRole==='developer'?'developer':'moderator',targetUser.id]);
+  await logModerationAction({actorId:req.user.telegram_id,actorRole,action:'account_banned_api',targetUserId:targetUser.id,reason});
   res.json({banned:true,user:{...q.rows[0],profile_code:String(q.rows[0].id).padStart(6,'0')},reason});
 }));
 app.get('/api/admin/users/:code',auth,adminOnly,wrap(async(req,res)=>{
