@@ -360,3 +360,18 @@ button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline
 .vibe-calendar-day.is-outside{color:#71667f}.vibe-calendar-day.is-today{border-color:#b99aff65;color:#d8bdff;font-weight:800}.vibe-calendar-day.is-selected{border-color:#d5baff;background:linear-gradient(135deg,#9a7cff,#c17de9);color:#fff;font-weight:850;box-shadow:0 4px 14px #a77aff40}.vibe-calendar-day:disabled{opacity:.2;cursor:default}
 .vibe-calendar-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid #ffffff12;color:#a99bbd;font-size:10px}.vibe-calendar-bottom button{border:0;background:transparent;color:#cbb0ff;font:inherit;font-weight:750;cursor:pointer}
 @media(max-width:650px){.vibe-calendar-popover{width:100%;min-width:0;padding:12px;border-radius:18px}.vibe-calendar-grid{gap:3px}.vibe-calendar-day{border-radius:9px;font-size:12px}}
+
+
+/* Keep the right-hand rail above the app background and mobile bottom bar. */
+.right-rail{z-index:85;align-self:start;isolation:isolate}
+.rail-card{position:relative;z-index:1}
+@media (min-width:721px) and (max-width:1180px){
+ .app-frame{position:relative;isolation:isolate;grid-template-columns:145px minmax(0,1fr) 185px;gap:10px;padding:10px}
+ .main-area{grid-column:2;min-width:0}
+ .right-rail{display:block;grid-column:3;position:sticky;top:10px;z-index:85;max-height:calc(100dvh - 20px);overflow-y:auto;overflow-x:hidden}
+ .mobile-nav{display:none}
+}
+@media(max-width:720px){
+ .sidebar{display:none}
+ .right-rail{display:none}
+}
