@@ -1146,3 +1146,53 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
  .discover-person-actions .discover-report{display:grid}
 }
 @media(prefers-reduced-motion:reduce){.discover-person-card{transition:none}}
+
+
+/* VIBE V3 — replaces the legacy application shell */
+.vibe-app-v3{--v3-bg:#080b14;--v3-panel:#0e1423;--v3-panel2:#121a2c;--v3-border:#252f47;--v3-muted:#8f9bb6;--v3-text:#f5f6ff;--v3-pink:#ff3f9e;--v3-purple:#bb62ff;min-height:100vh;background:radial-gradient(ellipse at 52% -18%,#3a1454 0%,transparent 42%),var(--v3-bg);color:var(--v3-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 28px 40px;box-sizing:border-box}
+.vibe-global-header{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:30px;min-height:78px;max-width:1480px;margin:0 auto;border-bottom:1px solid #ffffff12;background:#080b14ed;backdrop-filter:blur(20px)}
+.vibe-brand{display:flex;align-items:center;gap:10px;flex-shrink:0;text-decoration:none;color:#fff;font-size:27px;font-weight:900;letter-spacing:-1.5px}
+.vibe-brand-mark{display:grid;place-items:center;width:35px;height:35px;border-radius:12px;background:linear-gradient(145deg,var(--v3-pink),#9d36ff);color:white;box-shadow:0 5px 24px #b42eff3a}
+.vibe-brand-mark svg{width:22px;height:22px}
+.vibe-brand-dot{color:var(--v3-pink)}
+.vibe-global-nav{display:flex;align-items:center;gap:5px;min-width:0;flex:1}
+.vibe-global-nav button{position:relative;display:flex;align-items:center;gap:8px;min-height:41px;padding:0 12px;border:1px solid transparent;border-radius:11px;background:transparent;color:#a8b3cc;font-size:12px;font-weight:700;white-space:nowrap;transition:background .18s,color .18s,border-color .18s}
+.vibe-global-nav button:hover{background:#151c2d;color:white}
+.vibe-global-nav button.active{border-color:#543069;background:linear-gradient(120deg,#32153f,#1b1830);color:#f5d8ff}
+.vibe-global-nav button.active:after{content:"";position:absolute;bottom:-19px;left:25%;right:25%;height:2px;border-radius:4px;background:linear-gradient(90deg,var(--v3-pink),var(--v3-purple))}
+.vibe-global-nav button i{display:grid;place-items:center;min-width:17px;height:17px;border-radius:6px;background:#f23894;color:#fff;font-size:9px;font-style:normal}
+.vibe-header-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.vibe-icon-button{display:grid;place-items:center;width:39px;height:39px;border:1px solid var(--v3-border);border-radius:12px;background:#101727;color:#c5cde0}
+.vibe-icon-button:hover{border-color:#694080;color:#fff}
+.vibe-create-button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:39px;padding:0 13px;border:0;border-radius:12px;background:linear-gradient(105deg,var(--v3-pink),#a33df2);color:#fff;font-size:11px;font-weight:850;white-space:nowrap;box-shadow:0 7px 22px #c42a8b22}
+.vibe-main-content{max-width:1480px;min-width:0;margin:0 auto;padding-top:21px}
+.vibe-page-context{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 17px;color:#7f8ba7;font-size:9px;font-weight:800;letter-spacing:1.6px}
+.vibe-page-context>div{display:flex;align-items:center;gap:8px}
+.vibe-page-context>span{font-size:10px;letter-spacing:0;font-weight:500;color:#707d99}
+.vibe-context-dot{width:7px;height:7px;border-radius:50%;background:#ff439d;box-shadow:0 0 12px #ff439d}
+.vibe-app-v3 .toast{position:fixed;top:90px;right:28px;z-index:100;max-width:min(420px,calc(100vw - 36px));border:1px solid #49325b;border-radius:14px;background:#151126;color:#f5edff;box-shadow:0 20px 60px #0008}
+.vibe-app-v3 .prototype-filter{max-width:760px;margin:0 auto 18px;border:1px solid var(--v3-border);border-radius:15px;background:var(--v3-panel);color:var(--v3-text)}
+.vibe-app-v3 .prototype-filter label{color:#aeb9d1}
+.vibe-app-v3 .prototype-filter input,.vibe-app-v3 .prototype-filter select{border:1px solid #29344d;border-radius:10px;background:#090f1c;color:#f2f4ff}
+.vibe-app-v3 .view-section,.vibe-app-v3 .discover-page,.vibe-app-v3 .feed-shell{width:100%;max-width:1240px;margin:0 auto}
+.vibe-app-v3 .view-section{padding:24px;border:1px solid #202a40;border-radius:22px;background:linear-gradient(145deg,#0e1422,#0a0f1b);box-shadow:0 16px 55px #0002}
+.vibe-app-v3 .view-section h1,.vibe-app-v3 .view-section h2,.vibe-app-v3 .view-section h3{letter-spacing:-.6px}
+.vibe-app-v3 .view-section>h1,.vibe-app-v3 .view-section>h2{font-size:clamp(26px,3vw,36px)}
+.vibe-app-v3 .view-section p,.vibe-app-v3 .view-section .muted,.vibe-app-v3 .hint{color:#9ba8c2}
+.vibe-app-v3 .subtabs{display:flex;gap:7px;flex-wrap:wrap;margin:18px 0;padding:5px;border:1px solid #222d44;border-radius:13px;background:#080e1a}
+.vibe-app-v3 .subtabs button{border:0;border-radius:9px;background:transparent;color:#94a1bb;padding:10px 13px;font-size:11px}
+.vibe-app-v3 .subtabs button.active,.vibe-app-v3 .subtabs button:focus-visible{background:#2a173b;color:#f0d5ff}
+.vibe-app-v3 .primary-button,.vibe-app-v3 .primary,.vibe-app-v3 button.primary-button{border:0;background:linear-gradient(105deg,var(--v3-pink),#a13bf0);color:white;font-weight:800}
+.vibe-app-v3 .secondary-button,.vibe-app-v3 .round-control,.vibe-app-v3 .iconbtn{border-color:#29344d;background:#111829;color:#d7deef}
+.vibe-app-v3 .empty-state{border:1px dashed #34314f;border-radius:18px;background:#0c1220;padding:38px 20px;color:#aeb9d1}
+.vibe-app-v3 .empty-state h3{color:#f1f3ff}
+.vibe-app-v3 .profile-card,.vibe-app-v3 .chat-card,.vibe-app-v3 .like-card,.vibe-app-v3 .listing-card,.vibe-app-v3 .settings-card,.vibe-app-v3 .interest-card{border-color:#252f47;background:#0d1423;color:#f1f4ff}
+.vibe-app-v3 input,.vibe-app-v3 textarea,.vibe-app-v3 select{color:#f4f5ff}
+.vibe-app-v3 input::placeholder,.vibe-app-v3 textarea::placeholder{color:#77849f}
+.vibe-app-v3 .modal-backdrop{background:#03050bd9;backdrop-filter:blur(9px)}
+.vibe-app-v3 .modal,.vibe-app-v3 .modal-card,.vibe-app-v3 .dialog,.vibe-app-v3 [role=dialog]{border:1px solid #34304d;border-radius:22px;background:#101626;color:#f5f6ff;box-shadow:0 25px 100px #0009}
+.vibe-app-v3 .modal h2,.vibe-app-v3 .modal h3,.vibe-app-v3 [role=dialog] h2{color:#fff}
+@media(max-width:1100px){.vibe-app-v3{padding:0 18px 32px}.vibe-global-header{gap:16px}.vibe-global-nav{gap:2px}.vibe-global-nav button{padding:0 9px}.vibe-global-nav button span{font-size:11px}.vibe-header-actions{gap:5px}}
+@media(max-width:800px){.vibe-app-v3{padding:0 12px 26px}.vibe-global-header{position:sticky;min-height:65px;gap:12px;flex-wrap:wrap;padding:10px 0 8px}.vibe-brand{font-size:24px}.vibe-brand-mark{width:32px;height:32px;border-radius:10px}.vibe-global-nav{order:3;flex:0 0 100%;overflow-x:auto;scrollbar-width:none;padding:0 0 3px}.vibe-global-nav::-webkit-scrollbar{display:none}.vibe-global-nav button{min-height:36px;padding:0 11px;flex-shrink:0}.vibe-global-nav button.active:after{bottom:-4px}.vibe-global-nav button svg{width:15px;height:15px}.vibe-global-nav button span{font-size:10px}.vibe-header-actions{margin-left:auto}.vibe-icon-button{width:34px;height:34px;border-radius:10px}.vibe-create-button{width:35px;height:35px;min-height:35px;padding:0;font-size:0;gap:0;border-radius:10px}.vibe-create-button svg{width:17px;height:17px}.vibe-main-content{padding-top:15px}.vibe-page-context{font-size:8px;letter-spacing:1px}.vibe-page-context>span{display:none}.vibe-app-v3 .view-section{padding:16px 13px;border-radius:17px}.vibe-app-v3 .toast{top:130px;right:12px}}
+@media(max-width:390px){.vibe-global-header{gap:8px}.vibe-brand{font-size:22px}.vibe-header-actions{gap:4px}.vibe-icon-button{width:31px;height:31px}.vibe-global-nav button{padding:0 9px}.vibe-global-nav button span{font-size:9px}.vibe-app-v3 .view-section{padding:13px 10px}}
+@media(prefers-reduced-motion:reduce){.vibe-global-nav button{transition:none}}
