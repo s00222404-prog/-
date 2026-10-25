@@ -112,6 +112,11 @@ const UI_TRANSLATIONS = {
     "Более спокойные переходы в интерфейсе":"Smoother, less animated interface transitions",
     "Сохранить настройки":"Save settings",
     "Что тебе интересно?":"What are you interested in?",
+    'Удалить мою анкету':'Delete my listing',
+    'Если анкета тебе больше не нравится, её можно удалить. Она исчезнет из ленты, но аккаунт VIBE останется.':'If you no longer like your listing, you can delete it. It will disappear from the feed, but your VIBE account will remain.',
+    'Удалить свою анкет? Она исчезнет из ленты, а создать новую можно будет позже.':'Delete your listing? It will disappear from the feed, and you can create a new one later.',
+    'Анкета удалена. Ты можешь создать новую в любое время.':'Listing deleted. You can create a new one at any time.',
+    'У тебя пока нет анкеты для удаления.':'You do not have a listing to delete yet.',
     'Закрыть':'Close'
   },
   de: {
@@ -227,6 +232,11 @@ const UI_TRANSLATIONS = {
     "Более спокойные переходы в интерфейсе":"Ruhigere Übergänge in der Oberfläche",
     "Сохранить настройки":"Einstellungen speichern",
     "Что тебе интересно?":"Was interessiert dich?",
+    'Удалить мою анкету':'Mein Profil löschen',
+    'Если анкета тебе больше не нравится, её можно удалить. Она исчезнет из ленты, но аккаунт VIBE останется.':'Wenn dir dein Profil nicht mehr gefällt, kannst du es löschen. Es verschwindet aus dem Feed, dein VIBE-Konto bleibt aber bestehen.',
+    'Удалить свою анкету? Она исчезнет из ленты, а создать новую можно будет позже.':'Möchtest du dein Profil löschen? Es verschwindet aus dem Feed. Du kannst später ein neues erstellen.',
+    'Анкета удалена. Ты можешь создать новую в любое время.':'Profil gelöscht. Du kannst jederzeit ein neues erstellen.',
+    'У тебя пока нет анкеты для удаления.':'Du hast noch kein Profil zum Löschen.',
     'Закрыть':'Schließen'
   }
 };
