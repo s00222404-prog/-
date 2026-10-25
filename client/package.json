@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build && mkdir -p dist/rules dist/privacy && cp dist/index.html dist/rules/index.html && cp dist/index.html dist/privacy/index.html",
+    "build": "vite build && node scripts/copy-legal-pages.mjs",
     "preview": "vite preview --host 0.0.0.0",
-    "android:init": "cap add android",
+    "android:init": "npm run build && cap add android",
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
     "android:run": "npm run android:sync && cap run android"
