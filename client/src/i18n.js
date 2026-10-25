@@ -311,7 +311,6 @@ const APP_TEXT_TRANSLATIONS = {
     'Поездки':'Trips',
     'Животные':'Animals',
     'Арт':'Art'
-  },
     "Путешествия":"Travel",
     "Творчество":"Creativity",
     "Аниме":"Anime",
@@ -369,6 +368,7 @@ const APP_TEXT_TRANSLATIONS = {
     "Подробности (необязательно)":"Details (optional)",
     "Что произошло?":"What happened?",
     "Участник":"Member",
+  },
   de: {
     'Твой вайб — твои люди':'Dein Vibe – deine Leute',
     'Заполняй профиль и находи людей, с которыми есть о чём поговорить.':'Vervollständige dein Profil und finde Menschen, mit denen du dich gut unterhalten kannst.',
