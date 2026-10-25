@@ -488,6 +488,7 @@ app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
 
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
  if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
+ if(!mediaUrl)return res.status(400).json({error:'Добавь фото или видео анкеты перед отправкой.'});
  const mediaValidation=validateListingMedia(mediaUrl,mediaType);
  if(!mediaValidation.valid)return res.status(400).json({error:'Медиа должно быть корректным фото или видео размером до 3 МБ, а тип файла должен совпадать с выбранным типом.'});
  if(profileTextProblem([name,city,country,hobbies,description]))return res.status(400).json({error:'В анкете найдены запрещённые ругательства или пошлые слова. Исправь текст.'});
