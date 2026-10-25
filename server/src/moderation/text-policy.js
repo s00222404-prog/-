@@ -13,7 +13,7 @@ const confusables = { 'а':'a','е':'e','о':'o','р':'p','с':'c','х':'x','у'
 const compact = (value) => normalize(value)
   .replace(/[а-яёіј０-９]/g, char => confusables[char] || char)
   .replace(/[@]/g,'a').replace(/0/g,'o').replace(/1/g,'i').replace(/3/g,'e').replace(/4/g,'a').replace(/5/g,'s').replace(/7/g,'t')
-  .replace(/[\\s._*\\-+!#$%^&()\\[\\]{}:;'\"~`/\\\\|]+/g, '');
+  .replace(/[\s._*\-+!#$%^&()\[\]{}:;'\"~`/\\|]+/g, '');
 
 export function profileTextProblem(values) {
   const text = normalize(values.filter(v => typeof v === 'string').join(' '));
