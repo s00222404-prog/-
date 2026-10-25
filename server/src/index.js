@@ -821,8 +821,8 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
       }catch(e){console.error('Report admin notification failed:',e.message);}
     }));
   }catch(e){console.error('Report admin notification failed:',e.message);}
-  if(delivered===0)return res.status(502).json({error:'Жалоба сохранена, но бот не смог доставить её администрации. Проверь, что администраторы открывали бота и нажали Start; попробуй позже.'});
-  res.status(201).json({reported:true,reportId:inserted.rows[0].id,notificationsDelivered:delivered});
+  if(delivered===0){ console.error('Report #'+inserted.rows[0].id+' saved, but no admin notification was delivered.'); return res.status(201).json({reported:true,reportId:inserted.rows[0].id,notificationsDelivered:0,notificationSent:false,message:'Жалоба сохранена. Уведомление команде задерживается; повторно отправлять жалобу не нужно.'}); }
+  res.status(201).json({reported:true,reportId:inserted.rows[0].id,notificationsDelivered:delivered,notificationSent:true});
 }));
 
 app.post('/api/appeals', auth, reportRateLimit, wrap(async (req,res) => {
