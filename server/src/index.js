@@ -232,7 +232,7 @@ async function canManage(req,res,next) {
   } catch (e) { next(e); }
 }
 app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim()).filter(Boolean) }));
-app.use(express.json({ limit: '30mb' }));
+app.use(express.json({ limit: '8mb' }));
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);
 
 // Protect expensive and abuse-prone endpoints. User-scoped limits run after auth;
