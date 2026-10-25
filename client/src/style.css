@@ -155,3 +155,11 @@ body{background:radial-gradient(ellipse at 50% -20%,#38244f 0,transparent 48%),v
 .google-fallback-button:hover{background:#f1eef7;transform:translateY(-1px)}
 .google-g-mark{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;font-size:17px;font-weight:800;color:#4285f4;background:linear-gradient(135deg,#fff,#f3f3f3)}
 .google-fallback-button svg:last-child{margin-left:auto;color:#6d6876}
+
+/* Native-feeling press feedback: remove the mobile blue tap flash and use a subtle button press instead. */
+*,*::before,*::after{-webkit-tap-highlight-color:transparent}
+button,[role="button"],a[href]{touch-action:manipulation}
+button:not(:disabled){transition-property:transform,filter,background-color,border-color,box-shadow;transition-duration:.16s;transition-timing-function:cubic-bezier(.2,.75,.25,1)}
+button:active:not(:disabled),[role="button"]:active,a[href]:active{transform:scale(.97)}
+button:focus:not(:focus-visible){outline:none}
+button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline:2px solid #b49aff;outline-offset:3px}
