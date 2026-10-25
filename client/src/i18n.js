@@ -241,6 +241,144 @@ EXTRA_TRANSLATIONS.de = { ...EXTRA_TRANSLATIONS.de_reports, ...EXTRA_TRANSLATION
 delete EXTRA_TRANSLATIONS.en_reports;
 delete EXTRA_TRANSLATIONS.de_reports;
 
+
+const APP_TEXT_TRANSLATIONS = {
+  en: {
+    'Файл должен быть не больше 3 МБ.':'The file must be 3 MB or smaller.',
+    'Не удалось прочитать файл.':'Could not read the file.',
+    'Сервер VIBE пока не настроен.':'The VIBE server is not configured yet.',
+    'Вход выполнен.':'Signed in successfully.',
+    'Supabase ещё не подключён в настройках сайта.':'Supabase is not connected in the site settings yet.',
+    'Проверь почту и введи код из письма.':'Check your email and enter the code from the message.',
+    'Не удалось отправить код.':'Could not send the code.',
+    'Код неверный или истёк.':'The code is incorrect or has expired.',
+    'Ты вышел из аккаунта.':'You have signed out.',
+    'Сессия завершилась. Войди снова.':'Your session has ended. Please sign in again.',
+    'Выбери фото или видео для истории.':'Choose a photo or video for your story.',
+    'Твоя история':'Your story',
+    'Войди в VIBE, чтобы опубликовать историю.':'Sign in to VIBE to post a story.',
+    'История опубликована на 24 часа!':'Your story is live for 24 hours!',
+    'Войди в VIBE, чтобы отправлять симпатии.':'Sign in to VIBE to send likes.',
+    'Взаимная симпатия! Теперь можно общаться 💜':'It’s a match! You can chat now 💜',
+    'Симпатия отправлена':'Like sent',
+    'Войди в VIBE, чтобы сохранить профиль.':'Sign in to VIBE to save your profile.',
+    'Войди в VIBE, чтобы отправить анкету.':'Sign in to VIBE to submit your profile.',
+    'Сначала укажи дату рождения в профиле.':'Enter your date of birth in your profile first.',
+    'Проверь дату рождения.':'Check your date of birth.',
+    'Анкета отправлена на проверку. Она появится в ленте после одобрения.':'Your profile has been submitted for review. It will appear in the feed after approval.',
+    'Войди в VIBE, чтобы отправить жалобу.':'Sign in to VIBE to submit a report.',
+    'Жалоба отправлена модерации. Спасибо.':'Your report has been sent to moderation. Thank you.',
+    'Мой профиль':'My profile',
+    'ТВОИ ЛЮДИ. ТВОЙ РИТМ.':'YOUR PEOPLE. YOUR RHYTHM.',
+    'Разработчик VIBE':'VIBE developer',
+    'Настройки профиля':'Profile settings',
+    'Выйти из аккаунта':'Sign out',
+    'Здесь скоро появятся новые люди':'New people will appear here soon',
+    'Создать анкету':'Create a profile',
+    'Участник VIBE':'VIBE member',
+    'Пора рассказать о себе':'Time to tell people about yourself',
+    'Только что':'Just now',
+    'Опубликовать историю':'Post a story',
+    'НАСТРОЙКИ VIBE':'VIBE SETTINGS',
+    'Закрыть настройки':'Close settings',
+    'Язык применяется к переведённым частям интерфейса.':'The language applies only to translated parts of the interface.',
+    'Настройки интерфейса применены.':'Interface settings applied.',
+    'Пожаловаться на анкету':'Report profile',
+    'Войди в VIBE':'Sign in to VIBE',
+    'Находи людей по интересам и знакомься в своём ритме.':'Meet people who share your interests at your own pace.',
+    'Электронная почта':'Email address',
+    'Отправляем код…':'Sending code…',
+    'Получить код':'Get code',
+    'Введи шестизначный код, отправленный на':'Enter the six-digit code sent to',
+    'Код из письма':'Email code',
+    'Проверяем…':'Checking…',
+    'Войти в VIBE':'Sign in to VIBE',
+    'Изменить адрес почты':'Change email address',
+    'Продолжая, ты подтверждаешь, что соблюдаешь правила VIBE. Минимальный возраст — 14 лет.':'By continuing, you agree to follow VIBE rules. Minimum age: 14.',
+    'Войти через Telegram':'Continue with Telegram',
+    'Твои люди. Твой ритм.':'Your people. Your rhythm.',
+    'Найди людей, с которыми':'Find people who',
+    'Знакомься, делись интересами и начинай настоящие разговоры — в своём ритме.':'Meet people, share interests, and start real conversations at your own pace.',
+    'Открыть VIBE в Telegram':'Open VIBE in Telegram',
+    'Анкеты проходят проверку':'Profiles are reviewed',
+    'Безопасность прежде всего':'Safety first',
+    'Язык':'Language',
+    'Фото':'Photo',
+    'Кофе':'Coffee',
+    'Прогулки':'Walks',
+    'Поездки':'Trips',
+    'Животные':'Animals',
+    'Арт':'Art'
+  },
+  de: {
+    'Файл должен быть не больше 3 МБ.':'Die Datei darf höchstens 3 MB groß sein.',
+    'Не удалось прочитать файл.':'Die Datei konnte nicht gelesen werden.',
+    'Сервер VIBE пока не настроен.':'Der VIBE-Server ist noch nicht eingerichtet.',
+    'Вход выполнен.':'Erfolgreich angemeldet.',
+    'Supabase ещё не подключён в настройках сайта.':'Supabase ist in den Website-Einstellungen noch nicht verbunden.',
+    'Проверь почту и введи код из письма.':'Prüfe deine E-Mails und gib den Code aus der Nachricht ein.',
+    'Не удалось отправить код.':'Der Code konnte nicht gesendet werden.',
+    'Код неверный или истёк.':'Der Code ist falsch oder abgelaufen.',
+    'Ты вышел из аккаунта.':'Du hast dich abgemeldet.',
+    'Сессия завершилась. Войди снова.':'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
+    'Выбери фото или видео для истории.':'Wähle ein Foto oder Video für deine Story.',
+    'Твоя история':'Deine Story',
+    'Войди в VIBE, чтобы опубликовать историю.':'Melde dich bei VIBE an, um eine Story zu posten.',
+    'История опубликована на 24 часа!':'Deine Story ist 24 Stunden lang sichtbar!',
+    'Войди в VIBE, чтобы отправлять симпатии.':'Melde dich bei VIBE an, um Likes zu senden.',
+    'Взаимная симпатия! Теперь можно общаться 💜':'Es ist ein Match! Ihr könnt jetzt chatten 💜',
+    'Симпатия отправлена':'Like gesendet',
+    'Войди в VIBE, чтобы сохранить профиль.':'Melde dich bei VIBE an, um dein Profil zu speichern.',
+    'Войди в VIBE, чтобы отправить анкету.':'Melde dich bei VIBE an, um dein Profil einzureichen.',
+    'Сначала укажи дату рождения в профиле.':'Gib zuerst dein Geburtsdatum im Profil an.',
+    'Проверь дату рождения.':'Überprüfe dein Geburtsdatum.',
+    'Анкета отправлена на проверку. Она появится в ленте после одобрения.':'Dein Profil wurde zur Prüfung eingereicht. Nach der Freigabe erscheint es im Feed.',
+    'Войди в VIBE, чтобы отправить жалобу.':'Melde dich bei VIBE an, um eine Meldung einzureichen.',
+    'Жалоба отправлена модерации. Спасибо.':'Deine Meldung wurde an die Moderation gesendet. Danke.',
+    'Мой профиль':'Mein Profil',
+    'ТВОИ ЛЮДИ. ТВОЙ РИТМ.':'DEINE LEUTE. DEIN RHYTHMUS.',
+    'Разработчик VIBE':'VIBE-Entwickler',
+    'Настройки профиля':'Profileinstellungen',
+    'Выйти из аккаунта':'Abmelden',
+    'Здесь скоро появятся новые люди':'Hier werden bald neue Leute erscheinen',
+    'Создать анкету':'Profil erstellen',
+    'Участник VIBE':'VIBE-Mitglied',
+    'Пора рассказать о себе':'Zeit, etwas über dich zu erzählen',
+    'Только что':'Gerade eben',
+    'Опубликовать историю':'Story veröffentlichen',
+    'НАСТРОЙКИ VIBE':'VIBE-EINSTELLUNGEN',
+    'Закрыть настройки':'Einstellungen schließen',
+    'Язык применяется к переведённым частям интерфейса.':'Die Sprache gilt nur für bereits übersetzte Teile der Oberfläche.',
+    'Настройки интерфейса применены.':'Oberflächeneinstellungen übernommen.',
+    'Пожаловаться на анкету':'Profil melden',
+    'Войди в VIBE':'Bei VIBE anmelden',
+    'Находи людей по интересам и знакомься в своём ритме.':'Finde Menschen mit ähnlichen Interessen und lerne sie in deinem Tempo kennen.',
+    'Электронная почта':'E-Mail-Adresse',
+    'Отправляем код…':'Code wird gesendet…',
+    'Получить код':'Code anfordern',
+    'Введи шестизначный код, отправленный на':'Gib den sechsstelligen Code ein, der gesendet wurde an',
+    'Код из письма':'E-Mail-Code',
+    'Проверяем…':'Wird geprüft…',
+    'Войти в VIBE':'Bei VIBE anmelden',
+    'Изменить адрес почты':'E-Mail-Adresse ändern',
+    'Продолжая, ты подтверждаешь, что соблюдаешь правила VIBE. Минимальный возраст — 14 лет.':'Wenn du fortfährst, akzeptierst du die VIBE-Regeln. Mindestalter: 14 Jahre.',
+    'Войти через Telegram':'Mit Telegram fortfahren',
+    'Твои люди. Твой ритм.':'Deine Leute. Dein Rhythmus.',
+    'Найди людей, с которыми':'Finde Menschen, mit denen',
+    'Знакомься, делись интересами и начинай настоящие разговоры — в своём ритме.':'Lerne Leute kennen, teile Interessen und beginne echte Gespräche in deinem Tempo.',
+    'Открыть VIBE в Telegram':'VIBE in Telegram öffnen',
+    'Анкеты проходят проверку':'Profile werden geprüft',
+    'Безопасность прежде всего':'Sicherheit zuerst',
+    'Язык':'Sprache',
+    'Фото':'Foto',
+    'Кофе':'Kaffee',
+    'Прогулки':'Spaziergänge',
+    'Поездки':'Reisen',
+    'Животные':'Tiere',
+    'Арт':'Kunst'
+  }
+};
+
 export function translateUiText(value, language) {
   if (!value) return value;
   const text = String(value);
@@ -249,13 +387,13 @@ export function translateUiText(value, language) {
   let dict;
   if (language === 'ru') {
     dict = {};
-    for (const sourceDict of [UI_TRANSLATIONS.en, UI_TRANSLATIONS.de, EXTRA_TRANSLATIONS.en, EXTRA_TRANSLATIONS.de]) {
+    for (const sourceDict of [UI_TRANSLATIONS.en, UI_TRANSLATIONS.de, EXTRA_TRANSLATIONS.en, EXTRA_TRANSLATIONS.de, APP_TEXT_TRANSLATIONS.en, APP_TEXT_TRANSLATIONS.de]) {
       for (const [ru, translated] of Object.entries(sourceDict || {})) {
         if (translated && !Object.prototype.hasOwnProperty.call(dict, translated)) dict[translated] = ru;
       }
     }
   } else {
-    dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}) };
+    dict = { ...(UI_TRANSLATIONS[language] || {}), ...(EXTRA_TRANSLATIONS[language] || {}), ...(APP_TEXT_TRANSLATIONS[language] || {}) };
   }
   const trimmed = text.trim();
   if (Object.prototype.hasOwnProperty.call(dict, trimmed)) return text.replace(trimmed, dict[trimmed]);
