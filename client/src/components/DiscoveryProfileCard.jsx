@@ -66,7 +66,7 @@ export default function DiscoveryProfileCard({
   const displayName = person.name || t('Участник VIBE', 'VIBE member', 'VIBE-Mitglied');
   const interests = [
     ...(Array.isArray(person.interests) ? person.interests : []),
-    ...(person.hobbies || '').split(/[,;]/).map((item) => item.trim()).filter(Boolean),
+    ...(typeof person.hobbies === 'string' ? person.hobbies.split(/[,;]/).map((item) => item.trim()).filter(Boolean) : []),
   ].slice(0, 3);
 
   return (
@@ -89,7 +89,7 @@ export default function DiscoveryProfileCard({
         <div className="discover-photo-shade" />
         <span className="discover-match">
           <Sparkles size={12} aria-hidden="true" />
-          {t('ТЕБЕ МОЖЕТ ПОНРАВИТЬСЯ', 'YOU MAY CLICK', 'KÖNNTE DIR GEFALLEN')}
+          {t('ТЕБЕ МОЖЕТ ПОНРАВИТЬСЯ', 'YOU MAY LIKE', 'KÖNNTE DIR GEFALLEN')}
         </span>
         <button
           type="button"
