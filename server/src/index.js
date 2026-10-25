@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { initializeDatabase } from './db/initialize.js';
-import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
