@@ -951,7 +951,9 @@ app.patch('/api/admin/reports/:id',auth,adminOnly,wrap(async(req,res)=>{
       const accountStatus={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];
       await c.query("UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3",[accountStatus,note.trim()||'Admin action: '+action,f.rows[0].reported_id,req.adminRole==='developer'?'developer':'moderator']);
     }
-    await c.query('COMMIT');res.json({updated:true});
+    await c.query('COMMIT');
+     await logModerationAction({actorId:req.user.telegram_id,actorRole:req.adminRole,action:'report_'+status+(action!=='none'?'_'+action:''),targetUserId:f.rows[0].reported_id,reason:note.trim(),metadata:{reportId:id,action,status}});
+     res.json({updated:true});
   }catch(e){try{await c.query('ROLLBACK');}catch{}throw e;}finally{c.release();}
 }));
 app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
@@ -974,7 +976,9 @@ app.patch('/api/admin/flags/:id',auth,adminOnly,wrap(async(req,res)=>{
       const accountStatus={restrict:'restricted',suspend:'suspended',ban:'banned',restore:'active'}[action];
       await c.query("UPDATE users SET account_status=$1,moderation_note=$2,discoverable=CASE WHEN $1='active' THEN discoverable ELSE FALSE END,ban_issuer=CASE WHEN $1='banned' THEN $4 ELSE ban_issuer END,updated_at=NOW() WHERE id=$3",[accountStatus,note.trim()||'Admin action: '+action,f.rows[0].user_id,req.adminRole==='developer'?'developer':'moderator']);
     }
-    await c.query('COMMIT');res.json({updated:true});
+    await c.query('COMMIT');
+     await logModerationAction({actorId:req.user.telegram_id,actorRole:req.adminRole,action:'flag_'+status+(action!=='none'?'_'+action:''),targetUserId:f.rows[0].user_id,reason:note.trim(),metadata:{flagId:id,action,status}});
+     res.json({updated:true});
   }catch(e){try{await c.query('ROLLBACK');}catch{}throw e;}finally{c.release();}
 }));
 
