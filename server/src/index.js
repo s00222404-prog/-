@@ -229,7 +229,9 @@ async function logModerationAction({actorId,actorRole,action,targetUserId=null,l
 
 async function canManage(req,res,next) {
   try {
-    const role = await getRoleForUser(req.user);
+    // Full account-moderation privileges remain tied to the existing Telegram role system.
+    // Email allowlisting grants access only to the isolated demo-report test workflow below.
+    const role = await getRole(req.user.telegram_id);
     if (roleRank[role] < roleRank.admin) return res.status(403).json({error:'Admin access denied'});
     if (role !== 'developer' && !await isAdminUnlocked(req.user.telegram_id)) {
       return res.status(403).json({error:'Admin session is locked. Unlock access in the VIBE Telegram bot first.'});
@@ -756,6 +758,48 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
   const notificationSent=deliveries.some(Boolean);
   if(!notificationSent)console.error('Demo report #'+saved.rows[0].id+' saved, but no admin notification was delivered.');
   res.status(201).json({ok:true,reported:true,reportId:saved.rows[0].id,review:'saved',notificationSent,message:notificationSent?'Тестовая жалоба сохранена и отправлена команде.':'Тестовая жалоба сохранена, но уведомление команде не доставлено. Повторно отправлять её не нужно.'});
+}));
+app.get('/api/dev/demo-reports',auth,wrap(async(req,res)=>{
+  if (await getRoleForUser(req.user) !== 'developer') return res.status(403).json({error:'Доступ только для разработчика VIBE.'});
+  await pool.query(`CREATE TABLE IF NOT EXISTS demo_reports (
+    id BIGSERIAL PRIMARY KEY,
+    reporter_id BIGINT NOT NULL,
+    reporter_username TEXT NOT NULL DEFAULT '',
+    target_name TEXT NOT NULL,
+    target_username TEXT NOT NULL DEFAULT '',
+    target_age INTEGER,
+    reason TEXT NOT NULL,
+    details TEXT NOT NULL DEFAULT '',
+    evidence TEXT,
+    report_type TEXT NOT NULL DEFAULT 'profile',
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  const q=await pool.query('SELECT id,reporter_id,reporter_username,target_name,target_username,target_age,reason,details,report_type,status,created_at FROM demo_reports ORDER BY created_at DESC LIMIT 100');
+  res.json({reports:q.rows});
+}));
+app.patch('/api/dev/demo-reports/:id',auth,wrap(async(req,res)=>{
+  if (await getRoleForUser(req.user) !== 'developer') return res.status(403).json({error:'Доступ только для разработчика VIBE.'});
+  const id=Number(req.params.id);
+  const {status}=req.body||{};
+  if(!Number.isSafeInteger(id)||id<1||!['reviewing','resolved','dismissed'].includes(status)) return res.status(400).json({error:'Недопустимый статус тестовой жалобы.'});
+  await pool.query(`CREATE TABLE IF NOT EXISTS demo_reports (
+    id BIGSERIAL PRIMARY KEY,
+    reporter_id BIGINT NOT NULL,
+    reporter_username TEXT NOT NULL DEFAULT '',
+    target_name TEXT NOT NULL,
+    target_username TEXT NOT NULL DEFAULT '',
+    target_age INTEGER,
+    reason TEXT NOT NULL,
+    details TEXT NOT NULL DEFAULT '',
+    evidence TEXT,
+    report_type TEXT NOT NULL DEFAULT 'profile',
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  const q=await pool.query('UPDATE demo_reports SET status=$1 WHERE id=$2 RETURNING id,status',[status,id]);
+  if(!q.rowCount)return res.status(404).json({error:'Тестовая жалоба не найдена.'});
+  res.json({updated:true,report:q.rows[0]});
 }));
 app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
