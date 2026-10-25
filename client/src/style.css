@@ -732,3 +732,27 @@ button,input,textarea,select{min-width:0;max-width:100%}
   color:var(--text);
   font-size:11px;
 }
+
+
+/* Desktop: when the left navigation is collapsed, remove its grid track and let the feed use the full app shell. */
+@media (min-width:1181px){
+  .app-frame.sidebar-collapsed{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    width:100%!important;
+    max-width:none!important;
+    margin-inline:0!important;
+  }
+  .app-frame.sidebar-collapsed > .sidebar{display:none!important;width:0!important;min-width:0!important}
+  .app-frame.sidebar-collapsed > .main-area{
+    grid-column:1!important;
+    width:100%!important;
+    max-width:none!important;
+    min-width:0!important;
+    margin-inline:0!important;
+  }
+  .app-frame.sidebar-collapsed > .right-rail{display:none!important}
+  .app-frame.sidebar-collapsed .topbar,
+  .app-frame.sidebar-collapsed .feed-shell,
+  .app-frame.sidebar-collapsed .prototype-filter{max-width:100%!important}
+}
