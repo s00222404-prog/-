@@ -35,6 +35,7 @@ test('database config rejects invalid pool sizes', () => {
 
 test('profile text policy catches punctuation-obfuscated prohibited terms without matching common substrings', () => {
   assert.equal(profileTextProblem(['s.e.x']), true);
+  assert.equal(profileTextProblem(['s3x']), true);
   assert.equal(profileTextProblem(['grape']), false);
   assert.equal(profileTextProblem(['Essex']), false);
 });
