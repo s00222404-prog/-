@@ -737,11 +737,13 @@ app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
     try {
       const sent=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id,text:reportText})});
       const result=await sent.json().catch(()=>({}));
+      if(!sent.ok||!result.ok)console.error('Demo report notification rejected:',String(chat_id),result.description||sent.status);
       return sent.ok&&result.ok;
-    } catch { return false; }
+    } catch(e) { console.error('Demo report notification failed:',String(chat_id),e.message); return false; }
   }));
-  if(!deliveries.some(Boolean))return res.status(502).json({error:'Не удалось доставить жалобу команде VIBE. Открой бота и нажми Start, затем попробуй ещё раз.'});
-  res.json({ok:true,reportId:saved.rows[0].id,review:'saved'});
+  const notificationSent=deliveries.some(Boolean);
+  if(!notificationSent)console.error('Demo report #'+saved.rows[0].id+' saved, but no admin notification was delivered.');
+  res.status(201).json({ok:true,reported:true,reportId:saved.rows[0].id,review:'saved',notificationSent,message:notificationSent?'Тестовая жалоба сохранена и отправлена команде.':'Тестовая жалоба сохранена, но уведомление команде не доставлено. Повторно отправлять её не нужно.'});
 }));
 app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const id=Number(req.params.userId);
