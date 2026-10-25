@@ -27,12 +27,16 @@ export function ageOnDate(value, now = new Date()) {
 }
 
 export function ageBandForUser({ birthDate, verifiedBirthDate, verificationStatus }, now = new Date()) {
-  // Until an external age-verification provider is configured, use the
-  // self-declared birth date for age-band routing only; it is not verified.
-  const age = verificationStatus === 'verified'
-    ? ageOnDate(verifiedBirthDate, now)
-    : ageOnDate(birthDate, now);
-  if (age === null || age < 14) return 'restricted';
-  if (age <= 17) return 'teen';
-  return 'adult';
+  if (verificationStatus === 'verified') {
+    // A verified status grants adult routing only when the verified birth date
+    // establishes adulthood. Invalid or under-18 verified dates stay restricted.
+    const verifiedAge = ageOnDate(verifiedBirthDate, now);
+    return verifiedAge !== null && verifiedAge >= 18 ? 'adult' : 'restricted';
+  }
+
+  // Self-declared dates may route users only into the teen band, never adult access.
+  const declaredAge = ageOnDate(birthDate, now);
+  return declaredAge !== null && declaredAge >= 14 && declaredAge <= 17
+    ? 'teen'
+    : 'restricted';
 }
