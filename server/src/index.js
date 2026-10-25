@@ -452,6 +452,11 @@ app.get('/api/listings/mine',auth,wrap(async(req,res)=>{
  const q=await pool.query(`SELECT l.user_id AS id,l.name,l.age,l.city,l.country,l.hobbies,l.description,l.media_url,l.media_type,l.status,l.created_at,l.updated_at,l.id AS listing_id FROM listings l WHERE l.user_id=$1`,[req.user.id]);
  res.json({listing:q.rows[0]||null});
 }));
+app.delete('/api/listings/mine',auth,userActionRateLimit,wrap(async(req,res)=>{
+ const deleted=await pool.query('DELETE FROM listings WHERE user_id=$1 RETURNING id',[req.user.id]);
+ if(!deleted.rowCount)return res.status(404).json({error:'У тебя пока нет анкеты для удаления.'});
+ res.json({ok:true,deleted:true});
+}));
 app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
  if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя анкеты должно содержать от 2 до 60 символов.'});
