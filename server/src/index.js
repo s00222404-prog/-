@@ -286,10 +286,11 @@ async function auth(req,res,next) {
     const maintenance=await pool.query("SELECT enabled,reason FROM service_maintenance WHERE id=1");
     if(maintenance.rows[0]?.enabled && String(req.user.telegram_id)!==DEVELOPER_TELEGRAM_ID)
       return res.status(503).json({error:'VIBE временно закрыт',maintenance:true,reason:maintenance.rows[0].reason});
-    if (req.user.account_status === 'banned') {
+    // Blocked users may still authenticate only to submit an appeal; every other API route stays blocked.
+    if (req.path !== '/api/appeals' && req.user.account_status === 'banned') {
       return res.status(403).json({ error: 'Ваш аккаунт забанен', banned: true, reason: req.user.moderation_note || 'Причина не указана', moderation_note: req.user.moderation_note || '', ban_issuer: req.user.ban_issuer || 'moderator', ban_issuer_label: (req.user.ban_issuer || 'moderator') === 'developer' ? 'разработчиком' : 'модератором' });
     }
-    if (['suspended','restricted'].includes(req.user.account_status)) {
+    if (req.path !== '/api/appeals' && ['suspended','restricted'].includes(req.user.account_status)) {
       return res.status(403).json({ error: 'Доступ к аккаунту ограничен', restricted: true, reason: req.user.moderation_note || 'Причина не указана' });
     }
     next();
@@ -808,6 +809,42 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   if(delivered===0)return res.status(502).json({error:'Жалоба сохранена, но бот не смог доставить её администрации. Проверь, что администраторы открывали бота и нажали Start; попробуй позже.'});
   res.status(201).json({reported:true,reportId:inserted.rows[0].id,notificationsDelivered:delivered});
 }));
+
+app.post('/api/appeals', auth, reportRateLimit, wrap(async (req,res) => {
+  const appealType = typeof req.body?.appealType === 'string' ? req.body.appealType : '';
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  const listingId = req.body?.listingId == null ? null : Number(req.body.listingId);
+  if (!['account','profile','listing'].includes(appealType)) return res.status(400).json({error:'Выбери корректный тип апелляции.'});
+  if (message.length < 10 || message.length > 1500) return res.status(400).json({error:'Опиши причину апелляции сообщением от 10 до 1500 символов.'});
+  if (appealType === 'account' && !['banned','restricted','suspended'].includes(req.user.account_status)) return res.status(400).json({error:'У аккаунта нет блокировки или ограничения, которое можно обжаловать.'});
+  if (appealType === 'profile' && !['restricted','flagged','reviewing'].includes(req.user.profile_review_status)) return res.status(400).json({error:'Для анкеты сейчас нет решения, которое можно обжаловать.'});
+  if (appealType === 'listing') {
+    if (!Number.isSafeInteger(listingId) || listingId < 1) return res.status(400).json({error:'Укажи корректную публикацию.'});
+    const listing = await pool.query('SELECT id,status FROM listings WHERE id=$1 AND user_id=$2',[listingId,req.user.id]);
+    if (!listing.rowCount || !['rejected','hidden'].includes(listing.rows[0].status)) return res.status(400).json({error:'Можно обжаловать только отклонённую или скрытую публикацию своей анкеты.'});
+  }
+  const saved = await pool.query("INSERT INTO moderation_appeals(user_id,appeal_type,listing_id,message) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.user.id,appealType,listingId,message]);
+  if (!saved.rowCount) return res.status(409).json({error:'У тебя уже есть открытая апелляция. Дождись решения команды.'});
+  const staff = await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('chief_admin','admin','moderator')");
+  const recipients = new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(x=>String(x.telegram_id))]);
+  const note = '⚖️ НОВАЯ АПЕЛЛЯЦИЯ VIBE #'+saved.rows[0].id+'\nТип: '+appealType+'\nПользователь ID: '+req.user.id+'\nПричина: '+message+'\n\nРассмотреть через панель администратора.';
+  const deliveries = await Promise.all([...recipients].map(async chatId => { try { const r=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:note})});const j=await r.json().catch(()=>({}));return r.ok&&j.ok; } catch { return false; } }));
+  if (!deliveries.some(Boolean)) console.error('Appeal #'+saved.rows[0].id+' saved but staff notification failed.');
+  res.status(201).json({ok:true,appealId:saved.rows[0].id,notificationSent:deliveries.some(Boolean)});
+}));
+app.get('/api/admin/appeals', auth, adminOnly, wrap(async (_req,res) => {
+  const rows = await pool.query("SELECT a.id,a.user_id,a.appeal_type,a.listing_id,a.message,a.status,a.decision_note,a.created_at,u.first_name,u.username FROM moderation_appeals a JOIN users u ON u.id=a.user_id WHERE a.status IN ('open','reviewing') ORDER BY a.created_at ASC LIMIT 100");
+  res.json({appeals:rows.rows});
+}));
+app.post('/api/admin/appeals/:id/decision', auth, adminOnly, wrap(async (req,res) => {
+  const id=Number(req.params.id), decision=req.body?.decision, note=typeof req.body?.note==='string'?req.body.note.trim().slice(0,1000):'';
+  if(!Number.isSafeInteger(id)||id<1||!['approved','rejected','reviewing'].includes(decision)) return res.status(400).json({error:'Некорректное решение по апелляции.'});
+  const result=await pool.query("UPDATE moderation_appeals SET status=$1,decision_note=$2,reviewed_by=$3,updated_at=NOW() WHERE id=$4 AND status IN ('open','reviewing') RETURNING id,user_id,appeal_type,listing_id,status",[decision,note,String(req.user.telegram_id),id]);
+  if(!result.rowCount) return res.status(404).json({error:'Открытая апелляция не найдена.'});
+  await logModerationAction({actorId:req.user.telegram_id,actorRole:req.adminRole,action:'appeal_'+decision,targetUserId:result.rows[0].user_id,listingId:result.rows[0].listing_id,reason:note,metadata:{appealId:id}});
+  res.json({ok:true,appeal:result.rows[0]});
+}));
+
 app.post('/api/admin/users/:code/ban',auth,adminOnly,wrap(async(req,res)=>{
   const code=String(req.params.code||'');
   const reason=typeof req.body?.reason==='string'?req.body.reason.trim():'';
