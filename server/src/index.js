@@ -226,7 +226,7 @@ async function canManage(req,res,next) {
   } catch (e) { next(e); }
 }
 app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim()).filter(Boolean) }));
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '30mb' }));
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);
 
 // Protect expensive and abuse-prone endpoints. User-scoped limits run after auth;
@@ -366,9 +366,9 @@ app.put('/api/me',auth,wrap(async(req,res)=>{
   if(interests.some(value=>typeof value!=='string'||value.trim().length>50)) return res.status(400).json({error:'Каждый интерес должен быть текстом не длиннее 50 символов.'});
   if(city!==null&&(typeof city!=='string'||city.trim().length>80)) return res.status(400).json({error:'Укажи корректный город.'});
   if(photoUrl!==null){
-    if(typeof photoUrl!=='string'||photoUrl.length>4400000) return res.status(400).json({error:'Фото профиля должно быть безопасной HTTPS-ссылкой или изображением размером до 3 МБ.'});
+    if(typeof photoUrl!=='string'||photoUrl.length>28000000) return res.status(400).json({error:'Фото профиля должно быть безопасной HTTPS-ссылкой или изображением размером до 20 МБ.'});
     if(!/^https:\/\//i.test(photoUrl)){
-      const photoValidation=validateListingMedia(photoUrl,'image');
+      const photoValidation=validateListingMedia(photoUrl,'image',20*1024*1024);
       if(!photoValidation.valid)return res.status(400).json({error:'Фото профиля должно быть безопасной HTTPS-ссылкой или изображением размером до 3 МБ.'});
     }
   }
