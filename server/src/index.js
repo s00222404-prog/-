@@ -850,8 +850,15 @@ app.post('/api/admin/appeals/:id/decision', auth, adminOnly, wrap(async (req,res
   await logModerationAction({actorId:req.user.telegram_id,actorRole:req.adminRole,action:'appeal_'+decision,targetUserId:appeal.user_id,listingId:appeal.listing_id,reason:note,metadata:{appealId:id}});
   const target=await pool.query('SELECT telegram_id,language FROM users WHERE id=$1',[appeal.user_id]);
   if(target.rowCount && target.rows[0].telegram_id && process.env.BOT_TOKEN) {
-    const text=decision==='approved'?'✅ Апелляция VIBE #'+id+' одобрена. Решение модерации пересмотрено.':decision==='rejected'?'⚠️ Апелляция VIBE #'+id+' отклонена.':'ℹ️ Апелляция VIBE #'+id+' взята на дополнительное рассмотрение.';
-    fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:target.rows[0].telegram_id,text:text+(note?'\\nКомментарий команды: '+note:'')})}).catch(error=>console.error('Appeal decision notification failed:',error.message));
+    const language=target.rows[0].language||'en';
+    const messages={
+      approved:{ru:'✅ Апелляция VIBE #'+id+' одобрена. Решение модерации пересмотрено.',en:'✅ VIBE appeal #'+id+' approved. The moderation decision has been reviewed.',de:'✅ VIBE-Einspruch #'+id+' genehmigt. Die Moderationsentscheidung wurde überprüft.'},
+      rejected:{ru:'⚠️ Апелляция VIBE #'+id+' отклонена.',en:'⚠️ VIBE appeal #'+id+' rejected.',de:'⚠️ VIBE-Einspruch #'+id+' abgelehnt.'},
+      reviewing:{ru:'ℹ️ Апелляция VIBE #'+id+' взята на дополнительное рассмотрение.',en:'ℹ️ VIBE appeal #'+id+' is under further review.',de:'ℹ️ VIBE-Einspruch #'+id+' wird weiter geprüft.'}
+    };
+    const suffix=note?({ru:'\\nКомментарий команды: ',en:'\\nTeam note: ',de:'\\nNachricht des Teams: '}[language]||'\\nTeam note: ')+note:'';
+    const text=(messages[decision]?.[language]||messages[decision]?.en||messages.reviewing.en)+suffix;
+    fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:target.rows[0].telegram_id,text})}).catch(error=>console.error('Appeal decision notification failed:',error.message));
   }
   res.json({ok:true,appeal});
 }));
