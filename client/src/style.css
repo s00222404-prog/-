@@ -557,3 +557,20 @@ button,input,textarea,select{min-width:0;max-width:100%}
 @media (prefers-reduced-motion:reduce){
   .sidebar,.right-rail,.mobile-people-panel,.mobile-rail-panel,.modal-panel,.settings-modal,.form-panel,.mobile-people-overlay,.mobile-people-overlay .mobile-people-panel{transition:none!important;animation:none!important}
 }
+
+@media(max-width:650px){
+  .app-frame.mobile-sidebar-open .sidebar{
+    display:flex!important;position:fixed;z-index:151;left:0;top:0;bottom:0;
+    width:min(82vw,310px);height:100dvh;min-height:0;overflow-y:auto;
+    padding:22px 16px calc(18px + env(safe-area-inset-bottom));
+    background:var(--bg);border-right:1px solid var(--line);
+    box-shadow:18px 0 60px #0008;animation:mobileSidebarIn .22s cubic-bezier(.2,.75,.25,1) both;
+  }
+  .mobile-sidebar-backdrop{position:fixed;inset:0;z-index:150;border:0;background:#05040bd1;backdrop-filter:blur(3px);animation:mobileBackdropIn .2s ease both}
+  .mobile-sidebar-open .sidebar-caption{margin-bottom:22px}
+  .mobile-sidebar-open .sidebar-bottom{margin-top:24px}
+  .mobile-sidebar-open .sidebar-toggle{position:relative;z-index:152}
+}
+@keyframes mobileSidebarIn{from{transform:translateX(-24px);opacity:.65}to{transform:translateX(0);opacity:1}}
+@keyframes mobileBackdropIn{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.app-frame.mobile-sidebar-open .sidebar,.mobile-sidebar-backdrop{animation:none!important}}
