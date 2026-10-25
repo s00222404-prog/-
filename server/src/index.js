@@ -407,7 +407,7 @@ app.post('/api/auth/supabase',authRateLimit,wrap(async(req,res)=>{
   const accessToken=String(req.body?.access_token||'');
   if(!accessToken||accessToken.length>10000)return res.status(400).json({error:'Не удалось получить подтверждение входа.'});
   if(!process.env.SUPABASE_URL||!process.env.SUPABASE_PUBLISHABLE_KEY)return res.status(503).json({error:'Supabase пока не настроен на сервере VIBE.'});
-  const verify=await fetch(process.env.SUPABASE_URL.replace(/\\/$/,'')+'/auth/v1/user',{headers:{apikey:process.env.SUPABASE_PUBLISHABLE_KEY,Authorization:'Bearer '+accessToken}});
+  const verify=await fetch((process.env.SUPABASE_URL.endsWith('/')?process.env.SUPABASE_URL.slice(0,-1):process.env.SUPABASE_URL)+'/auth/v1/user',{headers:{apikey:process.env.SUPABASE_PUBLISHABLE_KEY,Authorization:'Bearer '+accessToken}});
   if(!verify.ok)return res.status(401).json({error:'Supabase не подтвердил вход. Попробуй ещё раз.'});
   const identity=await verify.json();
   const email=normalizeEmail(identity.email);
