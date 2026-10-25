@@ -10,7 +10,8 @@
     "android:init": "npm run build && cap add android",
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
-    "android:run": "npm run android:sync && cap run android"
+    "android:run": "npm run android:sync && cap run android",
+    "test:api": "node --test tests/api.test.js"
   },
   "dependencies": {
     "@capacitor/android": "~8.5.3",
