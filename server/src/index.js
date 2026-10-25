@@ -1392,6 +1392,7 @@ async function start() {
     const token = process.env.BOT_TOKEN;
     if (token) {
       hideTelegramCommands(token).catch(err => console.error('Telegram command menu hiding failed:', err.message));
+      fetch('https://api.telegram.org/bot' + token + '/setChatMenuButton', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ menu_button: { type: 'web_app', text: 'Open VIBE', web_app: { url: 'https://vibe-client-sroc.onrender.com' } } }) }).then(r => r.json()).then(result => console.log('Telegram Mini App menu button setup:', result.ok ? 'ok' : result.description)).catch(err => console.error('Telegram Mini App menu button setup failed:', err.message));
       fetch('https://api.telegram.org/bot' + token + '/setWebhook', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
