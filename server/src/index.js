@@ -463,7 +463,7 @@ app.delete('/api/listings/mine',auth,userActionRateLimit,wrap(async(req,res)=>{
  res.json({ok:true,deleted:true});
 }));
 app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
- const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
+ const {name,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
  if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя анкеты должно содержать от 2 до 60 символов.'});
  const profileCheck=await pool.query('SELECT birth_date,city,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
  if(!profileCheck.rows[0]?.birth_date||!String(profileCheck.rows[0]?.city||'').trim())return res.status(400).json({error:'Сначала заполни профиль: укажи дату рождения и город.'});
@@ -471,9 +471,9 @@ app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
    ? profileCheck.rows[0].verified_birth_date : profileCheck.rows[0].birth_date;
  const actualAge=ageOnDate(ageSource);
  if(actualAge===null||actualAge<14||actualAge>100)return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
- // Allow adults to submit a listing for moderation before age verification is available.
- // Discovery, likes, stories and chats still require verified adult access, so this does not expose the listing to others.
- if(!Number.isInteger(Number(age))||Number(age)!==actualAge)return res.status(400).json({error:'Возраст анкеты должен совпадать с датой рождения: '+actualAge+'.'});
+ // The server derives age from the authoritative birth date. Never trust the browser's age,
+ // which can differ due to timezone boundaries or a verified birth date replacing a self-declared one.
+ // The minimum-age check above remains enforced before any listing can be submitted.
 
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
  if(typeof hobbies!=='string'||hobbies.length>300||typeof description!=='string'||description.length>1000)return res.status(400).json({error:'Хобби — до 300, описание — до 1000 символов.'});
@@ -482,7 +482,7 @@ app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
  if(profileTextProblem([name,city,country,hobbies,description]))return res.status(400).json({error:'В анкете найдены запрещённые ругательства или пошлые слова. Исправь текст.'});
  const q=await pool.query(`INSERT INTO listings(user_id,name,age,city,country,hobbies,description,media_url,media_type,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
  ON CONFLICT(user_id) DO UPDATE SET name=EXCLUDED.name,age=EXCLUDED.age,city=EXCLUDED.city,country=EXCLUDED.country,hobbies=EXCLUDED.hobbies,description=EXCLUDED.description,media_url=EXCLUDED.media_url,media_type=EXCLUDED.media_type,status='pending',updated_at=NOW()
- RETURNING id,user_id,name,age,city,country,hobbies,description,media_url,media_type,status,created_at,updated_at`,[req.user.id,name.trim(),Number(age),city.trim(),country.trim(),hobbies.trim(),description.trim(),mediaUrl,mediaType]);
+ RETURNING id,user_id,name,age,city,country,hobbies,description,media_url,media_type,status,created_at,updated_at`,[req.user.id,name.trim(),actualAge,city.trim(),country.trim(),hobbies.trim(),description.trim(),mediaUrl,mediaType]);
  const listing=q.rows[0];
  if(process.env.BOT_TOKEN){
    try {
