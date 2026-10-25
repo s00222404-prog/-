@@ -163,3 +163,31 @@ button:not(:disabled){transition-property:transform,filter,background-color,bord
 button:active:not(:disabled),[role="button"]:active,a[href]:active{transform:scale(.97)}
 button:focus:not(:focus-visible){outline:none}
 button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline:2px solid #b49aff;outline-offset:3px}
+
+
+/* Modern, responsive profile editor */
+.profile-modal-modern{width:min(100%,760px);max-height:min(92dvh,980px);overflow-y:auto;padding:clamp(18px,3.2vw,30px);gap:18px;scrollbar-width:thin;scrollbar-color:#54466d transparent}
+.profile-modal-heading{align-items:center;margin-bottom:0}
+.profile-modal-heading h2{margin:5px 0 0;font-size:clamp(23px,4vw,30px);letter-spacing:-.8px}
+.profile-subtitle{margin:4px 0 0;color:var(--muted);font-size:12px}
+.profile-photo-panel{display:flex;align-items:center;gap:17px;padding:17px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,#a783ff0d,#ff5ca00a)}
+.profile-avatar-large{width:88px!important;height:88px!important;min-width:88px;border-radius:25px!important;font-size:30px!important;overflow:hidden}
+.profile-avatar-large img{width:100%;height:100%;object-fit:cover}
+.profile-photo-copy{display:flex;align-items:flex-start;flex-direction:column;gap:6px;min-width:0}
+.profile-photo-copy b{font-size:14px}
+.profile-photo-copy small{font-size:11px;color:var(--muted)}
+.profile-file-button{display:inline-flex;align-items:center;gap:7px;position:relative;overflow:hidden;margin-top:4px;padding:9px 13px;border:1px solid var(--line);border-radius:999px;background:#ffffff08;color:#e9e1f7;font-size:11px;font-weight:650;cursor:pointer}
+.profile-file-button input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.profile-remove-photo{border:0;background:transparent;color:#ff8cae;font-size:11px;padding:2px 0}
+.profile-form-grid{gap:14px 16px}
+.profile-modal-modern .field-label{display:block;margin:0 0 8px;color:#cfc5df;font-size:12px;font-weight:650}
+.profile-modal-modern .field-label small{display:block;margin-top:5px;color:var(--muted);font-size:10px;font-weight:400}
+.profile-interests-heading{display:flex;flex-direction:column;gap:0}
+.profile-interests-heading .field-label{margin-bottom:4px}
+.profile-interests-heading>small{color:var(--muted);font-size:10px}
+.profile-modal-modern .interest-picker{gap:8px;margin-top:2px}
+.profile-modal-modern .interest-picker button{display:inline-flex;align-items:center;gap:6px;padding:10px 13px;border-radius:999px;font-size:11px}
+.profile-modal-modern .privacy-note{display:flex;align-items:center;gap:11px;margin:0;padding:13px 14px;border:1px solid var(--line);border-radius:16px;background:#ffffff05;color:#bdb0d0;font-size:11px;line-height:1.5}
+.profile-modal-modern .privacy-note svg{flex:0 0 auto}
+.profile-save-button{justify-content:center;min-height:48px;margin-top:0}
+@media(max-width:650px){.profile-modal-modern{max-height:94dvh;padding:18px 15px;gap:15px;border-radius:22px}.profile-photo-panel{padding:13px;gap:13px}.profile-avatar-large{width:72px!important;height:72px!important;min-width:72px;border-radius:21px!important}.profile-modal-modern .interest-picker{gap:7px}.profile-modal-modern .interest-picker button{padding:9px 11px;font-size:10px}.profile-modal-modern .form-grid{grid-template-columns:1fr;gap:13px}.profile-modal-modern .privacy-note{font-size:10px}}
