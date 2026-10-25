@@ -807,7 +807,7 @@ app.post('/api/reports/:userId',auth,reportRateLimit,wrap(async(req,res)=>{
   const inserted=await pool.query('INSERT INTO reports(reporter_id,reported_id,reason,details,reporter_telegram_username,reported_telegram_username,evidence,report_type,listing_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',[req.user.id,id,reasonLabel,details.trim(),reporterHandle,reportedHandle,evidence,reportType,safeListingId]);
   if(!process.env.BOT_TOKEN){
     console.error('Report #'+inserted.rows[0].id+' saved, but BOT_TOKEN is missing; admin notification not sent.');
-    return res.status(503).json({error:'Жалоба сохранена, но уведомление администрации не отправлено. Команда уже получила технический сигнал.'});
+    return res.status(201).json({reported:true,reportId:inserted.rows[0].id,notificationsDelivered:0,notificationSent:false,message:'Жалоба сохранена. Уведомление команде задерживается; повторно отправлять жалобу не нужно.'});
   }
   let delivered=0;
   try{
