@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { validateListingMedia } from '../src/moderation/media-policy.js';
 import { validateReportEvidence } from '../src/moderation/evidence-policy.js';
 import { databasePoolOptions } from '../src/database-config.js';
+import { profileTextProblem } from '../src/moderation/text-policy.js';
 
 const dataUrl = (mime, bytes) => 'data:' + mime + ';base64,' + Buffer.from(bytes).toString('base64');
 
@@ -30,4 +31,10 @@ test('production PostgreSQL config explicitly verifies TLS and strips conflictin
 
 test('database config rejects invalid pool sizes', () => {
   assert.throws(() => databasePoolOptions({DATABASE_URL:'postgres://localhost/vibe',DATABASE_POOL_MAX:'0'}), /DATABASE_POOL_MAX/);
+});
+
+test('profile text policy catches punctuation-obfuscated prohibited terms without matching common substrings', () => {
+  assert.equal(profileTextProblem(['s.e.x']), true);
+  assert.equal(profileTextProblem(['grape']), false);
+  assert.equal(profileTextProblem(['Essex']), false);
 });
