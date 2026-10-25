@@ -825,3 +825,77 @@ button,input,textarea,select{min-width:0;max-width:100%}
   }
 }
 
+
+
+/* Smooth desktop drawer transitions: keep the sidebars mounted while their grid tracks collapse. */
+@media (min-width:1181px) {
+  .app-frame {
+    --drawer-motion: 360ms;
+    --drawer-ease: cubic-bezier(.22,.72,.18,1);
+    transition: grid-template-columns var(--drawer-motion) var(--drawer-ease),
+                column-gap var(--drawer-motion) var(--drawer-ease),
+                padding var(--drawer-motion) var(--drawer-ease);
+  }
+  .app-frame:not(.sidebar-collapsed) {
+    grid-template-columns: clamp(175px,17vw,220px) minmax(0,1fr) clamp(220px,20vw,258px);
+  }
+  .app-frame.sidebar-collapsed {
+    grid-template-columns: minmax(0,1fr) minmax(0,0fr) minmax(0,0fr) !important;
+    column-gap: 0 !important;
+  }
+  .app-frame > .sidebar,
+  .app-frame > .right-rail {
+    min-width: 0 !important;
+    overflow: hidden;
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity 220ms ease, transform var(--drawer-motion) var(--drawer-ease),
+                padding var(--drawer-motion) var(--drawer-ease),
+                margin var(--drawer-motion) var(--drawer-ease);
+    will-change: opacity, transform;
+  }
+  .app-frame.sidebar-collapsed > .sidebar {
+    display: flex !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    opacity: 0;
+    transform: translateX(-14px);
+    pointer-events: none;
+    border-width: 0;
+  }
+  .app-frame.sidebar-collapsed > .right-rail {
+    display: block !important;
+    width: auto !important;
+    max-width: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    opacity: 0;
+    transform: translateX(14px);
+    pointer-events: none;
+    border-width: 0;
+  }
+  .app-frame:not(.sidebar-collapsed) > .sidebar,
+  .app-frame:not(.sidebar-collapsed) > .right-rail {
+    max-width: none !important;
+    pointer-events: auto;
+  }
+  .app-frame.sidebar-collapsed > .main-area {
+    grid-column: 2 !important;
+    min-width: 0 !important;
+  }
+  .app-frame .sidebar-toggle svg {
+    transition: transform 360ms cubic-bezier(.22,.72,.18,1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-frame, .app-frame > .sidebar, .app-frame > .right-rail, .app-frame .sidebar-toggle svg {
+    transition-duration: .01ms !important;
+  }
+}
