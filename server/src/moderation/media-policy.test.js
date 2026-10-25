@@ -28,3 +28,9 @@ test('rejects empty encoded data and payloads larger than 3 MiB', () => {
 test('rejects unsupported selected media types', () => {
   assert.equal(validateListingMedia('data:image/png;base64,aGVsbG8=', 'audio').valid, false);
 });
+
+test('rejects formats that the VIBE upload UI and moderation flow do not support', () => {
+  assert.equal(validateListingMedia('data:image/svg+xml;base64,aGVsbG8=', 'image').valid, false);
+  assert.equal(validateListingMedia('data:image/gif;base64,aGVsbG8=', 'image').valid, false);
+  assert.equal(validateListingMedia('data:video/quicktime;base64,aGVsbG8=', 'video').valid, false);
+});
