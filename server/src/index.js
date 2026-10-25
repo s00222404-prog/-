@@ -201,7 +201,9 @@ async function getRole(telegramId) {
   return current && roleRank[current]!==undefined && roleRank[current]<=roleRank[assigned] ? current : assigned;
 }
 async function getRoleForUser(user) {
-  if (isDeveloperEmail(user?.email)) return 'developer';
+  // Email-based developer access is available only on an explicitly marked test API.
+  // Leave VIBE_TEST_MODE unset on the production API.
+  if (String(process.env.VIBE_TEST_MODE || '').toLowerCase() === 'true' && isDeveloperEmail(user?.email)) return 'developer';
   if (user?.telegram_id === null || user?.telegram_id === undefined || user?.telegram_id === '') return 'none';
   return getRole(user.telegram_id);
 }
