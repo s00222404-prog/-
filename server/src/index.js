@@ -325,8 +325,7 @@ async function createOrGetEmailUser(email) {
   const firstName=localPart || 'Участник VIBE';
   const q=await pool.query(`INSERT INTO users(email,email_verified_at,first_name)
     VALUES($1,NOW(),$2)
-    ON CONFLICT (LOWER(email)) WHERE email IS NOT NULL
-    DO UPDATE SET email_verified_at=COALESCE(users.email_verified_at,NOW()),updated_at=NOW()
+    ON CONFLICT DO UPDATE SET email_verified_at=COALESCE(users.email_verified_at,NOW()),updated_at=NOW()
     RETURNING id,telegram_id,email,email_verified_at,username,first_name,birth_date,verified_birth_date,age_verification_status,age_verified_at,gender,profile_review_status,account_status,bio,city,photo_url,goal,interests,discoverable,moderation_note,public_status,ban_issuer`,[email,firstName]);
   return q.rows[0];
 }
