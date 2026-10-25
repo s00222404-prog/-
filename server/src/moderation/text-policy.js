@@ -11,7 +11,7 @@ const bannedProfileTerms = [
 const normalize = (value) => value.normalize('NFKC').toLocaleLowerCase();
 const confusables = { 'а':'a','е':'e','о':'o','р':'p','с':'c','х':'x','у':'y','і':'i','ј':'j','к':'k','м':'m','т':'t','в':'b','н':'h','０':'0','１':'1','３':'3','４':'4','５':'5','７':'7' };
 const compact = (value) => normalize(value)
-  .replace(/[а-яёіј０-９]/g, char => confusables[char] || char)
+  .replace(/[^\\p{L}\\p{N}]/gu, '');
   .replace(/[@]/g,'a').replace(/0/g,'o').replace(/1/g,'i').replace(/3/g,'e').replace(/4/g,'a').replace(/5/g,'s').replace(/7/g,'t')
   .replace(/[\s._*\-+!#$%^&()\[\]{}:;'\"~`/\\|]+/g, '');
 
