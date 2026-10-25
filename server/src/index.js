@@ -467,8 +467,8 @@ app.delete('/api/listings/mine',auth,userActionRateLimit,wrap(async(req,res)=>{
 app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
  const {name,age,city,country,hobbies='',description='',mediaUrl=null,mediaType='image'}=req.body||{};
  if(typeof name!=='string'||name.trim().length<2||name.trim().length>60)return res.status(400).json({error:'Имя анкеты должно содержать от 2 до 60 символов.'});
- const profileCheck=await pool.query('SELECT birth_date,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
- if(!profileCheck.rows[0]?.birth_date)return res.status(400).json({error:'Сначала заполни профиль и укажи дату рождения.'});
+ const profileCheck=await pool.query('SELECT birth_date,city,verified_birth_date,age_verification_status FROM users WHERE id=$1',[req.user.id]);
+ if(!profileCheck.rows[0]?.birth_date||!String(profileCheck.rows[0]?.city||'').trim())return res.status(400).json({error:'Сначала заполни профиль: укажи дату рождения и город.'});
  const ageSource=profileCheck.rows[0].age_verification_status==='verified'&&profileCheck.rows[0].verified_birth_date
    ? profileCheck.rows[0].verified_birth_date : profileCheck.rows[0].birth_date;
  const actualAge=ageOnDate(ageSource);
