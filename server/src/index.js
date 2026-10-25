@@ -11,6 +11,7 @@ import { profileTextProblem } from './moderation/text-policy.js';
 import { validateReportEvidence } from './moderation/evidence-policy.js';
 import { validateListingMedia } from './moderation/media-policy.js';
 import { ageOnDate, ageBandForUser } from './age-policy.js';
+import { isDeveloperEmail } from './developer-email-policy.js';
 
 const app = express();
 // Render terminates TLS and forwards the original client IP through one trusted proxy.
@@ -199,6 +200,12 @@ async function getRole(telegramId) {
   const current=active.rows[0]?.role;
   return current && roleRank[current]!==undefined && roleRank[current]<=roleRank[assigned] ? current : assigned;
 }
+async function getRoleForUser(user) {
+  if (isDeveloperEmail(user?.email)) return 'developer';
+  if (user?.telegram_id === null || user?.telegram_id === undefined || user?.telegram_id === '') return 'none';
+  return getRole(user.telegram_id);
+}
+
 async function getAssignedRole(telegramId) {
   const id = String(telegramId);
   if (id === DEVELOPER_TELEGRAM_ID) return 'developer';
@@ -222,7 +229,7 @@ async function logModerationAction({actorId,actorRole,action,targetUserId=null,l
 
 async function canManage(req,res,next) {
   try {
-    const role = await getRole(req.user.telegram_id);
+    const role = await getRoleForUser(req.user);
     if (roleRank[role] < roleRank.admin) return res.status(403).json({error:'Admin access denied'});
     if (role !== 'developer' && !await isAdminUnlocked(req.user.telegram_id)) {
       return res.status(403).json({error:'Admin session is locked. Unlock access in the VIBE Telegram bot first.'});
@@ -365,7 +372,7 @@ app.post('/api/auth/telegram',authRateLimit,wrap(async(req,res)=>{
   if (['suspended','restricted'].includes(u.account_status)) return res.status(403).json({ error: 'Доступ к аккаунту ограничен', restricted: true, reason: u.moderation_note || 'Причина не указана' });
   res.json({user:u});
 }));
-app.get('/api/me',auth,wrap(async(req,res)=>{const [r,likes]=await Promise.all([pool.query('SELECT role FROM admin_roles WHERE telegram_id=$1',[String(req.user.telegram_id)]),pool.query('SELECT COUNT(*)::int AS count FROM likes WHERE to_user=$1',[req.user.id])]);const role=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(r.rows[0]?.role||'none');const status=String(req.user.telegram_id)===DEVELOPER_TELEGRAM_ID?'developer':(req.user.public_status||'none');res.json({user:{...req.user,account_code:String(req.user.id).padStart(6,'0'),likes_received:likes.rows[0]?.count||0,admin_access:roleRank[role]>=roleRank.admin,public_role:status,role_label:status==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[status]||null)}});}));
+app.get('/api/me',auth,wrap(async(req,res)=>{const [role,likes]=await Promise.all([getRoleForUser(req.user),pool.query('SELECT COUNT(*)::int AS count FROM likes WHERE to_user=$1',[req.user.id])]);const status=role==='developer'?'developer':(req.user.public_status||'none');res.json({user:{...req.user,role,account_code:String(req.user.id).padStart(6,'0'),likes_received:likes.rows[0]?.count||0,admin_access:roleRank[role]>=roleRank.admin,public_role:status,role_label:status==='developer'?'Разработчик':(PUBLIC_STATUS_LABELS[status]||null)}});}));
 app.get('/api/referrals',auth,wrap(async(req,res)=>{const q=await pool.query('SELECT COUNT(*)::int AS count FROM referrals WHERE referrer_user_id=$1',[req.user.id]);res.json({count:q.rows[0]?.count||0,account_code:String(req.user.id).padStart(6,'0')});}));
 app.put('/api/me',auth,wrap(async(req,res)=>{
   const {birthDate,gender=null,bio='',city=null,photoUrl=null,goal='friendship',interests=[]}=req.body||{};
@@ -705,6 +712,7 @@ app.post('/api/blocks/:userId',auth,userActionRateLimit,wrap(async(req,res)=>{
   res.json({blocked:true});
 }));
 app.post('/api/reports/demo',auth,reportRateLimit,wrap(async(req,res)=>{
+  if (await getRoleForUser(req.user) !== 'developer') return res.status(403).json({error:'Тестовые жалобы доступны только разработчику VIBE.'});
   const {reason,details='',reporterUsername,evidence='',targetName='Демо-профиль',targetUsername='',targetAge=null,reportType='profile'}=req.body||{};
   if(typeof reason!=='string'||!reason.trim()||reason.trim().length>100)return res.status(400).json({error:'Укажи обязательную причину жалобы'});
   if(typeof details!=='string'||details.length>1000)return res.status(400).json({error:'Подробности жалобы — не более 1000 символов'});
