@@ -568,7 +568,10 @@ app.get('/api/discover',auth,wrap(async(req,res)=>{
          AND u.account_status='active'
          AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))
          AND (l.user_id=$1 OR (l.status='published' AND (
-           ($3='teen' AND l.age BETWEEN 14 AND 17)
+           ($3='teen' AND l.age BETWEEN 14 AND 17
+               AND COALESCE(u.age_verification_status,'') <> 'verified'
+               AND u.birth_date > CURRENT_DATE-INTERVAL '18 years'
+               AND u.birth_date <= CURRENT_DATE-INTERVAL '14 years')
            OR ($3='adult' AND l.age >= 18 AND u.age_verification_status='verified'
                AND u.verified_birth_date IS NOT NULL
                AND u.verified_birth_date <= CURRENT_DATE-INTERVAL '18 years')
