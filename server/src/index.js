@@ -231,7 +231,18 @@ async function canManage(req,res,next) {
     next();
   } catch (e) { next(e); }
 }
-app.use(cors({ origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim()).filter(Boolean) }));
+const configuredClientOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+// Capacitor's bundled Android WebView uses https://localhost by default.
+// Keep these explicit origins allowed so the APK can call the same API.
+const allowedClientOrigins = [...new Set([
+  ...configuredClientOrigins,
+  'https://localhost',
+  'capacitor://localhost',
+])];
+app.use(cors({ origin: allowedClientOrigins }));
 app.use(express.json({ limit: '8mb' }));
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);
 
