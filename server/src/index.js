@@ -18,7 +18,7 @@ app.set('trust proxy', 1);
 const port = Number(process.env.PORT || 3001);
 const DEVELOPER_TELEGRAM_ID = '8745499515';
 // Authenticate Telegram webhook requests even when no stable secret is configured in Render.
-const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || randomBytes(32).toString('hex');
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || createHash('sha256').update('vibe-webhook:' + (process.env.BOT_TOKEN || 'missing-bot-token')).digest('hex').slice(0, 64);
 const ROLE_LABELS = { developer: 'Разработчик', chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const PUBLIC_STATUS_LABELS = { chief_admin: 'Главный администратор', admin: 'Администратор', moderator: 'Модератор', helper: 'Помощник' };
 const BAN_REASONS = {
@@ -843,7 +843,7 @@ app.post('/api/admin/appeals/:id/decision', auth, adminOnly, wrap(async (req,res
   if(!result.rowCount) return res.status(404).json({error:'Открытая апелляция не найдена.'});
   const appeal=result.rows[0];
   if(decision==='approved') {
-    if(appeal.appeal_type==='account') await pool.query("UPDATE users SET account_status='active',discoverable=TRUE,moderation_note=NULL,updated_at=NOW() WHERE id=$1",[appeal.user_id]);
+    if(appeal.appeal_type==='account') await pool.query("UPDATE users SET account_status='active',moderation_note=NULL,updated_at=NOW() WHERE id=$1",[appeal.user_id]);
     if(appeal.appeal_type==='profile') await pool.query("UPDATE users SET profile_review_status='clear',updated_at=NOW() WHERE id=$1",[appeal.user_id]);
     if(appeal.appeal_type==='listing' && appeal.listing_id) await pool.query("UPDATE listings SET status='published',updated_at=NOW() WHERE id=$1 AND user_id=$2",[appeal.listing_id,appeal.user_id]);
   }
