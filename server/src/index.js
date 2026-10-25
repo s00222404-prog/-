@@ -434,6 +434,8 @@ app.post('/api/stories',auth,userActionRateLimit,wrap(async(req,res)=>{
  const {mediaUrl,mediaType='image',caption=''}=req.body||{};
  if(typeof mediaUrl!=='string'||mediaUrl.length>4_300_000||!['data:image/jpeg;base64,','data:image/png;base64,','data:image/webp;base64,','data:video/mp4;base64,','data:video/webm;base64,'].some(prefix=>mediaUrl.startsWith(prefix)))return res.status(400).json({error:'Выбери фото или видео подходящего формата размером до 3 МБ.'});
  if(!['image','video'].includes(mediaType)||((mediaUrl.startsWith('data:video/')?'video':'image')!==mediaType))return res.status(400).json({error:'Тип файла не совпадает с медиа.'});
+ const mediaValidation=validateListingMedia(mediaUrl,mediaType);
+ if(!mediaValidation.valid)return res.status(400).json({error:'Файл истории повреждён или имеет неподдерживаемый формат.'});
  if(typeof caption!=='string'||caption.length>180)return res.status(400).json({error:'Подпись должна быть не длиннее 180 символов.'});
  if(profileTextProblem([caption]))return res.status(400).json({error:'В подписи найдены запрещённые слова. Исправь текст.'});
  const q=await pool.query("INSERT INTO stories(user_id,media_url,media_type,caption,expires_at) VALUES($1,$2,$3,$4,NOW()+INTERVAL '24 hours') RETURNING id,user_id AS author_id,media_url,media_type,caption,created_at,expires_at",[req.user.id,mediaUrl,mediaType,caption.trim()]);
