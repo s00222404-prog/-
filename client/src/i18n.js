@@ -436,7 +436,7 @@ const APP_TEXT_TRANSLATIONS = {
     'Прогулки':'Spaziergänge',
     'Поездки':'Reisen',
     'Животные':'Tiere',
-    'Арт':'Kunst'
+    'Арт':'Kunst',
     "Путешествия":"Reisen",
     "Творчество":"Kreativität",
     "Аниме":"Anime",
