@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -8,6 +8,35 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <meta name="description" content="VIBE — находи людей по интересам с Telegram или без него." />
     <title>VIBE — новые знакомства</title>
+    <style>
+      #vibe-startup-diagnostic{display:none;min-height:100vh;box-sizing:border-box;padding:32px 22px;background:#100d19;color:#f5f0ff;font:16px/1.5 system-ui,sans-serif;align-items:center;justify-content:center;text-align:center}
+      #vibe-startup-diagnostic.show{display:flex}
+      #vibe-startup-diagnostic h1{font-size:26px;margin:0 0 12px}
+      #vibe-startup-diagnostic p{color:#b9b0c9;max-width:420px}
+      #vibe-startup-diagnostic button{margin-top:12px;padding:13px 22px;border:0;border-radius:14px;background:linear-gradient(100deg,#f052a6,#9b5cf6);color:white;font-weight:700;font-size:16px}
+    </style>
   </head>
-  <body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body>
+  <body>
+    <div id="root"></div>
+    <div id="vibe-startup-diagnostic" role="alert"><div><h1>VIBE не удалось загрузить</h1><p id="vibe-startup-message">Telegram открыл страницу, но интерфейс не запустился. Проверь интернет и попробуй обновить приложение.</p><button onclick="location.reload()">Перезагрузить VIBE</button></div></div>
+    <script>
+      (function(){
+        var shown=false;
+        function show(message){
+          if(shown)return;shown=true;
+          var panel=document.getElementById('vibe-startup-diagnostic');
+          var text=document.getElementById('vibe-startup-message');
+          if(text&&message)text.textContent='Ошибка запуска: '+String(message).slice(0,240);
+          if(panel)panel.classList.add('show');
+        }
+        window.addEventListener('error',function(e){show(e.message||'Не удалось загрузить скрипт приложения')});
+        window.addEventListener('unhandledrejection',function(e){show(e.reason&&e.reason.message||e.reason||'Ошибка при запуске приложения')});
+        setTimeout(function(){
+          var root=document.getElementById('root');
+          if(root&&!root.firstElementChild)show('Интерфейс не был создан. Возможно, Telegram заблокировал загрузку JavaScript или произошла ошибка запуска.');
+        },10000);
+      })();
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
