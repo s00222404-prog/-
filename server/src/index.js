@@ -473,7 +473,8 @@ app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
    ? profileCheck.rows[0].verified_birth_date : profileCheck.rows[0].birth_date;
  const actualAge=ageOnDate(ageSource);
  if(actualAge===null||actualAge<14||actualAge>100)return res.status(403).json({error:'VIBE доступен с 14 лет. Проверь дату рождения в профиле.'});
- if(actualAge>=18&&profileCheck.rows[0].age_verification_status!=='verified')return res.status(403).json({error:'Для взрослой возрастной группы сначала требуется подтверждение возраста.'});
+ // Allow adults to submit a listing for moderation before age verification is available.
+ // Discovery, likes, stories and chats still require verified adult access, so this does not expose the listing to others.
  if(!Number.isInteger(Number(age))||Number(age)!==actualAge)return res.status(400).json({error:'Возраст анкеты должен совпадать с датой рождения: '+actualAge+'.'});
 
  if(typeof city!=='string'||city.trim().length<2||city.trim().length>80||typeof country!=='string'||country.trim().length<2||country.trim().length>80)return res.status(400).json({error:'Укажи город и страну.'});
