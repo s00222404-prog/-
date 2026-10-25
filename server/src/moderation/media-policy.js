@@ -1,7 +1,7 @@
 const MAX_LISTING_MEDIA_BYTES = 3 * 1024 * 1024;
 const ALLOWED_MEDIA = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm']);
 
-export function validateListingMedia(value, mediaType = 'image') {
+export function validateListingMedia(value, mediaType = 'image', maxBytes = MAX_LISTING_MEDIA_BYTES) {
   if (!['image', 'video'].includes(mediaType)) {
     return { valid: false, error: 'Unsupported media type.' };
   }
@@ -26,8 +26,8 @@ export function validateListingMedia(value, mediaType = 'image') {
     return { valid: false, error: 'Media contains invalid base64 data.' };
   }
   const bytes = Buffer.byteLength(encoded, 'base64');
-  if (bytes === 0 || bytes > MAX_LISTING_MEDIA_BYTES) {
-    return { valid: false, error: 'Media must be no larger than 3 MiB.' };
+  if (bytes === 0 || bytes > maxBytes) {
+    return { valid: false, error: `Media must be no larger than ${Math.round(maxBytes / (1024 * 1024))} MiB.` };
   }
 
   return { valid: true, mime: match[1].toLowerCase(), bytes };
