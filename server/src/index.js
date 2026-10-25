@@ -488,7 +488,9 @@ app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
  if(process.env.BOT_TOKEN){
    try {
      const staff=await pool.query("SELECT telegram_id FROM admin_roles WHERE role IN ('helper','moderator','admin','chief_admin')");
-     const ids=new Set([DEVELOPER_TELEGRAM_ID,...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(x=>String(x.telegram_id))]);
+     // Do not trust the hard-coded developer ID for moderation delivery; use explicitly configured IDs and database staff.
+     const ids=new Set([...(process.env.ADMIN_TELEGRAM_IDS||'').split(',').map(x=>x.trim()).filter(Boolean),...staff.rows.map(x=>String(x.telegram_id))]);
+     if(!ids.size) console.error('Listing moderation notification skipped: configure ADMIN_TELEGRAM_IDS or admin_roles recipients.');
      const author=await pool.query('SELECT telegram_id,username,first_name,photo_url,created_at FROM users WHERE id=$1',[req.user.id]);
      const u=author.rows[0];
      const code=String(req.user.id).padStart(6,'0');
@@ -533,7 +535,12 @@ app.post('/api/listings',auth,userActionRateLimit,wrap(async(req,res)=>{
            }
          } catch(e) { console.error('Listing media moderation notification failed:',e.message); }
        }
-       return fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:details,parse_mode:'HTML',reply_markup:keyboard})}).catch(e=>console.error('Listing notification failed:',e.message));
+       try {
+         const response=await fetch('https://api.telegram.org/bot'+process.env.BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:details,parse_mode:'HTML',reply_markup:keyboard})});
+         const result=await response.json().catch(()=>({}));
+         if(!response.ok||!result.ok) console.error('Listing notification delivery failed:',{chatId,status:response.status,description:result.description||'Telegram API error'});
+         else console.log('Listing moderation notification delivered:',{listingId:listing.id,chatId});
+       } catch(e) { console.error('Listing notification failed:',{chatId,message:e.message}); }
      }));
    } catch(e) { console.error('Listing moderation notification failed:',e.message); }
  }
@@ -971,6 +978,10 @@ app.post('/telegram/webhook', (req,res) => {
   (async()=>{
     const from=m?.from||cb?.from, chatId=m?.chat?.id||cb?.message?.chat?.id, txt=(m?.text||'').trim();
     const parts=txt.split(/\s+/), cmd=(parts[0]||'').split('@')[0].toLowerCase(), arg=(parts[1]||'').replace(/^@/,'');
+    if(m && cmd==='/myid' && from?.id) {
+      await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chat_id:chatId,text:'Твой Telegram ID: '+String(from.id)+'\\nЮзернейм: '+(from.username?'@'+from.username:'не задан')+'\\nОтправь этот ID разработчику для настройки уведомлений VIBE.'})});
+      return;
+    }
     const role = from?.id ? await getRole(from.id) : 'none';
     const ok = roleRank[role] >= roleRank.helper;
     const isDeveloper = role === 'developer';
