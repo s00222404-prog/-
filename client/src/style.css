@@ -462,3 +462,44 @@ button,input,textarea,select{min-width:0;max-width:100%}
  html,body,#root{height:auto;min-height:100%;overflow-x:clip;overflow-y:auto}
  .app-frame{height:auto;min-height:100dvh;max-height:none;overflow:visible}
 }
+
+
+/* Compact sign-in screen for short mobile/tablet viewports (including browser chrome). */
+.auth-screen{min-height:100svh;min-height:100dvh;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain}
+.auth-top{flex:0 0 auto}
+.auth-card{flex:0 0 auto}
+@media(max-width:600px){
+ .auth-screen{padding:12px 12px calc(12px + env(safe-area-inset-bottom));}
+ .auth-top{margin-bottom:14px;min-height:42px}
+ .auth-top .wordmark{font-size:23px;gap:8px}
+ .auth-top .vibe-mark{width:39px;height:39px;border-radius:14px;font-size:24px}
+ .auth-top select{padding:8px 10px;font-size:12px}
+ .auth-card{width:100%;max-width:440px;padding:20px 18px 17px;border-radius:21px}
+ .auth-brand-icon{margin-bottom:10px}
+ .auth-brand-icon .vibe-mark{width:40px;height:40px;border-radius:14px;font-size:24px}
+ .auth-card>.eyebrow{font-size:8px;letter-spacing:1.25px}
+ .auth-card h1{font-size:26px;line-height:1.15;margin:8px 0 7px}
+ .auth-intro{font-size:11px;line-height:1.45;margin-bottom:15px}
+ .auth-form{gap:11px}
+ .auth-form>label{gap:6px;font-size:10px}
+ .auth-form input{padding:11px 12px;font-size:14px}
+ .auth-form .primary-button{min-height:42px}
+ .auth-legal{font-size:9px;line-height:1.5;margin-top:13px}
+ .auth-divider{margin:13px 0 10px}
+ .auth-telegram-divider{margin:12px 0 8px}
+ .auth-telegram-button,.google-fallback-button{min-height:40px;padding:9px 12px}
+ .auth-provider-note{padding:9px 10px;font-size:10px}
+ .auth-message{margin-top:10px;padding:8px 10px}
+ .auth-footer{padding-top:14px;margin-top:0;font-size:9px}
+}
+@media(max-height:760px){
+ .auth-screen{padding-top:8px;padding-bottom:8px}
+ .auth-top{margin-bottom:10px}
+ .auth-card{padding-top:17px;padding-bottom:14px}
+ .auth-brand-icon{margin-bottom:8px}
+ .auth-brand-icon .vibe-mark{width:36px;height:36px;font-size:22px;border-radius:12px}
+ .auth-card h1{font-size:25px;margin-top:7px}
+ .auth-intro{margin-bottom:12px;line-height:1.4}
+ .auth-legal{margin-top:10px;line-height:1.45}
+ .auth-footer{padding-top:10px}
+}
