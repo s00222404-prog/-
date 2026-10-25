@@ -228,3 +228,30 @@ button:focus-visible,[role="button"]:focus-visible,a[href]:focus-visible{outline
 .delete-listing-icon{display:grid;place-items:center;width:34px;height:34px;flex:0 0 34px;border:1px solid #ff718638;border-radius:11px;background:#ff557d12;color:#ff9aad}
 .delete-listing-button>span:nth-child(2){flex:1}
 .delete-listing-arrow{display:grid;place-items:center;width:28px;height:28px;border:1px solid #ffffff12;border-radius:9px;color:#c5a0b4}
+
+
+/* Mobile-friendly, three-step listing editor */
+.listing-wizard{display:flex;flex-direction:column;gap:18px;padding-bottom:18px}
+.listing-stepper{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.listing-stepper>span{display:flex;align-items:center;gap:6px;flex:0 0 auto;color:var(--muted);font-size:12px;font-weight:800}
+.listing-stepper>span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#675b79}
+.listing-stepper>span.current{color:#e6d8ff}
+.listing-stepper>span.current:before{background:var(--violet,#b69aff);box-shadow:0 0 0 4px #a889ff20}
+.listing-stepper small{font-size:10px;font-weight:600}
+.listing-stepper>i{height:1px;flex:1;min-width:8px;background:var(--line)}
+.listing-wizard .form-section-title{margin:0 0 4px}
+.listing-wizard-actions{position:sticky;bottom:0;z-index:4;display:flex;justify-content:flex-end;gap:10px;padding:12px 0 max(4px,env(safe-area-inset-bottom));background:linear-gradient(180deg,#1b172700,#1b1727 25%)}
+.listing-wizard-actions .primary-button,.listing-wizard-actions .secondary-button{min-height:46px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.listing-media-preview{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin:0 0 14px}
+.listing-media-preview img,.listing-media-preview video{display:block;width:100%;max-height:280px;object-fit:contain;border:1px solid var(--line);border-radius:16px;background:#0c0913}
+.avatar.is-online{position:relative}
+.avatar.is-online:after{content:"";position:absolute;right:0;bottom:0;width:11px;height:11px;border:2px solid #1b1727;border-radius:50%;background:#38d98a;box-shadow:0 0 0 2px #38d98a22}
+.avatar.small.is-online:after{width:9px;height:9px}
+.reduce-motion,.reduce-motion *,.reduce-motion *:before,.reduce-motion *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+@media(max-width:650px){
+ .listing-wizard{padding:16px}
+ .listing-stepper{gap:5px}
+ .listing-stepper small{font-size:9px}
+ .listing-wizard-actions{margin:0 -2px}
+ .listing-wizard-actions>*{flex:1}
+}
