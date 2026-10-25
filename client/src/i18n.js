@@ -388,7 +388,7 @@ const APP_TEXT_TRANSLATIONS = {
     'Выбери несколько':'Wähle mehrere aus',
     'Не указывай адрес, школу, телефон или другие точные личные данные.':'Teile nicht deine Adresse, Schule, Telefonnummer oder andere genaue persönliche Daten.',
     'БЕЗОПАСНОСТЬ VIBE':'VIBE-SICHERHEIT',
-    'Твой вайб — твои Leute':'Dein Vibe – deine Leute',
+    'Твой вайб — твои люди':'Dein Vibe – deine Leute',
     'Заполняй профиль и находи людей, с которыми есть о чём поговорить.':'Vervollständige dein Profil und finde Menschen, mit denen du dich gut unterhalten kannst.',
     'Файл должен быть не больше 3 МБ.':'Die Datei darf höchstens 3 MB groß sein.',
     'Не удалось прочитать файл.':'Die Datei konnte nicht gelesen werden.',
